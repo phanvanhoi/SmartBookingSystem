@@ -1,0 +1,626 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ════════════════════════════════════════════
+// AUTH & USERS
+// ════════════════════════════════════════════
+
+enum UserRole {
+  OWNER       // Chủ quán
+  MANAGER     // Quản lý ca
+  CASHIER     // Thu ngân
+  STAFF       // Phục vụ
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String   // bcrypt hashed
+  fullName  String   @map("full_name")
+  role      UserRole @default(STAFF)
+  phone     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sessionsCheckedIn  Session[]      @relation("CheckedInBy")
+  sessionsCheckedOut Session[]      @relation("CheckedOutBy")
+  orders             Order[]        @relation("OrderCreatedBy")
+  invoices           Invoice[]      @relation("InvoiceCreatedBy")
+  stockEntries       StockEntry[]   @relation("StockEntryCreatedBy")
+  bookings           Booking[]      @relation("BookingCreatedBy")
+  waitingQueue       WaitingQueue[] @relation("QueueCreatedBy")
+  shiftsOpened       Shift[]        @relation("ShiftOpenedBy")
+  shiftsClosed       Shift[]        @relation("ShiftClosedBy")
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  settingsUpdated    Setting[]      @relation("SettingUpdatedBy")
+
+  @@map("users")
+}
+
+// ════════════════════════════════════════════
+// ROOMS
+// ════════════════════════════════════════════
+
+enum RoomStatus {
+  AVAILABLE     // Trống
+  OCCUPIED      // Đang hát
+  ENDING_SOON   // Sắp hết giờ
+  MAINTENANCE   // Bảo trì
+}
+
+model RoomType {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // "Phòng nhỏ", "Phòng lớn"
+  capacityMin Int     @default(1) @map("capacity_min")
+  capacityMax Int     @default(10) @map("capacity_max")
+  description String?
+
+  rooms        Room[]
+  pricingRules PricingRule[]
+
+  @@map("room_types")
+}
+
+model Room {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique // "Phòng 1", "Phòng VIP"
+  roomTypeId Int        @map("room_type_id")
+  status     RoomStatus @default(AVAILABLE)
+  sortOrder  Int        @default(0) @map("sort_order")
+  isActive   Boolean    @default(true) @map("is_active")
+
+  roomType RoomType  @relation(fields: [roomTypeId], references: [id])
+  sessions Session[]
+  bookings Booking[]
+
+  @@map("rooms")
+}
+
+// ════════════════════════════════════════════
+// SESSIONS (Lượt khách sử dụng phòng)
+// ════════════════════════════════════════════
+
+enum SessionStatus {
+  ACTIVE        // Đang hát
+  COMPLETED     // Đã checkout
+  TRANSFERRED   // Đã chuyển phòng
+  MERGED        // Đã gộp vào phòng khác
+}
+
+model Session {
+  id             Int           @id @default(autoincrement())
+  roomId         Int           @map("room_id")
+  customerId     Int?          @map("customer_id")
+  checkedInById  Int           @map("checked_in_by")
+  checkedOutById Int?          @map("checked_out_by")
+
+  customerName  String  @map("customer_name")
+  customerPhone String? @map("customer_phone")
+  guestCount    Int?    @map("guest_count")
+
+  checkInTime  DateTime  @default(now()) @map("check_in_time")
+  checkOutTime DateTime? @map("check_out_time")
+  estimatedEnd DateTime? @map("estimated_end") // Dự kiến kết thúc
+
+  roomCharge Decimal?      @map("room_charge")
+  status     SessionStatus @default(ACTIVE)
+  notes      String?
+
+  // Chuyển phòng tracking
+  transferredFromId Int? @map("transferred_from_id")
+  mergedIntoId      Int? @map("merged_into_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  room         Room      @relation(fields: [roomId], references: [id])
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  checkedInBy  User      @relation("CheckedInBy", fields: [checkedInById], references: [id])
+  checkedOutBy User?     @relation("CheckedOutBy", fields: [checkedOutById], references: [id])
+  orders       Order[]
+  invoice      Invoice?
+
+  @@index([roomId, status])
+  @@index([checkInTime])
+  @@map("sessions")
+}
+
+// ════════════════════════════════════════════
+// BOOKINGS (Đặt phòng trước)
+// ════════════════════════════════════════════
+
+enum BookingStatus {
+  PENDING    // Chờ khách đến
+  CONFIRMED  // Khách đã đến (chuyển thành session)
+  CANCELLED  // Đã hủy
+  NO_SHOW    // Khách không đến
+}
+
+model Booking {
+  id            Int           @id @default(autoincrement())
+  roomId        Int           @map("room_id")
+  customerName  String        @map("customer_name")
+  customerPhone String?       @map("customer_phone")
+  bookingDate   DateTime      @map("booking_date")
+  bookingTime   DateTime      @map("booking_time")
+  durationHours Decimal?      @map("duration_hours")
+  depositAmount Decimal       @default(0) @map("deposit_amount")
+  status        BookingStatus @default(PENDING)
+  notes         String?
+  createdById   Int           @map("created_by")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  room      Room @relation(fields: [roomId], references: [id])
+  createdBy User @relation("BookingCreatedBy", fields: [createdById], references: [id])
+
+  @@index([roomId, bookingDate])
+  @@index([bookingDate, status])
+  @@map("bookings")
+}
+
+// ════════════════════════════════════════════
+// WAITING QUEUE (Hàng chờ)
+// ════════════════════════════════════════════
+
+enum QueueStatus {
+  WAITING   // Đang chờ
+  ASSIGNED  // Đã xếp phòng
+  CANCELLED // Đã hủy
+  EXPIRED   // Hết hạn chờ
+}
+
+model WaitingQueue {
+  id            Int         @id @default(autoincrement())
+  customerName  String      @map("customer_name")
+  customerPhone String?     @map("customer_phone")
+  preferredType Int?        @map("preferred_type") // room_type_id
+  guestCount    Int?        @map("guest_count")
+  status        QueueStatus @default(WAITING)
+  notes         String?
+  createdById   Int         @map("created_by")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  createdBy User @relation("QueueCreatedBy", fields: [createdById], references: [id])
+
+  @@index([status])
+  @@map("waiting_queue")
+}
+
+// ════════════════════════════════════════════
+// MENU & ORDERS
+// ════════════════════════════════════════════
+
+model MenuCategory {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique // "Bia", "Nước ngọt", "Đồ ăn"
+  sortOrder Int        @default(0) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  items     MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          Int     @id @default(autoincrement())
+  categoryId  Int     @map("category_id")
+  name        String  // "Bia Tiger", "Coca Cola"
+  price       Decimal // Giá bán
+  image       String? // Path ảnh
+  isAvailable Boolean @default(true) @map("is_available")
+  sortOrder   Int     @default(0) @map("sort_order")
+  productId   Int?    @map("product_id") // Liên kết sản phẩm kho
+
+  category   MenuCategory @relation(fields: [categoryId], references: [id])
+  product    Product?     @relation(fields: [productId], references: [id])
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+enum OrderStatus {
+  PENDING   // Đã đặt
+  PREPARING // Đang chuẩn bị
+  SERVED    // Đã phục vụ
+  CANCELLED // Đã hủy
+}
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  sessionId    Int         @map("session_id")
+  createdById  Int         @map("created_by")
+  status       OrderStatus @default(PENDING)
+  totalAmount  Decimal     @default(0) @map("total_amount")
+  notes        String?
+  cancelReason String?     @map("cancel_reason")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  session   Session     @relation(fields: [sessionId], references: [id])
+  createdBy User        @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  items     OrderItem[]
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         Int     @id @default(autoincrement())
+  orderId    Int     @map("order_id")
+  menuItemId Int     @map("menu_item_id")
+  productId  Int?    @map("product_id") // Để trừ kho
+  quantity   Int     @default(1)
+  unitPrice  Decimal @map("unit_price")
+  subtotal   Decimal
+  notes      String?
+
+  order    Order    @relation(fields: [orderId], references: [id])
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+  product  Product? @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// ════════════════════════════════════════════
+// INVOICES & PAYMENTS
+// ════════════════════════════════════════════
+
+enum InvoiceStatus {
+  PENDING // Chờ thanh toán
+  PAID    // Đã thanh toán
+  PARTIAL // Thanh toán một phần (ghi nợ)
+  VOID    // Đã hủy
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  sessionId     Int           @unique @map("session_id")
+  invoiceNumber String        @unique @map("invoice_number") // "INV-20260325-001"
+
+  roomCharge     Decimal @map("room_charge")
+  orderTotal     Decimal @map("order_total")
+  subtotal       Decimal
+  discountAmount Decimal @default(0) @map("discount_amount")
+  discountReason String? @map("discount_reason")
+  voucherCode    String? @map("voucher_code")
+
+  surchargeAmount Decimal @default(0) @map("surcharge_amount")
+  surchargeReason String? @map("surcharge_reason")
+
+  depositApplied Decimal       @default(0) @map("deposit_applied")
+  grandTotal     Decimal       @map("grand_total")
+  debtAmount     Decimal       @default(0) @map("debt_amount")
+  status         InvoiceStatus @default(PENDING)
+  createdById    Int           @map("created_by")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  session   Session   @relation(fields: [sessionId], references: [id])
+  createdBy User      @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  payments  Payment[]
+
+  @@index([createdAt])
+  @@index([invoiceNumber])
+  @@map("invoices")
+}
+
+enum PaymentMethod {
+  CASH         // Tiền mặt
+  QR_TRANSFER  // Chuyển khoản QR
+  DEBT         // Ghi nợ
+}
+
+model Payment {
+  id           Int           @id @default(autoincrement())
+  invoiceId    Int           @map("invoice_id")
+  method       PaymentMethod
+  amount       Decimal
+  qrCodeUsed   String?       @map("qr_code_used") // "QR1" hoặc "QR2"
+  cashReceived Decimal?      @map("cash_received")
+  cashChange   Decimal?      @map("cash_change")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+}
+
+// ════════════════════════════════════════════
+// STOCK & INVENTORY
+// ════════════════════════════════════════════
+
+model Product {
+  id            Int       @id @default(autoincrement())
+  name          String
+  sku           String?   @unique // Mã sản phẩm
+  category      String?   // Phân loại kho (khác menu category)
+  unit          String    @default("cái") // "lon", "chai", "đĩa", "kg"
+  packSize      Int       @default(1) @map("pack_size") // 1 thùng = 24 lon
+  costPrice     Decimal   @map("cost_price") // Giá nhập
+  stockQuantity Int       @default(0) @map("stock_quantity") // Tồn kho (theo đơn vị nhỏ nhất)
+  minStock      Int       @default(0) @map("min_stock") // Mức tối thiểu cảnh báo
+  supplierId    Int?      @map("supplier_id")
+  expiryDate    DateTime? @map("expiry_date")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  menuItems    MenuItem[]   // Sản phẩm này xuất hiện ở menu items nào
+  stockEntries StockEntry[]
+  orderItems   OrderItem[]
+
+  @@index([category])
+  @@index([stockQuantity])
+  @@map("products")
+}
+
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  address   String?
+  notes     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  products     Product[]
+  stockEntries StockEntry[]
+
+  @@map("suppliers")
+}
+
+enum StockEntryType {
+  IN           // Nhập kho
+  OUT_SALE     // Xuất bán (tự động khi order)
+  OUT_MANUAL   // Xuất thủ công (hư hỏng, hết hạn...)
+  ADJUSTMENT   // Điều chỉnh kiểm kê
+}
+
+model StockEntry {
+  id          Int            @id @default(autoincrement())
+  productId   Int            @map("product_id")
+  supplierId  Int?           @map("supplier_id")
+  type        StockEntryType
+  quantity    Int            // Dương = nhập, Âm = xuất
+  unitCost    Decimal?       @map("unit_cost")
+  totalCost   Decimal?       @map("total_cost")
+  reason      String?        // Lý do xuất/điều chỉnh
+  createdById Int            @map("created_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  product   Product   @relation(fields: [productId], references: [id])
+  supplier  Supplier? @relation(fields: [supplierId], references: [id])
+  createdBy User      @relation("StockEntryCreatedBy", fields: [createdById], references: [id])
+
+  @@index([productId, createdAt])
+  @@index([type])
+  @@map("stock_entries")
+}
+
+// ════════════════════════════════════════════
+// CUSTOMERS
+// ════════════════════════════════════════════
+
+enum CustomerTier {
+  REGULAR // Thường
+  SILVER  // Bạc
+  GOLD    // Vàng
+  VIP     // VIP
+}
+
+model Customer {
+  id              Int          @id @default(autoincrement())
+  name            String
+  phone           String       @unique
+  birthday        DateTime?
+  tier            CustomerTier @default(REGULAR)
+  totalSpent      Decimal      @default(0) @map("total_spent")
+  totalPoints     Int          @default(0) @map("total_points")
+  visitCount      Int          @default(0) @map("visit_count")
+  lastVisit       DateTime?    @map("last_visit")
+  notes           String?
+  isBlacklisted   Boolean      @default(false) @map("is_blacklisted")
+  blacklistReason String?      @map("blacklist_reason")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  sessions     Session[]
+  pointHistory PointHistory[]
+
+  @@index([phone])
+  @@index([tier])
+  @@map("customers")
+}
+
+enum PointAction {
+  EARN   // Tích điểm
+  REDEEM // Đổi điểm
+  ADJUST // Điều chỉnh
+}
+
+model PointHistory {
+  id         Int         @id @default(autoincrement())
+  customerId Int         @map("customer_id")
+  action     PointAction
+  points     Int         // Dương = tích, Âm = đổi
+  reason     String?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@map("point_history")
+}
+
+// ════════════════════════════════════════════
+// PRICING
+// ════════════════════════════════════════════
+
+model PricingRule {
+  id           Int      @id @default(autoincrement())
+  roomTypeId   Int      @map("room_type_id")
+  name         String   // "Giờ nhẹ phòng nhỏ", "Peak phòng lớn"
+  timeStart    String   @map("time_start") // "12:00" (lưu dạng string HH:mm)
+  timeEnd      String   @map("time_end") // "17:00"
+  pricePerHour Decimal  @map("price_per_hour")
+  dayOfWeek    String   @default("[]") @map("day_of_week") // JSON array e.g. "[1,2,3,4,5]"
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+
+  @@index([roomTypeId, isActive])
+  @@map("pricing_rules")
+}
+
+model Surcharge {
+  id         Int       @id @default(autoincrement())
+  name       String    // "Phụ thu cuối tuần", "Phụ thu Tết"
+  type       String    // "weekend", "holiday", "custom"
+  percentage Decimal   // 20.00 = 20%
+  startDate  DateTime? @map("start_date")
+  endDate    DateTime? @map("end_date")
+  dayOfWeek  String    @default("[]") @map("day_of_week") // JSON array
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@map("surcharges")
+}
+
+// ════════════════════════════════════════════
+// VOUCHERS
+// ════════════════════════════════════════════
+
+enum DiscountType {
+  PERCENTAGE   // Giảm %
+  FIXED_AMOUNT // Giảm số tiền cố định
+}
+
+model Voucher {
+  id            Int          @id @default(autoincrement())
+  code          String       @unique // "GIAMGIA20", "SINHNAT50K"
+  discountType  DiscountType @map("discount_type")
+  discountValue Decimal      @map("discount_value")
+  maxDiscount   Decimal?     @map("max_discount") // Giảm tối đa (cho %)
+  maxUses       Int?         @map("max_uses")
+  usedCount     Int          @default(0) @map("used_count")
+  validFrom     DateTime     @map("valid_from")
+  validUntil    DateTime     @map("valid_until")
+  isActive      Boolean      @default(true) @map("is_active")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  @@index([code])
+  @@map("vouchers")
+}
+
+// ════════════════════════════════════════════
+// SHIFTS (Ca làm)
+// ════════════════════════════════════════════
+
+enum ShiftStatus {
+  OPEN   // Đang mở ca
+  CLOSED // Đã đóng ca
+}
+
+model Shift {
+  id           Int         @id @default(autoincrement())
+  openedById   Int         @map("opened_by")
+  closedById   Int?        @map("closed_by")
+  startTime    DateTime    @default(now()) @map("start_time")
+  endTime      DateTime?   @map("end_time")
+  openingCash  Decimal     @default(0) @map("opening_cash")
+  closingCash  Decimal?    @map("closing_cash")
+  status       ShiftStatus @default(OPEN)
+  notes        String?
+  handoverNote String?     @map("handover_note") // Ghi chú bàn giao
+
+  openedBy User  @relation("ShiftOpenedBy", fields: [openedById], references: [id])
+  closedBy User? @relation("ShiftClosedBy", fields: [closedById], references: [id])
+
+  @@index([startTime])
+  @@index([status])
+  @@map("shifts")
+}
+
+// ════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════
+
+model Setting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // "qr_code_1", "qr_code_2", "min_duration"...
+  value       Json     // Giá trị linh hoạt
+  description String?
+  updatedById Int?     @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("SettingUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("settings")
+}
+
+// ════════════════════════════════════════════
+// AUDIT LOG
+// ════════════════════════════════════════════
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  action     String   // "CHECKIN", "CHECKOUT", "ORDER_CREATE", "ORDER_CANCEL"...
+  entityType String   @map("entity_type") // "session", "order", "stock"...
+  entityId   Int      @map("entity_id")
+  details    Json?    // Chi tiết thay đổi
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ════════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════════
+
+enum NotificationType {
+  ROOM_ENDING       // Phòng sắp hết giờ
+  ROOM_EXPIRED      // Phòng đã hết giờ
+  ORDER_NEW         // Order mới
+  STOCK_LOW         // Tồn kho thấp
+  BOOKING_REMINDER  // Nhắc booking
+  CUSTOMER_BIRTHDAY // Sinh nhật khách
+  SYSTEM            // Hệ thống
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false) @map("is_read")
+  metadata  Json?            // Dữ liệu bổ sung (roomId, orderId...)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}

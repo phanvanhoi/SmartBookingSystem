@@ -1,0 +1,616 @@
+import { prisma } from '../../lib/prisma'
+import { AppError } from '../../middleware/error.middleware'
+import { calculateRoomPrice } from '../rooms/pricing.service'
+import { deductStockForOrder } from '../stock/stock.service'
+import { updateCustomerAfterCheckout } from '../customers/customer.service'
+import { applyVoucher } from './voucher.service'
+import type { CheckoutInput, InvoiceQueryInput } from './checkout.validation'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const TIER_DISCOUNT_PCT: Record<string, number> = {
+  REGULAR: 0,
+  SILVER: 5,
+  GOLD: 10,
+  VIP: 15,
+}
+
+async function generateInvoiceNumber(): Promise<string> {
+  const now = new Date()
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+
+  // Count invoices created today (date-based, local time)
+  const startOfDay = new Date(now)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(now)
+  endOfDay.setHours(23, 59, 59, 999)
+
+  const count = await prisma.invoice.count({
+    where: {
+      createdAt: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+    },
+  })
+
+  const seq = String(count + 1).padStart(3, '0')
+  return `INV-${dateStr}-${seq}`
+}
+
+// ─── processCheckout ──────────────────────────────────────────────────────────
+
+export async function processCheckout(data: CheckoutInput, userId: number) {
+  const {
+    sessionId,
+    discountAmount: manualDiscountAmount = 0,
+    discountReason,
+    voucherCode,
+    depositApplied = 0,
+    payments,
+    notes,
+  } = data
+
+  // 1. Load session with all relations
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: {
+      room: { include: { roomType: true } },
+      customer: true,
+      orders: {
+        where: { status: { not: 'CANCELLED' } },
+        include: {
+          items: true,
+        },
+      },
+    },
+  })
+
+  if (!session) {
+    throw new AppError(404, 'SESSION_NOT_FOUND', 'Session không tồn tại')
+  }
+  if (session.status !== 'ACTIVE') {
+    throw new AppError(400, 'SESSION_NOT_ACTIVE', 'Session không ở trạng thái ACTIVE')
+  }
+
+  const checkOutTime = new Date()
+
+  // 2. Calculate room charge
+  const priceBreakdown = await calculateRoomPrice(
+    session.checkInTime,
+    checkOutTime,
+    session.room.roomTypeId,
+  )
+  const roomCharge = priceBreakdown.total
+  const surchargeAmount = priceBreakdown.surcharge
+
+  // 3. Sum order totals (non-cancelled)
+  const orderTotal = session.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0)
+
+  // 4. Subtotal = roomCharge + orderTotal
+  const subtotal = roomCharge + orderTotal
+
+  // 5. Apply discounts
+  let voucherDiscountAmount = 0
+  let appliedVoucherCode: string | undefined
+
+  // 5a. Voucher discount
+  if (voucherCode) {
+    const result = await applyVoucher(voucherCode, subtotal)
+    voucherDiscountAmount = result.discountAmount
+    appliedVoucherCode = voucherCode
+  }
+
+  // 5b. Manual discount: validate max_discount_percent for CASHIER role
+  let validatedManualDiscount = manualDiscountAmount ?? 0
+  if (validatedManualDiscount > 0) {
+    // Fetch setting for max discount percent
+    const discountSetting = await prisma.setting.findUnique({
+      where: { key: 'max_discount_percent' },
+    })
+
+    if (discountSetting && discountSetting.value !== null) {
+      let maxPct = 0
+      const val = discountSetting.value
+      if (typeof val === 'number') maxPct = val
+      else if (typeof val === 'string') maxPct = parseFloat(val) || 0
+      else if (typeof val === 'object' && 'value' in (val as object)) {
+        maxPct = Number((val as Record<string, unknown>).value) || 0
+      }
+
+      const maxAllowedDiscount = Math.round(subtotal * (maxPct / 100))
+      if (validatedManualDiscount > maxAllowedDiscount) {
+        validatedManualDiscount = maxAllowedDiscount
+      }
+    }
+  }
+
+  // 5c. Member discount on room charge only
+  let memberDiscountAmount = 0
+  if (session.customer) {
+    const pct = TIER_DISCOUNT_PCT[session.customer.tier] ?? 0
+    if (pct > 0) {
+      memberDiscountAmount = Math.round(roomCharge * (pct / 100))
+    }
+  }
+
+  // 5d. Total discount (cannot exceed subtotal)
+  const totalDiscount = Math.min(
+    voucherDiscountAmount + validatedManualDiscount + memberDiscountAmount,
+    subtotal,
+  )
+
+  // Combined discount reason
+  const discountReasons: string[] = []
+  if (voucherDiscountAmount > 0 && appliedVoucherCode) {
+    discountReasons.push(`Voucher ${appliedVoucherCode}`)
+  }
+  if (memberDiscountAmount > 0 && session.customer) {
+    discountReasons.push(`Thành viên ${session.customer.tier}`)
+  }
+  if (validatedManualDiscount > 0 && discountReason) {
+    discountReasons.push(discountReason)
+  }
+  const combinedDiscountReason =
+    discountReasons.length > 0 ? discountReasons.join(', ') : discountReason ?? null
+
+  // 6. Deposit applied (validated against available deposit)
+  const clampedDeposit = Math.max(0, depositApplied)
+
+  // 7. Grand total
+  const grandTotal = Math.max(0, subtotal - totalDiscount - clampedDeposit)
+
+  // 8. Calculate payments
+  const cashPayments = payments.filter((p) => p.method !== 'DEBT')
+  const debtPayments = payments.filter((p) => p.method === 'DEBT')
+
+  const totalCashPayments = cashPayments.reduce((sum, p) => sum + p.amount, 0)
+  const totalDebtAmount = debtPayments.reduce((sum, p) => sum + p.amount, 0)
+
+  // 9. Validate: cash payments >= grandTotal - debtAmount
+  const requiredCash = grandTotal - totalDebtAmount
+  if (requiredCash > 0 && totalCashPayments < requiredCash) {
+    throw new AppError(
+      400,
+      'INSUFFICIENT_PAYMENT',
+      `Số tiền thanh toán không đủ. Cần thêm ${(requiredCash - totalCashPayments).toLocaleString('vi-VN')}đ`,
+    )
+  }
+
+  // 10. Determine invoice status
+  const debtAmount = Math.max(0, totalDebtAmount)
+  let invoiceStatus: 'PAID' | 'PARTIAL' | 'DEBT' = 'PAID'
+  if (debtAmount > 0 && debtAmount < grandTotal) {
+    invoiceStatus = 'PARTIAL'
+  } else if (debtAmount >= grandTotal) {
+    invoiceStatus = 'PARTIAL' // full debt still = PARTIAL since some amount is owed
+  }
+  const finalStatus = debtAmount > 0 ? 'PARTIAL' : 'PAID'
+
+  // 11. Determine QR code for QR_TRANSFER payments
+  const hour = checkOutTime.getHours()
+  const activeQR = hour < 12 ? 'QR2' : 'QR1'
+
+  // 12. Collect all order items for stock deduction
+  const allOrderItems: Array<{ productId: number; quantity: number }> = []
+  for (const order of session.orders) {
+    for (const item of order.items) {
+      if (item.productId !== null) {
+        allOrderItems.push({ productId: item.productId, quantity: item.quantity })
+      }
+    }
+  }
+
+  // ─── Generate invoice number (before transaction to avoid deadlock) ──────
+  const invoiceNumber = await generateInvoiceNumber()
+
+  // ─── Execute in transaction ───────────────────────────────────────────────
+  const invoice = await prisma.$transaction(async (tx) => {
+    // Create Invoice
+    const newInvoice = await tx.invoice.create({
+      data: {
+        sessionId,
+        invoiceNumber,
+        roomCharge,
+        orderTotal,
+        subtotal,
+        discountAmount: totalDiscount,
+        discountReason: combinedDiscountReason,
+        voucherCode: appliedVoucherCode ?? null,
+        surchargeAmount,
+        surchargeReason: surchargeAmount > 0 ? 'Phụ thu tự động' : null,
+        depositApplied: clampedDeposit,
+        grandTotal,
+        debtAmount,
+        status: finalStatus,
+        createdById: userId,
+        ...(notes ? {} : {}), // notes not in schema, stored separately if needed
+      },
+    })
+
+    // Create Payment records
+    for (const payment of payments) {
+      const paymentData: {
+        invoiceId: number
+        method: 'CASH' | 'QR_TRANSFER' | 'DEBT'
+        amount: number
+        qrCodeUsed?: string
+        cashReceived?: number
+        cashChange?: number
+      } = {
+        invoiceId: newInvoice.id,
+        method: payment.method,
+        amount: payment.amount,
+      }
+
+      if (payment.method === 'CASH') {
+        if (payment.cashReceived !== undefined) {
+          paymentData.cashReceived = payment.cashReceived
+          paymentData.cashChange = Math.max(0, payment.cashReceived - payment.amount)
+        }
+      } else if (payment.method === 'QR_TRANSFER') {
+        paymentData.qrCodeUsed = activeQR
+      }
+
+      await tx.payment.create({ data: paymentData })
+    }
+
+    // Update session: COMPLETED, checkOutTime, roomCharge
+    await tx.session.update({
+      where: { id: sessionId },
+      data: {
+        status: 'COMPLETED',
+        checkOutTime,
+        checkedOutById: userId,
+        roomCharge,
+      },
+    })
+
+    // Update room: AVAILABLE
+    await tx.room.update({
+      where: { id: session.roomId },
+      data: { status: 'AVAILABLE' },
+    })
+
+    return newInvoice
+  })
+
+  // ─── Post-transaction: stock deduction & customer update ─────────────────
+  // These run outside transaction to avoid long locks; errors are logged not thrown
+  if (allOrderItems.length > 0) {
+    try {
+      await deductStockForOrder(allOrderItems, userId)
+    } catch (err) {
+      // Non-blocking: log but don't fail checkout
+      console.error('[checkout] deductStockForOrder failed:', err)
+    }
+  }
+
+  if (session.customerId) {
+    try {
+      await updateCustomerAfterCheckout(session.customerId, grandTotal)
+    } catch (err) {
+      console.error('[checkout] updateCustomerAfterCheckout failed:', err)
+    }
+  }
+
+  // ─── Return full invoice detail ───────────────────────────────────────────
+  return getInvoiceById(invoice.id)
+}
+
+// ─── getQRCode ────────────────────────────────────────────────────────────────
+
+export async function getQRCode() {
+  const now = new Date()
+  const hour = now.getHours()
+
+  // < 12 → QR2 (after midnight), >= 12 → QR1 (before midnight)
+  const isAfterMidnight = hour < 12
+  const label = isAfterMidnight ? 'QR Mã 2 (sau 00:00)' : 'QR Mã 1 (trước 00:00)'
+  const switchTime = isAfterMidnight ? '12:00' : '00:00'
+
+  const [setting1, setting2] = await Promise.all([
+    prisma.setting.findUnique({ where: { key: 'qr_code_1' } }),
+    prisma.setting.findUnique({ where: { key: 'qr_code_2' } }),
+  ])
+
+  const getImageUrl = (setting: { value: unknown } | null): string | null => {
+    if (!setting) return null
+    const val = setting.value
+    if (typeof val === 'string') return val
+    if (typeof val === 'object' && val !== null && 'url' in (val as object)) {
+      return String((val as Record<string, unknown>).url)
+    }
+    return null
+  }
+
+  const qr1Url = getImageUrl(setting1)
+  const qr2Url = getImageUrl(setting2)
+  const imageUrl = isAfterMidnight ? qr2Url : qr1Url
+
+  return {
+    activeQR: isAfterMidnight ? 'QR2' : 'QR1',
+    label,
+    imageUrl: imageUrl ?? (isAfterMidnight
+      ? '/uploads/qr/qr_after_midnight.png'
+      : '/uploads/qr/qr_before_midnight.png'),
+    switchTime,
+    currentTime: `${String(hour).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    qr1: { key: 'QR1', imageUrl: qr1Url ?? '/uploads/qr/qr_before_midnight.png' },
+    qr2: { key: 'QR2', imageUrl: qr2Url ?? '/uploads/qr/qr_after_midnight.png' },
+  }
+}
+
+// ─── getInvoices ──────────────────────────────────────────────────────────────
+
+export async function getInvoices(filters: InvoiceQueryInput) {
+  const { page = 1, limit = 20, dateFrom, dateTo, status, search } = filters
+  const skip = (page - 1) * limit
+
+  const where: Record<string, unknown> = {}
+
+  if (status) where.status = status
+
+  if (dateFrom || dateTo) {
+    where.createdAt = {
+      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+      ...(dateTo ? { lte: new Date(`${dateTo}T23:59:59.999Z`) } : {}),
+    }
+  }
+
+  if (search) {
+    where.OR = [
+      { invoiceNumber: { contains: search } },
+      {
+        session: {
+          customerName: { contains: search },
+        },
+      },
+    ]
+  }
+
+  const [invoices, total] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        session: {
+          select: {
+            id: true,
+            customerName: true,
+            customerPhone: true,
+            checkInTime: true,
+            checkOutTime: true,
+            room: { select: { id: true, name: true } },
+          },
+        },
+        payments: true,
+        createdBy: { select: { id: true, fullName: true } },
+      },
+    }),
+    prisma.invoice.count({ where }),
+  ])
+
+  return {
+    data: invoices.map(mapInvoice),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  }
+}
+
+// ─── getInvoiceById ───────────────────────────────────────────────────────────
+
+export async function getInvoiceById(id: number) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    include: {
+      session: {
+        include: {
+          room: { select: { id: true, name: true } },
+          orders: {
+            where: { status: { not: 'CANCELLED' } },
+            include: {
+              items: {
+                include: {
+                  menuItem: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+      payments: true,
+      createdBy: { select: { id: true, fullName: true } },
+    },
+  })
+
+  if (!invoice) {
+    throw new AppError(404, 'INVOICE_NOT_FOUND', 'Hóa đơn không tồn tại')
+  }
+
+  return mapInvoiceDetail(invoice)
+}
+
+// ─── Mappers ──────────────────────────────────────────────────────────────────
+
+function mapInvoice(invoice: {
+  id: number
+  invoiceNumber: string
+  roomCharge: { toNumber(): number } | number
+  orderTotal: { toNumber(): number } | number
+  subtotal: { toNumber(): number } | number
+  discountAmount: { toNumber(): number } | number
+  discountReason: string | null
+  voucherCode: string | null
+  surchargeAmount: { toNumber(): number } | number
+  depositApplied: { toNumber(): number } | number
+  grandTotal: { toNumber(): number } | number
+  debtAmount: { toNumber(): number } | number
+  status: string
+  createdAt: Date
+  session: {
+    id: number
+    customerName: string
+    customerPhone: string | null
+    checkInTime: Date
+    checkOutTime: Date | null
+    room: { id: number; name: string }
+  }
+  payments: Array<{
+    id: number
+    method: string
+    amount: { toNumber(): number } | number
+    qrCodeUsed: string | null
+    cashReceived: { toNumber(): number } | number | null
+    cashChange: { toNumber(): number } | number | null
+    createdAt: Date
+  }>
+  createdBy: { id: number; fullName: string }
+}) {
+  const toNum = (v: { toNumber(): number } | number | null | undefined): number => {
+    if (v === null || v === undefined) return 0
+    return typeof v === 'number' ? v : v.toNumber()
+  }
+
+  return {
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    roomCharge: toNum(invoice.roomCharge),
+    orderTotal: toNum(invoice.orderTotal),
+    subtotal: toNum(invoice.subtotal),
+    discountAmount: toNum(invoice.discountAmount),
+    discountReason: invoice.discountReason,
+    voucherCode: invoice.voucherCode,
+    surchargeAmount: toNum(invoice.surchargeAmount),
+    depositApplied: toNum(invoice.depositApplied),
+    grandTotal: toNum(invoice.grandTotal),
+    debtAmount: toNum(invoice.debtAmount),
+    status: invoice.status,
+    createdAt: invoice.createdAt,
+    session: invoice.session,
+    payments: invoice.payments.map((p) => ({
+      id: p.id,
+      method: p.method,
+      amount: toNum(p.amount),
+      qrCodeUsed: p.qrCodeUsed,
+      cashReceived: p.cashReceived !== null ? toNum(p.cashReceived) : null,
+      cashChange: p.cashChange !== null ? toNum(p.cashChange) : null,
+      createdAt: p.createdAt,
+    })),
+    createdBy: invoice.createdBy,
+  }
+}
+
+type InvoiceDetailRecord = {
+  id: number
+  invoiceNumber: string
+  roomCharge: { toNumber(): number } | number
+  orderTotal: { toNumber(): number } | number
+  subtotal: { toNumber(): number } | number
+  discountAmount: { toNumber(): number } | number
+  discountReason: string | null
+  voucherCode: string | null
+  surchargeAmount: { toNumber(): number } | number
+  depositApplied: { toNumber(): number } | number
+  grandTotal: { toNumber(): number } | number
+  debtAmount: { toNumber(): number } | number
+  status: string
+  createdAt: Date
+  session: {
+    id: number
+    customerName: string
+    customerPhone: string | null
+    checkInTime: Date
+    checkOutTime: Date | null
+    room: { id: number; name: string }
+    orders: Array<{
+      id: number
+      status: string
+      totalAmount: { toNumber(): number } | number
+      notes: string | null
+      createdAt: Date
+      items: Array<{
+        id: number
+        quantity: number
+        unitPrice: { toNumber(): number } | number
+        subtotal: { toNumber(): number } | number
+        notes: string | null
+        menuItem: { id: number; name: string }
+      }>
+    }>
+  }
+  payments: Array<{
+    id: number
+    method: string
+    amount: { toNumber(): number } | number
+    qrCodeUsed: string | null
+    cashReceived: { toNumber(): number } | number | null
+    cashChange: { toNumber(): number } | number | null
+    createdAt: Date
+  }>
+  createdBy: { id: number; fullName: string }
+}
+
+function mapInvoiceDetail(invoice: InvoiceDetailRecord) {
+
+  const toNum = (v: { toNumber(): number } | number | null | undefined): number => {
+    if (v === null || v === undefined) return 0
+    return typeof v === 'number' ? v : v.toNumber()
+  }
+
+  return {
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    roomCharge: toNum(invoice.roomCharge),
+    orderTotal: toNum(invoice.orderTotal),
+    subtotal: toNum(invoice.subtotal),
+    discountAmount: toNum(invoice.discountAmount),
+    discountReason: invoice.discountReason,
+    voucherCode: invoice.voucherCode,
+    surchargeAmount: toNum(invoice.surchargeAmount),
+    depositApplied: toNum(invoice.depositApplied),
+    grandTotal: toNum(invoice.grandTotal),
+    debtAmount: toNum(invoice.debtAmount),
+    status: invoice.status,
+    createdAt: invoice.createdAt,
+    session: {
+      id: invoice.session.id,
+      customerName: invoice.session.customerName,
+      customerPhone: invoice.session.customerPhone,
+      checkInTime: invoice.session.checkInTime,
+      checkOutTime: invoice.session.checkOutTime,
+      room: invoice.session.room,
+      orders: invoice.session.orders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        totalAmount: toNum(o.totalAmount),
+        notes: o.notes,
+        createdAt: o.createdAt,
+        items: o.items.map((i) => ({
+          id: i.id,
+          menuItem: i.menuItem,
+          quantity: i.quantity,
+          unitPrice: toNum(i.unitPrice),
+          subtotal: toNum(i.subtotal),
+          notes: i.notes,
+        })),
+      })),
+    },
+    payments: invoice.payments.map((p) => ({
+      id: p.id,
+      method: p.method,
+      amount: toNum(p.amount),
+      qrCodeUsed: p.qrCodeUsed,
+      cashReceived: p.cashReceived !== null ? toNum(p.cashReceived) : null,
+      cashChange: p.cashChange !== null ? toNum(p.cashChange) : null,
+      createdAt: p.createdAt,
+    })),
+    createdBy: invoice.createdBy,
+  }
+}

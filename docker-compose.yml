@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: musicbox-app
+    restart: unless-stopped
+    ports:
+      - "8080:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=file:./data/musicbox.db
+      - JWT_SECRET=${JWT_SECRET:-musicbox-production-secret-change-me}
+      - JWT_EXPIRES_IN=12h
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      # Persist database + uploads outside container
+      - musicbox-data:/app/data
+      - musicbox-uploads:/app/uploads
+      - musicbox-logs:/app/logs
+
+volumes:
+  musicbox-data:
+  musicbox-uploads:
+  musicbox-logs:
