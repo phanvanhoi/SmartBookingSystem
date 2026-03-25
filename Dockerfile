@@ -49,9 +49,6 @@ COPY --from=server-build /app/server/dist ./dist
 # Copy built client → serve as static files
 COPY --from=client-build /app/client/dist ./public
 
-# Copy Prisma seed (compiled)
-COPY --from=server-build /app/server/dist/prisma-seed.js ./dist/prisma-seed.js 2>/dev/null || true
-
 # Copy entrypoint
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
