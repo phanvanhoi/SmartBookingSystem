@@ -26,11 +26,11 @@ import facebookRoutes from './modules/facebook/facebook.routes'
 const app = express()
 
 // ── Security & Performance ────────────────────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:5173',
-  credentials: true,
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false,
 }))
+app.use(cors({ origin: true, credentials: true }))
 app.use(compression())
 
 // ── Body Parsing ──────────────────────────────────────────────────────────────
