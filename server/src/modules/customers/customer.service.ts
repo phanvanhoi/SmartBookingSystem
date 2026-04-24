@@ -35,7 +35,7 @@ async function assertCustomerExists(id: number) {
 export interface CustomerListItem {
   id: number
   name: string
-  phone: string
+  phone: string | null
   birthday: Date | null
   tier: CustomerTier
   totalSpent: number
@@ -124,7 +124,7 @@ export async function getCustomers(
 export interface CustomerLookupResult {
   id: number
   name: string
-  phone: string
+  phone: string | null
   tier: CustomerTier
   totalSpent: number
   totalPoints: number
@@ -170,7 +170,7 @@ export async function lookupByPhone(phone: string): Promise<CustomerLookupResult
 export interface CustomerDetail {
   id: number
   name: string
-  phone: string
+  phone: string | null
   birthday: Date | null
   tier: CustomerTier
   totalSpent: number

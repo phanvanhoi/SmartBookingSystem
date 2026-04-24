@@ -446,28 +446,70 @@ enum CustomerTier {
   VIP     // VIP
 }
 
+enum CustomerType {
+  INDIVIDUAL // Cá nhân
+  COMPANY    // Công ty
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 model Customer {
-  id              Int          @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
+  // External code from legacy POS (eg. "KH006384") — kept so staff can still
+  // search by the receipt number printed in the old system.
+  code            String?       @unique
   name            String
-  phone           String       @unique
+  // Phone now optional + unique-when-present: imported records often have no
+  // phone, and SQLite treats NULLs as distinct in unique indexes.
+  phone           String?       @unique
   birthday        DateTime?
-  tier            CustomerTier @default(REGULAR)
-  totalSpent      Decimal      @default(0) @map("total_spent")
-  totalPoints     Int          @default(0) @map("total_points")
-  visitCount      Int          @default(0) @map("visit_count")
-  lastVisit       DateTime?    @map("last_visit")
+  gender          Gender?
+  email           String?
+  tier            CustomerTier  @default(REGULAR)
+  customerType    CustomerType  @default(INDIVIDUAL) @map("customer_type")
+
+  // Address breakdown (matches the POS export columns)
+  address         String?
+  ward            String?       // Phường/Xã
+  region          String?       // Khu vực
+
+  // Business-customer fields
+  company         String?
+  taxCode         String?       @map("tax_code")
+
+  // Loyalty / financial
+  customerGroup   String?       @map("customer_group")
+  totalSpent      Decimal       @default(0) @map("total_spent")
+  totalPoints     Int           @default(0) @map("total_points")
+  visitCount      Int           @default(0) @map("visit_count")
+  lastVisit       DateTime?     @map("last_visit")
+  currentDebt     Decimal       @default(0) @map("current_debt")
+
+  // Free-form
   notes           String?
-  isBlacklisted   Boolean      @default(false) @map("is_blacklisted")
-  blacklistReason String?      @map("blacklist_reason")
-  isActive        Boolean      @default(true) @map("is_active")  // soft delete
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  branch          String?
+  createdByName   String?       @map("created_by_name") // legacy POS user
+
+  // Status
+  isBlacklisted   Boolean       @default(false) @map("is_blacklisted")
+  blacklistReason String?       @map("blacklist_reason")
+  isActive        Boolean       @default(true)  @map("is_active") // soft delete
+
+  // Audit
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  importedAt      DateTime?     @map("imported_at") // set when row came from POS export
 
   sessions     Session[]
   pointHistory PointHistory[]
 
   @@index([phone])
   @@index([tier])
+  @@index([customerGroup])
   @@map("customers")
 }
 
