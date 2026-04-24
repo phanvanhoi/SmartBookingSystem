@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
+import { emitOrderNew, emitOrderStatusChanged } from '../../socket/socketManager'
+import logger from '../../utils/logger'
 import { CreateOrderInput } from './order.validation'
 
 // ── Valid status transitions ───────────────────────────────────────────────
@@ -114,9 +116,29 @@ export async function createOrder(data: CreateOrderInput, userId: number) {
             },
           },
         },
+        session: {
+          select: { room: { select: { name: true } } },
+        },
+        createdBy: { select: { fullName: true } },
       },
     })
   })
+
+  // Notify kitchen + connected staff in realtime. Fire-and-forget — don't
+  // fail the API call if socket emit hits a transient issue.
+  try {
+    emitOrderNew({
+      orderId: order.id,
+      roomName: order.session.room.name,
+      items: order.items.map((it) => ({
+        name: it.menuItem.name,
+        quantity: it.quantity,
+      })),
+      createdBy: order.createdBy.fullName,
+    })
+  } catch (err) {
+    logger.warn('Failed to emit order:new', { module: 'orders', orderId: order.id, err })
+  }
 
   return order
 }
@@ -182,7 +204,7 @@ export async function updateOrderStatus(orderId: number, status: string) {
     )
   }
 
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { id: orderId },
     data: { status: status as 'PENDING' | 'PREPARING' | 'SERVED' | 'CANCELLED' },
     include: {
@@ -191,48 +213,84 @@ export async function updateOrderStatus(orderId: number, status: string) {
           menuItem: { select: { id: true, name: true } },
         },
       },
+      session: { select: { room: { select: { name: true } } } },
     },
   })
+
+  try {
+    emitOrderStatusChanged({
+      orderId,
+      roomName: updated.session.room.name,
+      oldStatus: order.status,
+      newStatus: status,
+    })
+  } catch (err) {
+    logger.warn('Failed to emit order:status_changed', { module: 'orders', orderId, err })
+  }
+
+  return updated
 }
 
 /**
- * Cancel an order. Only PENDING orders can be cancelled.
+ * Cancel an order. Only PENDING orders can be cancelled. Atomic guard so
+ * a concurrent updateStatus that just bumped the row to PREPARING doesn't
+ * lose to a slower cancel call.
  */
 export async function cancelOrder(
   orderId: number,
   reason: string,
-  _userId: number
+  _userId: number,
 ) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, status: true },
+  const claim = await prisma.order.updateMany({
+    where: { id: orderId, status: 'PENDING' },
+    data: { status: 'CANCELLED', cancelReason: reason },
   })
 
-  if (!order) {
-    throw new AppError(404, 'ORDER_NOT_FOUND', 'Không tìm thấy đơn hàng')
-  }
-
-  if (order.status !== 'PENDING') {
+  if (claim.count === 0) {
+    // Either the order doesn't exist or it has moved past PENDING. Look up
+    // the row so we can give a precise error.
+    const existing = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true },
+    })
+    if (!existing) {
+      throw new AppError(404, 'ORDER_NOT_FOUND', 'Không tìm thấy đơn hàng')
+    }
     throw new AppError(
       400,
       'ORDER_CANNOT_CANCEL',
-      `Chỉ có thể hủy đơn hàng ở trạng thái PENDING, đơn hiện tại: ${order.status}`
+      `Chỉ có thể hủy đơn hàng ở trạng thái PENDING, đơn hiện tại: ${existing.status}`,
     )
   }
 
-  return prisma.order.update({
+  const result = await prisma.order.findUnique({
     where: { id: orderId },
-    data: {
-      status: 'CANCELLED',
-      cancelReason: reason,
-    },
     select: {
       id: true,
       status: true,
       cancelReason: true,
       updatedAt: true,
+      session: { select: { room: { select: { name: true } } } },
     },
   })
+
+  try {
+    emitOrderStatusChanged({
+      orderId,
+      roomName: result?.session.room.name ?? '',
+      oldStatus: 'PENDING',
+      newStatus: 'CANCELLED',
+    })
+  } catch (err) {
+    logger.warn('Failed to emit cancel event', { module: 'orders', orderId, err })
+  }
+
+  return {
+    id: result!.id,
+    status: result!.status,
+    cancelReason: result!.cancelReason,
+    updatedAt: result!.updatedAt,
+  }
 }
 
 /**
