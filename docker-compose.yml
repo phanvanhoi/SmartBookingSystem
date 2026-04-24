@@ -14,7 +14,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=${APP_PORT:-8081}
-      - DATABASE_URL=file:./data/musicbox.db
+      # Absolute path — Prisma resolves SQLite relative paths from the schema
+      # file location, not cwd. Using an absolute path puts the DB inside the
+      # mounted volume (/app/data) so it survives container rebuilds.
+      - DATABASE_URL=file:/app/data/musicbox.db
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-12h}
       - CORS_ORIGINS=${CORS_ORIGINS:?CORS_ORIGINS must be set (comma-separated origins)}
