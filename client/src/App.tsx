@@ -13,8 +13,9 @@ import ReportsPage from './pages/reports/ReportsPage'
 import LoginPage from './pages/auth/LoginPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import FacebookInboxPage from './pages/facebook/FacebookInboxPage'
-import { useAuthStore } from './stores/authStore'
+import { useAuthStore, type UserRole } from './stores/authStore'
 import { useSocket } from './hooks/useSocket'
+import { ShieldAlert } from 'lucide-react'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Auth Guard
@@ -31,6 +32,41 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Role Guard
+// ────────────────────────────────────────────────────────────────────────────
+
+function RequireRole({ roles, children }: { roles: UserRole[]; children: React.ReactNode }) {
+  const role = useAuthStore((s) => s.user?.role)
+  if (!role) return <Navigate to="/login" replace />
+  if (!roles.includes(role)) {
+    return (
+      <div className="flex items-center justify-center h-full px-4">
+        <div className="text-center max-w-md">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-destructive/10 mb-4">
+            <ShieldAlert className="w-7 h-7 text-destructive" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground mb-1">Không có quyền truy cập</h1>
+          <p className="text-sm text-muted-foreground">
+            Tài khoản của bạn không có quyền xem trang này. Vui lòng liên hệ chủ quán nếu cần.
+          </p>
+        </div>
+      </div>
+    )
+  }
+  return <>{children}</>
+}
+
+const MANAGEMENT: UserRole[] = ['OWNER', 'MANAGER']
+const CASHIER_UP: UserRole[] = ['OWNER', 'MANAGER', 'CASHIER']
+const OWNER_ONLY: UserRole[] = ['OWNER']
+
+function defaultLandingPath(role?: UserRole) {
+  if (!role) return '/login'
+  if (role === 'STAFF') return '/rooms'
+  return '/rooms'
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Socket initializer – runs only when authenticated
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -43,20 +79,11 @@ function SocketInitializer() {
 // App
 // ────────────────────────────────────────────────────────────────────────────
 
-function PlaceholderPage({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-foreground mb-2">{title}</h1>
-        <p className="text-muted-foreground">{subtitle ?? 'Module này đang được phát triển...'}</p>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   const loadFromStorage = useAuthStore((s) => s.loadFromStorage)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const role = useAuthStore((s) => s.user?.role)
+  const landing = defaultLandingPath(role)
 
   // Hydrate auth state from localStorage on first render
   useEffect(() => {
@@ -80,19 +107,83 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route path="/" element={<Navigate to="/rooms" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/" element={<Navigate to={landing} replace />} />
+
+          <Route
+            path="/dashboard"
+            element={
+              <RequireRole roles={MANAGEMENT}>
+                <DashboardPage />
+              </RequireRole>
+            }
+          />
           <Route path="/rooms" element={<RoomMapPage />} />
-          <Route path="/timeline" element={<TimelinePage />} />
+          <Route
+            path="/timeline"
+            element={
+              <RequireRole roles={CASHIER_UP}>
+                <TimelinePage />
+              </RequireRole>
+            }
+          />
           <Route path="/orders" element={<OrderPage />} />
-          <Route path="/stock" element={<StockPage />} />
-          <Route path="/customers" element={<CustomerListPage />} />
-          <Route path="/customers/:id" element={<CustomerDetailPage />} />
-          <Route path="/facebook" element={<FacebookInboxPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/staff" element={<StaffPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/rooms" replace />} />
+          <Route
+            path="/stock"
+            element={
+              <RequireRole roles={MANAGEMENT}>
+                <StockPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/customers"
+            element={
+              <RequireRole roles={CASHIER_UP}>
+                <CustomerListPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/customers/:id"
+            element={
+              <RequireRole roles={CASHIER_UP}>
+                <CustomerDetailPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/facebook"
+            element={
+              <RequireRole roles={MANAGEMENT}>
+                <FacebookInboxPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <RequireRole roles={MANAGEMENT}>
+                <ReportsPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/staff"
+            element={
+              <RequireRole roles={MANAGEMENT}>
+                <StaffPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequireRole roles={OWNER_ONLY}>
+                <SettingsPage />
+              </RequireRole>
+            }
+          />
+          <Route path="*" element={<Navigate to={landing} replace />} />
         </Route>
       </Routes>
     </>

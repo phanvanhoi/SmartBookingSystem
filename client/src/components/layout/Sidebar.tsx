@@ -13,23 +13,42 @@ import {
   Music2,
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { useAuthStore, type UserRole } from '@/stores/authStore'
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard' },
-  { icon: DoorOpen, label: 'Phòng', href: '/rooms' },
-  { icon: CalendarDays, label: 'Lịch', href: '/timeline' },
-  { icon: UtensilsCrossed, label: 'Order', href: '/orders' },
-  { icon: Package, label: 'Kho hàng', href: '/stock' },
-  { icon: Users, label: 'Khách hàng', href: '/customers' },
-  { icon: MessageSquare, label: 'Facebook', href: '/facebook' },
-  { icon: BarChart3, label: 'Báo cáo', href: '/reports' },
-  { icon: UserCog, label: 'Nhân viên', href: '/staff' },
-  { icon: Settings, label: 'Cài đặt', href: '/settings' },
+type NavItem = {
+  icon: typeof LayoutDashboard
+  label: string
+  href: string
+  roles: UserRole[]
+}
+
+const ALL: UserRole[] = ['OWNER', 'MANAGER', 'CASHIER', 'STAFF']
+const MANAGEMENT: UserRole[] = ['OWNER', 'MANAGER']
+const CASHIER_UP: UserRole[] = ['OWNER', 'MANAGER', 'CASHIER']
+
+const navItems: NavItem[] = [
+  { icon: LayoutDashboard, label: 'Tổng quan', href: '/dashboard', roles: MANAGEMENT },
+  { icon: DoorOpen, label: 'Phòng', href: '/rooms', roles: ALL },
+  { icon: CalendarDays, label: 'Lịch', href: '/timeline', roles: CASHIER_UP },
+  { icon: UtensilsCrossed, label: 'Order', href: '/orders', roles: ALL },
+  { icon: Package, label: 'Kho hàng', href: '/stock', roles: MANAGEMENT },
+  { icon: Users, label: 'Khách hàng', href: '/customers', roles: CASHIER_UP },
+  { icon: MessageSquare, label: 'Facebook', href: '/facebook', roles: MANAGEMENT },
+  { icon: BarChart3, label: 'Báo cáo', href: '/reports', roles: MANAGEMENT },
+  { icon: UserCog, label: 'Nhân viên', href: '/staff', roles: MANAGEMENT },
+  { icon: Settings, label: 'Cài đặt', href: '/settings', roles: ['OWNER'] },
 ]
+
+function useVisibleNavItems() {
+  const role = useAuthStore((s) => s.user?.role)
+  if (!role) return []
+  return navItems.filter((item) => item.roles.includes(role))
+}
 
 export default function Sidebar() {
   const location = useLocation()
+  const visibleItems = useVisibleNavItems()
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -47,7 +66,7 @@ export default function Sidebar() {
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           <ul className="space-y-0.5">
-            {navItems.map((item) => {
+            {visibleItems.map((item) => {
               const Icon = item.icon
               const isActive =
                 item.href === '/dashboard'
@@ -96,13 +115,17 @@ export default function Sidebar() {
 /** Mobile bottom navigation (shown on small screens) */
 export function BottomNav() {
   const location = useLocation()
+  const visibleItems = useVisibleNavItems()
 
   // Only show first 5 items in bottom nav
-  const mobileItems = navItems.slice(0, 5)
+  const mobileItems = visibleItems.slice(0, 5)
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border">
       <ul className="flex items-center justify-around h-16 px-2">
+        {mobileItems.length === 0 && (
+          <li className="text-xs text-muted-foreground py-4">Không có quyền</li>
+        )}
         {mobileItems.map((item) => {
           const Icon = item.icon
           const isActive =

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Menu, Bell, ChevronDown, KeyRound, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,13 +10,32 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
+import { useAuthStore, type UserRole } from '@/stores/authStore'
 
 interface HeaderProps {
   onMobileMenuToggle?: () => void
 }
 
+const ROLE_LABEL: Record<UserRole, string> = {
+  OWNER: 'Chủ quán',
+  MANAGER: 'Quản lý',
+  CASHIER: 'Thu ngân',
+  STAFF: 'Phục vụ',
+}
+
 export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const notificationCount = 0
+  const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
+  const navigate = useNavigate()
+
+  const displayName = user?.fullName || user?.username || 'Người dùng'
+  const roleLabel = user ? ROLE_LABEL[user.role] : ''
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="h-14 shrink-0 flex items-center gap-3 px-4 bg-card border-b border-border">
@@ -70,17 +89,19 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               <User className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="hidden sm:flex flex-col items-start leading-tight">
-              <span className="text-xs font-medium text-foreground">Admin</span>
-              <span className="text-[10px] text-muted-foreground">Quản lý</span>
+              <span className="text-xs font-medium text-foreground">{displayName}</span>
+              <span className="text-[10px] text-muted-foreground">{roleLabel}</span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hidden sm:block" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-0.5">
-              <p className="text-sm font-medium text-foreground">Admin</p>
-              <p className="text-xs text-muted-foreground">admin@musicbox.vn</p>
+              <p className="text-sm font-medium text-foreground">{displayName}</p>
+              <p className="text-xs text-muted-foreground">
+                {roleLabel} · @{user?.username}
+              </p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -89,7 +110,10 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             Đổi mật khẩu
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-destructive focus:text-destructive">
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={handleLogout}
+          >
             <LogOut className="w-4 h-4" />
             Đăng xuất
           </DropdownMenuItem>
