@@ -32,22 +32,31 @@ const app = express()
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1))
 
 // ── Security & Performance ────────────────────────────────────────────────────
-// CSP policy compatible with Vite-built React SPA + same-origin API + WS for socket.io.
-// Inline styles are allowed because Tailwind/shadcn injects style tags at runtime.
+// CSP policy compatible with Vite-built React SPA + same-origin API + WS for
+// socket.io + Google Fonts. Inline styles allowed because Tailwind/shadcn
+// injects style tags at runtime.
+//
+// IMPORTANT: explicitly null upgradeInsecureRequests — helmet adds it by
+// default, which makes the browser rewrite every HTTP asset URL to HTTPS,
+// causing ERR_SSL_PROTOCOL_ERROR when the app is served over plain HTTP.
 const cspDirectives = {
   defaultSrc: ["'self'"],
   scriptSrc: ["'self'"],
-  styleSrc: ["'self'", "'unsafe-inline'"],
+  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+  fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
   imgSrc: ["'self'", 'data:', 'blob:'],
-  fontSrc: ["'self'", 'data:'],
   connectSrc: ["'self'", 'ws:', 'wss:'],
   objectSrc: ["'none'"],
   frameAncestors: ["'self'"],
+  upgradeInsecureRequests: null,
 }
 
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    // HSTS disabled — we're served over plain HTTP. If TLS is added later
+    // (via reverse proxy), set this back to default.
+    hsts: false,
     contentSecurityPolicy:
       process.env.NODE_ENV === 'production' ? { directives: cspDirectives } : false,
   }),
