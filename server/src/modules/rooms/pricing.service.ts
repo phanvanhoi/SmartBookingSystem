@@ -228,5 +228,31 @@ export async function calculateCurrentCharge(
   return calculateRoomPrice(checkInTime, now, roomTypeId)
 }
 
+// ── Bill rounding ────────────────────────────────────────────────────────────
+// Round the final amount UP to the nearest `step` VND. 45,333 → 46,000 with
+// step=1000. step=0 disables. Used by both the checkout preview and
+// processCheckout so the cashier and the saved invoice always agree.
+export function roundBillUp(amount: number, step: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return Math.max(0, Math.round(amount))
+  if (!step || step <= 0) return Math.round(amount)
+  return Math.ceil(amount / step) * step
+}
+
+export async function getBillRoundAmount(): Promise<number> {
+  try {
+    const setting = await prisma.setting.findUnique({ where: { key: 'bill_round_amount' } })
+    if (!setting) return 0
+    const val = setting.value
+    if (typeof val === 'number') return val
+    if (typeof val === 'string') return parseInt(val, 10) || 0
+    if (typeof val === 'object' && val !== null && 'value' in val) {
+      return Number((val as Record<string, unknown>).value) || 0
+    }
+    return 0
+  } catch {
+    return 0
+  }
+}
+
 // Re-export helper for tests / other services
 export { splitByTimeSlots, parseTimeToMinutes, formatMinutes }

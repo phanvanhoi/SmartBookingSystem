@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
-import { calculateRoomPrice } from '../rooms/pricing.service'
+import { calculateRoomPrice, roundBillUp, getBillRoundAmount } from '../rooms/pricing.service'
 import { deductStockForOrder } from '../stock/stock.service'
 import { updateCustomerAfterCheckout } from '../customers/customer.service'
 import { applyVoucher } from './voucher.service'
@@ -170,8 +170,12 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   // 6. Deposit applied (validated against available deposit)
   const clampedDeposit = Math.max(0, depositApplied)
 
-  // 7. Grand total
-  const grandTotal = Math.max(0, subtotal - totalDiscount - clampedDeposit)
+  // 7. Grand total, rounded up to the configured step (e.g. 45,333 → 46,000
+  // with step=1000). Must match the preview's rounding so the cashier sees
+  // the same figure on screen that lands in the invoice.
+  const rawGrandTotal = Math.max(0, subtotal - totalDiscount - clampedDeposit)
+  const roundStep = await getBillRoundAmount()
+  const grandTotal = roundBillUp(rawGrandTotal, roundStep)
 
   // 8. Calculate payments
   const cashPayments = payments.filter((p) => p.method !== 'DEBT')

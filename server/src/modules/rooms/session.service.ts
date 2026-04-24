@@ -1,5 +1,5 @@
 import { prisma } from '../../lib/prisma'
-import { calculateRoomPrice } from './pricing.service'
+import { calculateRoomPrice, roundBillUp, getBillRoundAmount } from './pricing.service'
 import { CheckinInput, ExtendInput, TransferInput, MergeInput } from './room.validation'
 
 // ─── Typed error helper ───────────────────────────────────────────────────────
@@ -176,7 +176,12 @@ export async function checkout(sessionId: number, _userId: number) {
   const depositAvailable = booking ? Number(booking.depositAmount) : 0
 
   const memberDiscountAmount = memberDiscount ? Number(memberDiscount.amount) : 0
-  const grandTotal = Math.max(0, subtotal - memberDiscountAmount - depositAvailable)
+  const rawGrandTotal = Math.max(0, subtotal - memberDiscountAmount - depositAvailable)
+
+  // Apply ceiling round (e.g. 45,333 → 46,000) so the preview matches the
+  // invoice that processCheckout will save. Owner configures via Settings.
+  const roundStep = await getBillRoundAmount()
+  const grandTotal = roundBillUp(rawGrandTotal, roundStep)
 
   // NO mutation here — this is a preview. processCheckout in
   // checkout/checkout.service.ts performs the actual COMPLETED transition.

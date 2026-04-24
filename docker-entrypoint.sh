@@ -67,6 +67,7 @@ async function seed() {
     { key: 'qr_code_2', value: JSON.stringify({ path: '', label: 'QR 2' }) },
     { key: 'min_duration_minutes', value: 0 },
     { key: 'billing_round_minutes', value: 5 },
+    { key: 'bill_round_amount', value: 1000 },
     { key: 'warning_before_minutes', value: 15 },
     { key: 'currency', value: 'VNĐ' },
     { key: 'timezone', value: 'Asia/Ho_Chi_Minh' },

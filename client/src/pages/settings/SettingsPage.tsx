@@ -108,6 +108,7 @@ function GeneralTab() {
     close_time: '',
     min_duration_minutes: '',
     billing_round_minutes: '',
+    bill_round_amount: '',
     warning_before_minutes: '',
     max_cashier_discount_percent: '',
   })
@@ -121,6 +122,7 @@ function GeneralTab() {
       close_time: getValue('close_time', '05:00'),
       min_duration_minutes: getValue('min_duration_minutes', '0'),
       billing_round_minutes: getValue('billing_round_minutes', '5'),
+      bill_round_amount: getValue('bill_round_amount', '1000'),
       warning_before_minutes: getValue('warning_before_minutes', '15'),
       max_cashier_discount_percent: getValue('max_cashier_discount_percent', '10'),
     })
@@ -130,7 +132,7 @@ function GeneralTab() {
   function handleSave() {
     const payload = Object.entries(form).map(([key, value]) => ({
       key,
-      value: ['min_duration_minutes', 'billing_round_minutes', 'warning_before_minutes', 'max_cashier_discount_percent'].includes(key)
+      value: ['min_duration_minutes', 'billing_round_minutes', 'bill_round_amount', 'warning_before_minutes', 'max_cashier_discount_percent'].includes(key)
         ? Number(value)
         : value,
     }))
@@ -221,6 +223,23 @@ function GeneralTab() {
               Làm tròn lên mỗi N phút (0 = chính xác từng phút)
             </p>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            Làm tròn tổng tiền (VNĐ)
+          </label>
+          <Input
+            type="number"
+            min={0}
+            step={100}
+            value={form.bill_round_amount}
+            onChange={(e) => setForm((f) => ({ ...f, bill_round_amount: e.target.value }))}
+            placeholder="1000"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Ví dụ 1000 = làm tròn LÊN gần nhất nghìn (45.333đ → 46.000đ). 0 = chính xác.
+          </p>
         </div>
 
         <div className="space-y-1.5">

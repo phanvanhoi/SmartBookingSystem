@@ -179,6 +179,13 @@ async function main() {
       description: 'Làm tròn thời gian tính tiền (phút) — 0 = không làm tròn, 5 = mỗi 5 phút',
     },
     {
+      key: 'bill_round_amount',
+      // Làm tròn LÊN tổng tiền cuối (ceil) cho gọn — vd 45,333 → 46,000
+      // với step=1000. Đặt 0 nếu muốn giữ chính xác.
+      value: 1000 as unknown as object,
+      description: 'Làm tròn tổng tiền (VNĐ) — 0 = không làm tròn, 1000 = lên gần nhất nghìn',
+    },
+    {
       key: 'warning_before_minutes',
       value: 15 as unknown as object,
       description: 'Cảnh báo trước khi hết giờ (phút)',
