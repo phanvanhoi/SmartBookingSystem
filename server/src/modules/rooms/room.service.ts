@@ -146,6 +146,12 @@ export async function getRoomById(id: number) {
     const elapsedMinutes = Math.floor((new Date().getTime() - session.checkInTime.getTime()) / 60_000)
     const priceBreakdown = await calculateCurrentCharge(session.checkInTime, room.roomTypeId)
 
+    const currentRoomCharge = priceBreakdown.total
+    const currentOrderTotal = session.orders.reduce(
+      (sum, order) => sum + Number(order.totalAmount),
+      0,
+    )
+
     currentSession = {
       id: session.id,
       customerName: session.customerName,
@@ -168,6 +174,10 @@ export async function getRoomById(id: number) {
         createdAt: order.createdAt,
       })),
       priceBreakdown,
+      // Flat fields the detail panel binds to directly
+      currentRoomCharge,
+      currentOrderTotal,
+      currentTotal: currentRoomCharge + currentOrderTotal,
     }
   }
 
