@@ -147,7 +147,7 @@ export default function RoomMapPage() {
             {/* Cột phải: Phòng nhỏ (1-7) - card nhỏ hơn */}
             <section className="flex flex-col">
               <SectionLabel title="Phòng nhỏ" count={smallRooms.length} />
-              <div className="grid grid-cols-4 grid-rows-2 gap-2 flex-1">
+              <div className="grid grid-cols-4 auto-rows-[170px] gap-2 content-start">
                 {/* Dòng 1: 1, 3, 5, 7 */}
                 {smallRooms.filter((_, i) => i % 2 === 0).map((room) => (
                   <RoomCard
