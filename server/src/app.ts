@@ -30,7 +30,24 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false,
 }))
-app.use(cors({ origin: true, credentials: true }))
+
+// CORS — only allow origins explicitly listed in CORS_ORIGINS env (comma-separated).
+// Same-origin requests (no Origin header) and server-to-server tools are always allowed.
+const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean)
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true) // same-origin / curl / mobile
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+      return callback(new Error(`CORS: origin ${origin} not allowed`))
+    },
+    credentials: true,
+  }),
+)
 app.use(compression())
 
 // ── Body Parsing ──────────────────────────────────────────────────────────────

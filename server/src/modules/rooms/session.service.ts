@@ -56,7 +56,16 @@ export async function checkin(data: CheckinInput, userId: number) {
     : undefined
 
   const session = await prisma.$transaction(async (tx) => {
-    const newSession = await tx.session.create({
+    // Atomic claim — fails if another concurrent check-in just took the room.
+    const claim = await tx.room.updateMany({
+      where: { id: data.roomId, status: 'AVAILABLE' },
+      data: { status: 'OCCUPIED' },
+    })
+    if (claim.count === 0) {
+      throw createError('Phòng vừa được người khác sử dụng', 409, 'ROOM_NOT_AVAILABLE')
+    }
+
+    return tx.session.create({
       data: {
         roomId: data.roomId,
         customerId: customerId ?? null,
@@ -70,13 +79,6 @@ export async function checkin(data: CheckinInput, userId: number) {
         status: 'ACTIVE',
       },
     })
-
-    await tx.room.update({
-      where: { id: data.roomId },
-      data: { status: 'OCCUPIED' },
-    })
-
-    return newSession
   })
 
   return {
@@ -294,6 +296,15 @@ export async function transferSession(sessionId: number, data: TransferInput, us
   const sourceRoom = session.room
 
   await prisma.$transaction(async (tx) => {
+    // Atomic claim of target room — fails if another action took it concurrently.
+    const claim = await tx.room.updateMany({
+      where: { id: targetRoom.id, status: 'AVAILABLE' },
+      data: { status: 'OCCUPIED' },
+    })
+    if (claim.count === 0) {
+      throw createError('Phòng đích vừa được người khác sử dụng', 409, 'ROOM_NOT_AVAILABLE')
+    }
+
     // Mark old session as TRANSFERRED
     await tx.session.update({
       where: { id: sessionId },
@@ -321,9 +332,8 @@ export async function transferSession(sessionId: number, data: TransferInput, us
       },
     })
 
-    // Update room statuses
+    // Free the source room
     await tx.room.update({ where: { id: session.roomId }, data: { status: 'AVAILABLE' } })
-    await tx.room.update({ where: { id: targetRoom.id }, data: { status: 'OCCUPIED' } })
   })
 
   return {

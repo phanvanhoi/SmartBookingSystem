@@ -1,12 +1,54 @@
 import { prisma } from '../../lib/prisma'
 import { BookingInput, BookingQueryInput } from './room.validation'
 
+const HOUR_MS = 3_600_000
+
 // ─── Typed error helper ───────────────────────────────────────────────────────
 function createError(message: string, statusCode: number, code: string): Error {
   const err = new Error(message) as Error & { statusCode: number; code: string }
   err.statusCode = statusCode
   err.code = code
   return err
+}
+
+// Default a booking duration to 1h when not specified — used for overlap math.
+function effectiveEnd(start: Date, durationHours: number | null | undefined): Date {
+  const hours = durationHours && Number(durationHours) > 0 ? Number(durationHours) : 1
+  return new Date(start.getTime() + hours * HOUR_MS)
+}
+
+/**
+ * Check if a new/updated booking conflicts with existing bookings on the same room+date.
+ * Standard interval-overlap formula: existingStart < newEnd AND newStart < existingEnd.
+ *
+ * Done in JS (small dataset per room/day) because Prisma cannot compute
+ * `bookingTime + durationHours` inside a where clause.
+ */
+async function findConflictingBooking(args: {
+  roomId: number
+  bookingDate: Date
+  newStart: Date
+  newEnd: Date
+  excludeBookingId?: number
+}) {
+  const candidates = await prisma.booking.findMany({
+    where: {
+      roomId: args.roomId,
+      bookingDate: args.bookingDate,
+      status: { in: ['PENDING', 'CONFIRMED'] },
+      ...(args.excludeBookingId ? { id: { not: args.excludeBookingId } } : {}),
+    },
+    select: {
+      id: true,
+      bookingTime: true,
+      durationHours: true,
+    },
+  })
+
+  return candidates.find((c) => {
+    const cEnd = effectiveEnd(c.bookingTime, c.durationHours ? Number(c.durationHours) : null)
+    return c.bookingTime < args.newEnd && args.newStart < cEnd
+  })
 }
 
 // ─── createBooking ────────────────────────────────────────────────────────────
@@ -17,51 +59,22 @@ export async function createBooking(data: BookingInput, userId: number) {
 
   if (!room) throw createError('Phòng không tồn tại', 404, 'ROOM_NOT_FOUND')
 
-  // Parse booking datetime
   const bookingDate = new Date(data.bookingDate)
+  bookingDate.setHours(0, 0, 0, 0)
+
   const [bookingHour, bookingMin] = data.bookingTime.split(':').map(Number)
   const bookingTime = new Date(bookingDate)
   bookingTime.setHours(bookingHour, bookingMin, 0, 0)
 
-  // Calculate end time if durationHours provided (for overlap check)
-  const endTime = data.durationHours
-    ? new Date(bookingTime.getTime() + data.durationHours * 3_600_000)
-    : null
+  const newEnd = effectiveEnd(bookingTime, data.durationHours)
 
-  // Check for overlapping bookings
-  const overlap = await prisma.booking.findFirst({
-    where: {
-      roomId: data.roomId,
-      status: { in: ['PENDING', 'CONFIRMED'] },
-      bookingDate: bookingDate,
-      ...(endTime
-        ? {
-            AND: [
-              { bookingTime: { lt: endTime } },
-              {
-                OR: [
-                  {
-                    AND: [
-                      { durationHours: { not: null } },
-                      // bookingTime + duration > new bookingTime
-                      // Approximate: bookingTime < endTime is checked above
-                    ],
-                  },
-                  { bookingTime: { gte: bookingTime } },
-                ],
-              },
-            ],
-          }
-        : {
-            bookingTime: {
-              gte: bookingTime,
-              lt: new Date(bookingTime.getTime() + 60 * 60_000), // 1hr window
-            },
-          }),
-    },
+  const conflict = await findConflictingBooking({
+    roomId: data.roomId,
+    bookingDate,
+    newStart: bookingTime,
+    newEnd,
   })
-
-  if (overlap) {
+  if (conflict) {
     throw createError('Phòng đã có lịch đặt trùng giờ', 409, 'BOOKING_OVERLAP')
   }
 
@@ -97,24 +110,47 @@ export async function updateBooking(
     throw createError('Chỉ có thể sửa booking đang chờ', 400, 'BOOKING_NOT_PENDING')
   }
 
-  const updateData: Record<string, unknown> = {}
+  // Compute target room/time/duration after the proposed update
+  const targetRoomId = data.roomId ?? booking.roomId
 
-  if (data.roomId !== undefined) {
-    const room = await prisma.room.findFirst({ where: { id: data.roomId, isActive: true } })
-    if (!room) throw createError('Phòng không tồn tại', 404, 'ROOM_NOT_FOUND')
-    updateData.roomId = data.roomId
-  }
-
+  let targetStart = booking.bookingTime
   if (data.bookingTime !== undefined) {
     const [h, m] = data.bookingTime.split(':').map(Number)
-    const newTime = new Date(booking.bookingDate)
-    newTime.setHours(h, m, 0, 0)
-    updateData.bookingTime = newTime
+    targetStart = new Date(booking.bookingDate)
+    targetStart.setHours(h, m, 0, 0)
   }
 
-  if (data.durationHours !== undefined) {
-    updateData.durationHours = data.durationHours
+  const targetDuration =
+    data.durationHours !== undefined
+      ? data.durationHours
+      : booking.durationHours
+        ? Number(booking.durationHours)
+        : null
+
+  const targetEnd = effectiveEnd(targetStart, targetDuration)
+
+  // Validate target room
+  if (data.roomId !== undefined) {
+    const room = await prisma.room.findFirst({ where: { id: targetRoomId, isActive: true } })
+    if (!room) throw createError('Phòng không tồn tại', 404, 'ROOM_NOT_FOUND')
   }
+
+  // Check overlap with other bookings (excluding self)
+  const conflict = await findConflictingBooking({
+    roomId: targetRoomId,
+    bookingDate: booking.bookingDate,
+    newStart: targetStart,
+    newEnd: targetEnd,
+    excludeBookingId: bookingId,
+  })
+  if (conflict) {
+    throw createError('Khung giờ này đã có lịch đặt khác', 409, 'BOOKING_OVERLAP')
+  }
+
+  const updateData: Record<string, unknown> = {}
+  if (data.roomId !== undefined) updateData.roomId = data.roomId
+  if (data.bookingTime !== undefined) updateData.bookingTime = targetStart
+  if (data.durationHours !== undefined) updateData.durationHours = data.durationHours
 
   const updated = await prisma.booking.update({
     where: { id: bookingId },
@@ -134,9 +170,9 @@ export async function getBookings(filters: BookingQueryInput) {
 
   if (date) {
     const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
     where.bookingDate = d
   } else {
-    // Default to today
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     where.bookingDate = today
@@ -192,10 +228,19 @@ export async function confirmBooking(bookingId: number, userId: number) {
 
   const checkInTime = new Date()
   const estimatedEnd = booking.durationHours
-    ? new Date(checkInTime.getTime() + Number(booking.durationHours) * 3_600_000)
+    ? new Date(checkInTime.getTime() + Number(booking.durationHours) * HOUR_MS)
     : undefined
 
   const result = await prisma.$transaction(async (tx) => {
+    // Atomic room claim — fails (count=0) if another concurrent confirm took it.
+    const claim = await tx.room.updateMany({
+      where: { id: booking.roomId, status: 'AVAILABLE' },
+      data: { status: 'OCCUPIED' },
+    })
+    if (claim.count === 0) {
+      throw createError('Phòng vừa được người khác sử dụng', 409, 'ROOM_NOT_AVAILABLE')
+    }
+
     const session = await tx.session.create({
       data: {
         roomId: booking.roomId,
@@ -212,11 +257,6 @@ export async function confirmBooking(bookingId: number, userId: number) {
     await tx.booking.update({
       where: { id: bookingId },
       data: { status: 'CONFIRMED' },
-    })
-
-    await tx.room.update({
-      where: { id: booking.roomId },
-      data: { status: 'OCCUPIED' },
     })
 
     return session

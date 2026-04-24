@@ -87,6 +87,7 @@ async function main() {
   }
 
   // ── Pricing Rules ──
+  // Phòng bé: 40k off-peak / 60k peak. Phòng lớn: 50k off-peak / 80k peak.
   console.log('Seeding pricing rules...')
   const pricingRulesData = [
     {
@@ -94,7 +95,7 @@ async function main() {
       name: 'Off-peak nhỏ',
       timeStart: '12:00',
       timeEnd: '17:00',
-      pricePerHour: 0,
+      pricePerHour: 40_000,
       dayOfWeek: '[]',
     },
     {
@@ -102,7 +103,7 @@ async function main() {
       name: 'Peak nhỏ',
       timeStart: '17:00',
       timeEnd: '05:00',
-      pricePerHour: 0,
+      pricePerHour: 60_000,
       dayOfWeek: '[]',
     },
     {
@@ -110,7 +111,7 @@ async function main() {
       name: 'Off-peak lớn',
       timeStart: '12:00',
       timeEnd: '17:00',
-      pricePerHour: 0,
+      pricePerHour: 50_000,
       dayOfWeek: '[]',
     },
     {
@@ -118,7 +119,7 @@ async function main() {
       name: 'Peak lớn',
       timeStart: '17:00',
       timeEnd: '05:00',
-      pricePerHour: 0,
+      pricePerHour: 80_000,
       dayOfWeek: '[]',
     },
   ]

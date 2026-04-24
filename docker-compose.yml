@@ -11,8 +11,11 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=file:./data/musicbox.db
-      - JWT_SECRET=${JWT_SECRET:-musicbox-production-secret-change-me}
-      - JWT_EXPIRES_IN=12h
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-12h}
+      - CORS_ORIGINS=${CORS_ORIGINS:?CORS_ORIGINS must be set (comma-separated origins)}
+      - FB_APP_SECRET=${FB_APP_SECRET:-}
+      - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN:-}
       - TZ=Asia/Ho_Chi_Minh
     volumes:
       # Persist database + uploads outside container

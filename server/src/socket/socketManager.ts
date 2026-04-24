@@ -19,11 +19,42 @@ interface JwtSocketPayload {
 
 let io: SocketServer
 
+// Roles allowed to subscribe to global / staff-only channels.
+const MANAGEMENT_ROLES: AuthUser['role'][] = ['OWNER', 'MANAGER']
+
+/**
+ * Verify a socket can subscribe to a channel.
+ *  - `room:<id>`     → any authenticated user
+ *  - `user:<self_id>` → only the user themselves
+ *  - `org:*`         → only OWNER/MANAGER
+ *  - anything else   → rejected
+ */
+function isChannelAllowed(channel: string, user: AuthUser | undefined): boolean {
+  if (!user) return false
+  if (channel === 'all') return false // server-only broadcast room
+  if (channel.startsWith('room:')) return true
+  if (channel.startsWith('user:')) {
+    const targetId = Number(channel.slice('user:'.length))
+    return Number.isInteger(targetId) && targetId === user.id
+  }
+  if (channel.startsWith('org:')) return MANAGEMENT_ROLES.includes(user.role)
+  return false
+}
+
 // ── Setup ────────────────────────────────────────────────────────────────────
 export function setupSocket(server: HttpServer): SocketServer {
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+
   io = new SocketServer(server, {
     cors: {
-      origin: 'http://localhost:5173',
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true)
+        if (allowedOrigins.includes(origin)) return callback(null, true)
+        return callback(new Error(`Socket CORS: origin ${origin} not allowed`), false)
+      },
       credentials: true,
     },
   })
@@ -67,18 +98,25 @@ export function setupSocket(server: HttpServer): SocketServer {
       socket.join(`user:${user.id}`)
     }
 
-    // Handle channel subscriptions
+    // Handle channel subscriptions — validate access before joining.
     socket.on('subscribe', (channels: string | string[]) => {
       const channelList = Array.isArray(channels) ? channels : [channels]
       channelList.forEach((channel) => {
+        if (typeof channel !== 'string' || !channel) return
+        if (!isChannelAllowed(channel, user)) {
+          socket.emit('subscribe:denied', { channel })
+          return
+        }
         socket.join(channel)
-        console.log(`[Socket] ${user?.username} subscribed to: ${channel}`)
       })
     })
 
     socket.on('unsubscribe', (channels: string | string[]) => {
       const channelList = Array.isArray(channels) ? channels : [channels]
       channelList.forEach((channel) => {
+        if (typeof channel !== 'string') return
+        // unsubscribe never leaves auto-joined `all` or personal `user:<self>`
+        if (channel === 'all' || channel === `user:${user?.id}`) return
         socket.leave(channel)
       })
     })

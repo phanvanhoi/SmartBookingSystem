@@ -1,9 +1,11 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
 import { calculateRoomPrice } from '../rooms/pricing.service'
 import { deductStockForOrder } from '../stock/stock.service'
 import { updateCustomerAfterCheckout } from '../customers/customer.service'
 import { applyVoucher } from './voucher.service'
+import logger from '../../utils/logger'
 import type { CheckoutInput, InvoiceQueryInput } from './checkout.validation'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -13,6 +15,17 @@ const TIER_DISCOUNT_PCT: Record<string, number> = {
   SILVER: 5,
   GOLD: 10,
   VIP: 15,
+}
+
+// Sum a list of Prisma.Decimal values and return an integer VND amount.
+// Decimal arithmetic keeps full precision; final round to avoid off-by-1đ.
+function sumVnd(values: Array<Prisma.Decimal | number | null | undefined>): number {
+  const total = values.reduce<Prisma.Decimal>((acc, v) => {
+    if (v === null || v === undefined) return acc
+    if (typeof v === 'number') return acc.add(v)
+    return acc.add(v)
+  }, new Prisma.Decimal(0))
+  return Math.round(total.toNumber())
 }
 
 async function generateInvoiceNumber(): Promise<string> {
@@ -84,8 +97,8 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   const roomCharge = priceBreakdown.total
   const surchargeAmount = priceBreakdown.surcharge
 
-  // 3. Sum order totals (non-cancelled)
-  const orderTotal = session.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0)
+  // 3. Sum order totals (non-cancelled) — Decimal arithmetic, then round to VND
+  const orderTotal = sumVnd(session.orders.map((o) => o.totalAmount))
 
   // 4. Subtotal = roomCharge + orderTotal
   const subtotal = roomCharge + orderTotal
@@ -272,25 +285,21 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
       data: { status: 'AVAILABLE' },
     })
 
+    // Deduct stock atomically inside the same transaction so that
+    // concurrent checkouts cannot both decrement the same product twice.
+    if (allOrderItems.length > 0) {
+      await deductStockForOrder(allOrderItems, userId, tx)
+    }
+
     return newInvoice
   })
 
-  // ─── Post-transaction: stock deduction & customer update ─────────────────
-  // These run outside transaction to avoid long locks; errors are logged not thrown
-  if (allOrderItems.length > 0) {
-    try {
-      await deductStockForOrder(allOrderItems, userId)
-    } catch (err) {
-      // Non-blocking: log but don't fail checkout
-      console.error('[checkout] deductStockForOrder failed:', err)
-    }
-  }
-
+  // ─── Post-transaction: customer update (non-critical, async) ─────────────
   if (session.customerId) {
     try {
       await updateCustomerAfterCheckout(session.customerId, grandTotal)
     } catch (err) {
-      console.error('[checkout] updateCustomerAfterCheckout failed:', err)
+      logger.error('[checkout] updateCustomerAfterCheckout failed', { err, customerId: session.customerId })
     }
   }
 

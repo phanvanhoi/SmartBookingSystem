@@ -238,26 +238,54 @@ export interface OrderItemForStock {
   quantity: number
 }
 
+/**
+ * Deduct stock for sold items. Atomic per-item update prevents race conditions
+ * where two concurrent checkouts both read the same stockQuantity and write
+ * back, losing one decrement.
+ *
+ * Pass `tx` when called from inside an existing transaction (eg. checkout)
+ * so stock changes commit/rollback together with the parent operation.
+ */
 export async function deductStockForOrder(
   orderItems: OrderItemForStock[],
-  userId: number
+  userId: number,
+  tx?: Prisma.TransactionClient,
 ): Promise<void> {
-  // Only process items that have a productId
   const itemsWithProduct = orderItems.filter((i) => i.productId != null)
   if (itemsWithProduct.length === 0) return
 
-  await prisma.$transaction(async (tx) => {
+  const run = async (client: Prisma.TransactionClient) => {
     for (const item of itemsWithProduct) {
-      const product = await tx.product.findUnique({
-        where: { id: item.productId },
-        select: { id: true, name: true, stockQuantity: true, isActive: true },
+      // Atomic conditional decrement: only succeeds if enough stock exists.
+      // updateMany returns count=0 if the WHERE clause doesn't match.
+      const result = await client.product.updateMany({
+        where: {
+          id: item.productId,
+          isActive: true,
+          stockQuantity: { gte: item.quantity },
+        },
+        data: { stockQuantity: { decrement: item.quantity } },
       })
 
-      if (!product || !product.isActive) continue
+      if (result.count === 0) {
+        // Either product is inactive, removed, or stock insufficient.
+        // Look up which to give a useful error.
+        const product = await client.product.findUnique({
+          where: { id: item.productId },
+          select: { name: true, stockQuantity: true, isActive: true },
+        })
+        if (!product || !product.isActive) {
+          // Soft-skip: product gone, nothing to deduct
+          continue
+        }
+        throw new AppError(
+          409,
+          'INSUFFICIENT_STOCK',
+          `Sản phẩm "${product.name}" không đủ tồn kho (còn ${product.stockQuantity}, cần ${item.quantity})`,
+        )
+      }
 
-      const newQty = product.stockQuantity - item.quantity
-
-      await tx.stockEntry.create({
+      await client.stockEntry.create({
         data: {
           productId: item.productId,
           type: 'OUT_SALE',
@@ -265,13 +293,14 @@ export async function deductStockForOrder(
           createdById: userId,
         },
       })
-
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stockQuantity: Math.max(0, newQty) },
-      })
     }
-  })
+  }
+
+  if (tx) {
+    await run(tx)
+  } else {
+    await prisma.$transaction(run)
+  }
 }
 
 export async function getStockEntries(filters: StockEntryQueryInput) {

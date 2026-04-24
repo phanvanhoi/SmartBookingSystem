@@ -11,12 +11,15 @@ import {
   confirmMessage,
   testParse,
 } from './facebook.controller'
+import { captureRawBody, verifyFacebookSignature } from './webhook.middleware'
 
 const router = Router()
 
 // ── Facebook Webhook (PUBLIC - no auth) ──
+// GET = verification handshake (token-based, no signature yet).
+// POST = real events — must be HMAC-signed with FB_APP_SECRET.
 router.get('/webhook', verifyWebhook)
-router.post('/webhook', receiveWebhook)
+router.post('/webhook', captureRawBody, verifyFacebookSignature, receiveWebhook)
 
 // ── Settings (OWNER only) ──
 router.get('/settings', authenticate, authorize('OWNER'), getSettings)
