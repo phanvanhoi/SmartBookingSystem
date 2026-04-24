@@ -65,15 +65,21 @@ export const supplierSchema = z.object({
 export const updateSupplierSchema = supplierSchema.partial()
 
 // ── Query Schemas ─────────────────────────────────────────
+// Cap limit at 100 — defends against `?limit=999999999` memory-spike attempts.
+const pageField = z
+  .string()
+  .optional()
+  .transform((v) => (v ? parseInt(v, 10) : 1))
+  .pipe(z.number().int().min(1))
+const limitField = z
+  .string()
+  .optional()
+  .transform((v) => (v ? parseInt(v, 10) : 20))
+  .pipe(z.number().int().min(1).max(100))
+
 export const productQuerySchema = z.object({
-  page: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 1)),
-  limit: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 20)),
+  page: pageField,
+  limit: limitField,
   category: z.string().optional(),
   lowStock: z
     .string()
@@ -83,14 +89,8 @@ export const productQuerySchema = z.object({
 })
 
 export const stockEntryQuerySchema = z.object({
-  page: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 1)),
-  limit: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 20)),
+  page: pageField,
+  limit: limitField,
   productId: z
     .string()
     .optional()

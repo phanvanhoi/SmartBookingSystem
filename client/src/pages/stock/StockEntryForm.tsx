@@ -202,6 +202,7 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          aria-label="Xóa dòng sản phẩm"
                           onClick={() => removeItem(index)}
                           disabled={items.length === 1}
                         >

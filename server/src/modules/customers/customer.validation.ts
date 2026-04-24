@@ -51,7 +51,12 @@ export const redeemPointsSchema = z.object({
     .number({ required_error: 'Số điểm là bắt buộc' })
     .int('Số điểm phải là số nguyên')
     .positive('Số điểm phải lớn hơn 0'),
-  reason: z.string().max(300, 'Lý do không quá 300 ký tự').optional(),
+  // Reason mandatory so every redemption is auditable — required by ops
+  // policy (chủ quán cần biết ai đổi điểm, vì lý do gì).
+  reason: z
+    .string({ required_error: 'Lý do đổi điểm là bắt buộc' })
+    .min(3, 'Lý do tối thiểu 3 ký tự')
+    .max(300, 'Lý do không quá 300 ký tự'),
 })
 
 export const lookupQuerySchema = z.object({

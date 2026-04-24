@@ -48,6 +48,7 @@ import {
 } from '@/hooks/useStaff'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime, formatDate } from '@/utils/formatTime'
+import { getErrorMessage } from '@/utils/error'
 import type { StaffItem, StaffRole, GetShiftsParams, GetAuditLogsParams } from '@/services/staffService'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -166,11 +167,11 @@ function StaffFormDialog({ open, onClose, editingStaff }: StaffFormDialogProps) 
     onClose()
   }
 
-  const serverError =
-    (createMutation.error as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message ??
-    (updateMutation.error as { response?: { data?: { error?: { message?: string } } } })
-      ?.response?.data?.error?.message
+  const serverError = createMutation.isError
+    ? getErrorMessage(createMutation.error)
+    : updateMutation.isError
+      ? getErrorMessage(updateMutation.error)
+      : undefined
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

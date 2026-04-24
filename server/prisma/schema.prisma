@@ -145,6 +145,8 @@ model Session {
 
   @@index([roomId, status])
   @@index([checkInTime])
+  // For dashboard "active sessions" + timer cron that scans ACTIVE rows.
+  @@index([status, checkInTime])
   @@map("sessions")
 }
 
@@ -272,6 +274,8 @@ model Order {
 
   @@index([sessionId])
   @@index([createdAt])
+  // For kitchen/bar screens filtering "PENDING orders today, oldest first".
+  @@index([status, createdAt])
   @@map("orders")
 }
 

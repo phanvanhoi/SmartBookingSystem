@@ -405,6 +405,7 @@ function PricingTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
+                        aria-label={`Sửa bảng giá ${rule.name}`}
                         onClick={() => openEdit(rule)}
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -413,6 +414,7 @@ function PricingTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive hover:text-destructive"
+                        aria-label={`Xóa bảng giá ${rule.name}`}
                         onClick={() => setDeleteConfirm(rule.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -834,6 +836,7 @@ function SurchargesTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
+                        aria-label={`Sửa phụ thu ${s.name}`}
                         onClick={() => openEdit(s)}
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -842,6 +845,7 @@ function SurchargesTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive hover:text-destructive"
+                        aria-label={`Xóa phụ thu ${s.name}`}
                         onClick={() => setDeleteConfirm(s.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1148,6 +1152,7 @@ function VouchersTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
+                        aria-label={`Sửa voucher ${v.code}`}
                         onClick={() => openEdit(v)}
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -1156,6 +1161,7 @@ function VouchersTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive hover:text-destructive"
+                        aria-label={`Xóa voucher ${v.code}`}
                         onClick={() => setDeleteConfirm(v.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1435,6 +1441,7 @@ function RoomsTab() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7 text-emerald-500"
+                          aria-label="Lưu tên phòng"
                           onClick={() => {
                             toast('Sửa tên phòng cần gọi API PUT /rooms/:id', { icon: 'ℹ️' })
                             cancelEdit()
@@ -1446,6 +1453,7 @@ function RoomsTab() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
+                          aria-label="Hủy chỉnh sửa"
                           onClick={cancelEdit}
                         >
                           <X className="w-3.5 h-3.5" />
@@ -1456,6 +1464,7 @@ function RoomsTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 float-right"
+                        aria-label={`Sửa ${room.name}`}
                         onClick={() => startEdit(room)}
                       >
                         <Pencil className="w-3.5 h-3.5" />

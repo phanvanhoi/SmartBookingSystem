@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { User, Lock, Eye, EyeOff, Music, Loader2, AlertCircle } from 'lucide-react'
 import { useLogin } from '@/hooks/useAuth'
+import { getErrorMessage } from '@/utils/error'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -9,11 +10,9 @@ export default function LoginPage() {
 
   const loginMutation = useLogin()
 
-  const errorMessage = (() => {
-    if (!loginMutation.isError) return null
-    const err = loginMutation.error as { response?: { data?: { error?: { message?: string } } } }
-    return err?.response?.data?.error?.message ?? 'Đã xảy ra lỗi, vui lòng thử lại'
-  })()
+  const errorMessage = loginMutation.isError
+    ? getErrorMessage(loginMutation.error, 'Đã xảy ra lỗi, vui lòng thử lại')
+    : null
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

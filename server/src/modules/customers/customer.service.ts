@@ -487,47 +487,63 @@ export async function updateCustomerAfterCheckout(
 export async function redeemPoints(
   customerId: number,
   points: number,
-  reason?: string
+  reason: string,
+  actorUserId: number,
 ): Promise<{ remainingPoints: number }> {
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-    select: { totalPoints: true },
-  })
-
-  if (!customer) {
-    throw new AppError(404, 'CUSTOMER_NOT_FOUND', 'Không tìm thấy khách hàng')
-  }
-
-  if (customer.totalPoints < points) {
-    throw new AppError(
-      400,
-      'INSUFFICIENT_POINTS',
-      `Khách hàng không đủ điểm (hiện có ${customer.totalPoints} điểm)`
-    )
-  }
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.customer.update({
-      where: { id: customerId },
-      data: {
-        totalPoints: { decrement: points },
+  // Atomic decrement with guard — two concurrent redemptions cannot push
+  // totalPoints negative. updateMany returns count=0 if balance is insufficient.
+  const result = await prisma.$transaction(async (tx) => {
+    const claim = await tx.customer.updateMany({
+      where: {
+        id: customerId,
+        isActive: true,
+        totalPoints: { gte: points },
       },
-      select: { totalPoints: true },
+      data: { totalPoints: { decrement: points } },
     })
+    if (claim.count === 0) {
+      const current = await tx.customer.findUnique({
+        where: { id: customerId },
+        select: { totalPoints: true, isActive: true },
+      })
+      if (!current || !current.isActive) {
+        throw new AppError(404, 'CUSTOMER_NOT_FOUND', 'Không tìm thấy khách hàng')
+      }
+      throw new AppError(
+        400,
+        'INSUFFICIENT_POINTS',
+        `Khách hàng không đủ điểm (hiện có ${current.totalPoints} điểm)`,
+      )
+    }
 
     await tx.pointHistory.create({
       data: {
         customerId,
         action: 'REDEEM',
         points: -points,
-        reason: reason ?? 'Đổi điểm',
+        reason,
       },
     })
 
-    return result
+    // Audit trail — every redemption traces back to a user + reason.
+    await tx.auditLog.create({
+      data: {
+        userId: actorUserId,
+        action: 'CUSTOMER_REDEEM_POINTS',
+        entityType: 'customer',
+        entityId: customerId,
+        details: { points, reason },
+      },
+    })
+
+    const after = await tx.customer.findUnique({
+      where: { id: customerId },
+      select: { totalPoints: true },
+    })
+    return after!
   })
 
-  return { remainingPoints: updated.totalPoints }
+  return { remainingPoints: result.totalPoints }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -294,7 +294,7 @@ export async function redeemPointsHandler(
     }
 
     const { points, reason } = req.body
-    const result = await customerService.redeemPoints(id, points, reason)
+    const result = await customerService.redeemPoints(id, points, reason, req.user!.id)
 
     res.status(200).json({
       success: true,

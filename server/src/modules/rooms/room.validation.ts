@@ -63,15 +63,22 @@ export const cancelBookingSchema = z.object({
   reason: z.string().optional(),
 })
 
+// Cap `limit` at 100 so a malicious or buggy client can't request a million rows
+// and OOM the server. 100 is plenty for any UI list — deeper reads should paginate.
+const pageField = z
+  .string()
+  .optional()
+  .transform((v) => (v ? parseInt(v, 10) : 1))
+  .pipe(z.number().int().min(1))
+const limitField = z
+  .string()
+  .optional()
+  .transform((v) => (v ? parseInt(v, 10) : 20))
+  .pipe(z.number().int().min(1).max(100))
+
 export const sessionQuerySchema = z.object({
-  page: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 1)),
-  limit: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 20)),
+  page: pageField,
+  limit: limitField,
   roomId: z
     .string()
     .optional()
@@ -89,14 +96,8 @@ export const bookingQuerySchema = z.object({
     .optional()
     .transform((v) => (v ? parseInt(v, 10) : undefined)),
   status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'NO_SHOW']).optional(),
-  page: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 1)),
-  limit: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : 20)),
+  page: pageField,
+  limit: limitField,
 })
 
 export const queueQuerySchema = z.object({
