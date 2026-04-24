@@ -54,10 +54,17 @@ export default function RoomCard({
     handler?.()
   }
 
-  const capacityLabel =
-    room.roomType.capacityMin === room.roomType.capacityMax
-      ? `${room.roomType.capacityMax} khách`
-      : `${room.roomType.capacityMin}–${room.roomType.capacityMax} khách`
+  const capacityLabel = (() => {
+    const { capacityMin, capacityMax } = room.roomType
+    const hasMin = typeof capacityMin === 'number' && capacityMin > 0
+    const hasMax = typeof capacityMax === 'number' && capacityMax > 0
+    if (hasMin && hasMax && capacityMin !== capacityMax) {
+      return `${capacityMin}–${capacityMax} khách`
+    }
+    if (hasMax) return `Tối đa ${capacityMax} khách`
+    if (hasMin) return `Từ ${capacityMin} khách`
+    return 'Phòng karaoke'
+  })()
 
   return (
     <div
