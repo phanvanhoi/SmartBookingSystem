@@ -21,9 +21,9 @@ export default function CountdownTimer({
     <div className={cn('flex flex-col items-center', className)}>
       <span
         className={cn(
-          'text-2xl font-bold font-mono tracking-widest transition-colors duration-300',
-          isExpired && 'text-[#ef4444] animate-pulse',
-          isWarning && !isExpired && 'text-[#f59e0b]',
+          'text-2xl font-bold font-mono tracking-widest tabular-nums transition-colors duration-300',
+          isExpired && 'text-rose-600 animate-pulse',
+          isWarning && !isExpired && 'text-amber-600',
           !isWarning && !isExpired && 'text-foreground'
         )}
       >
@@ -32,8 +32,8 @@ export default function CountdownTimer({
       <span
         className={cn(
           'text-xs mt-0.5',
-          isExpired && 'text-[#ef4444]',
-          isWarning && !isExpired && 'text-[#f59e0b]',
+          isExpired && 'text-rose-600',
+          isWarning && !isExpired && 'text-amber-600',
           !isWarning && !isExpired && 'text-muted-foreground'
         )}
       >

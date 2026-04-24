@@ -55,10 +55,10 @@ export default function Sidebar() {
       <aside className="hidden md:flex flex-col w-60 h-full bg-card border-r border-border shrink-0">
         {/* Logo */}
         <div className="flex items-center gap-3 h-14 px-5 border-b border-border shrink-0">
-          <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-br from-[#6c5ce7] to-[#a855f7] shrink-0">
-            <Music2 className="w-4 h-4 text-white" />
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary text-primary-foreground shrink-0 shadow-card">
+            <Music2 className="w-4 h-4" />
           </div>
-          <span className="font-bold text-base bg-gradient-to-r from-[#6c5ce7] to-[#a855f7] bg-clip-text text-transparent whitespace-nowrap">
+          <span className="font-bold text-base text-foreground tracking-tight whitespace-nowrap">
             Music Box
           </span>
         </div>

@@ -44,10 +44,10 @@ const config: Config = {
         },
         // Status colors
         status: {
-          available: '#22c55e',
+          available: '#10b981',
           occupied: '#ef4444',
           ending: '#f59e0b',
-          maintenance: '#6b7280',
+          maintenance: '#94a3b8',
         },
       },
       borderRadius: {
@@ -57,6 +57,11 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      },
+      boxShadow: {
+        'card': '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.05)',
+        'card-hover': '0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.06)',
+        'elevated': '0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.06)',
       },
       keyframes: {
         'pulse-status': {

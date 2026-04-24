@@ -4,26 +4,35 @@
 
 @layer base {
   :root {
-    --background: 40 20% 97%;
+    /* Surface */
+    --background: 30 25% 98%;
     --foreground: 220 20% 14%;
     --card: 0 0% 100%;
     --card-foreground: 220 20% 14%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 14%;
-    --primary: 243 60% 55%;
+
+    /* Brand — warm POS orange */
+    --primary: 16 85% 55%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 94%;
+    --accent: 16 85% 95%;
+    --accent-foreground: 16 85% 35%;
+    --ring: 16 85% 55%;
+
+    /* Neutrals */
+    --secondary: 30 14% 94%;
     --secondary-foreground: 220 20% 20%;
-    --muted: 220 14% 92%;
+    --muted: 30 10% 93%;
     --muted-foreground: 220 10% 46%;
-    --accent: 243 60% 96%;
-    --accent-foreground: 243 60% 45%;
-    --destructive: 0 72% 51%;
+    --border: 30 10% 88%;
+    --input: 30 10% 88%;
+
+    /* Feedback */
+    --destructive: 0 78% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 14% 88%;
-    --input: 220 14% 88%;
-    --ring: 243 60% 55%;
-    --radius: 0.5rem;
+
+    /* Shape */
+    --radius: 0.625rem;
   }
 
   * {
@@ -32,6 +41,12 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Stable-width digits for money, counters, timers */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -42,36 +57,39 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(220 14% 96%);
+  background: hsl(30 14% 96%);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(220 10% 78%);
+  background: hsl(30 8% 78%);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(220 10% 65%);
+  background: hsl(30 8% 65%);
 }
 
-/* ── Gradient Button ── */
+/* ── Primary CTA (legacy name `.btn-gradient` kept for back-compat) ── */
 .btn-gradient {
-  background: linear-gradient(135deg, hsl(243 60% 55%), hsl(255 70% 62%));
-  transition: all 0.2s ease;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .btn-gradient:hover {
-  background: linear-gradient(135deg, hsl(243 60% 48%), hsl(255 70% 55%));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(88, 72, 214, 0.3);
+  background-color: hsl(16 85% 48%);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
 }
 
-/* ── Glow Effect ── */
-.glow-accent {
-  box-shadow: 0 0 16px rgba(88, 72, 214, 0.15);
+.btn-gradient:active {
+  transform: translateY(0.5px);
 }
 
-/* ── Status Pulse ── */
+/* ── Status pulse (amber ENDING_SOON) ── */
 .status-ending {
   animation: pulse-status 2s ease-in-out infinite;
 }
@@ -79,11 +97,4 @@
 @keyframes pulse-status {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
-}
-
-/* ── Glass (for dialogs on light bg) ── */
-.glass {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid hsl(220 14% 88%);
 }

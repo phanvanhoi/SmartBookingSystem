@@ -48,14 +48,16 @@ export default function FacebookInboxPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-blue-500" />
-            Facebook Inbox
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Tin nhắn đặt phòng từ Facebook · {newMessages.length} chờ xử lý
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+            <MessageSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Facebook Inbox</h1>
+            <p className="text-sm text-muted-foreground mt-0.5 tabular-nums">
+              Tin nhắn đặt phòng từ Facebook · {newMessages.length} chờ xử lý
+            </p>
+          </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
           <RefreshCw className="w-3.5 h-3.5" />
@@ -66,7 +68,7 @@ export default function FacebookInboxPage() {
       {/* Test parser */}
       <div className="border border-border rounded-xl p-4 bg-card">
         <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-amber-500" />
+          <Sparkles className="w-4 h-4 text-amber-600" />
           Test parser tin nhắn
         </h3>
         <div className="flex gap-2">
@@ -105,7 +107,7 @@ export default function FacebookInboxPage() {
         <div className="space-y-6">
           {/* New / Parsed messages */}
           {newMessages.length > 0 && (
-            <Section title={`Chờ xử lý (${newMessages.length})`} color="text-amber-500">
+            <Section title={`Chờ xử lý (${newMessages.length})`} color="text-amber-600">
               {newMessages.map((msg) => (
                 <MessageCard
                   key={msg.id}
@@ -119,7 +121,7 @@ export default function FacebookInboxPage() {
 
           {/* Booked */}
           {bookedMessages.length > 0 && (
-            <Section title={`Đã đặt (${bookedMessages.length})`} color="text-emerald-500">
+            <Section title={`Đã đặt (${bookedMessages.length})`} color="text-emerald-600">
               {bookedMessages.map((msg) => (
                 <MessageCard key={msg.id} message={msg} />
               ))}
@@ -180,7 +182,7 @@ function MessageCard({
           {/* Sender + time */}
           <div className="flex items-center gap-2 mb-1.5">
             <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-              <User className="w-4 h-4 text-blue-500" />
+              <User className="w-4 h-4 text-sky-600" />
             </div>
             <div>
               <span className="text-sm font-semibold">{message.senderName}</span>
@@ -214,7 +216,7 @@ function MessageCard({
             <Button size="sm" variant="outline" className="h-8 px-2.5" onClick={onIgnore}>
               <X className="w-3.5 h-3.5" />
             </Button>
-            <Button size="sm" className="h-8 px-3 btn-gradient text-white" onClick={onConfirm}>
+            <Button size="sm" className="h-8 px-3" onClick={onConfirm}>
               <Check className="w-3.5 h-3.5 mr-1" />
               Đặt
             </Button>
@@ -399,7 +401,6 @@ function ConfirmBookingDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Hủy</Button>
           <Button
-            className="btn-gradient text-white"
             onClick={() => confirmMutation.mutate()}
             disabled={!form.customerName || !form.date || !form.time || confirmMutation.isPending}
           >

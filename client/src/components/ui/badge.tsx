@@ -17,13 +17,13 @@ const badgeVariants = cva(
           'border-border text-foreground',
         // Status variants
         available:
-          'border-transparent bg-[#22c55e]/20 text-[#22c55e] border-[#22c55e]/30',
+          'bg-emerald-50 text-emerald-700 border-emerald-200',
         occupied:
-          'border-transparent bg-[#ef4444]/20 text-[#ef4444] border-[#ef4444]/30',
+          'bg-rose-50 text-rose-700 border-rose-200',
         ending:
-          'border-transparent bg-[#f59e0b]/20 text-[#f59e0b] border-[#f59e0b]/30 animate-pulse-status',
+          'bg-amber-50 text-amber-700 border-amber-200 animate-pulse-status',
         maintenance:
-          'border-transparent bg-[#6b7280]/20 text-[#6b7280] border-[#6b7280]/30',
+          'bg-slate-50 text-slate-700 border-slate-200',
       },
     },
     defaultVariants: {

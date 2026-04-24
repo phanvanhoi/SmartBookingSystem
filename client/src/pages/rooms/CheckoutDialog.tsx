@@ -83,9 +83,9 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-border">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2.5 text-lg">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Receipt className="w-5 h-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2.5 text-lg tracking-tight">
+              <div className="w-9 h-9 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+                <Receipt className="w-5 h-5" />
               </div>
               <div>
                 <span>Thanh toán</span>
@@ -298,15 +298,15 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                         <div className={cn(
                           'flex justify-between items-center p-3 rounded-lg border',
                           cashChange >= 0
-                            ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
-                            : 'bg-red-50 border-red-200 dark:bg-red-500/10 dark:border-red-500/30'
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-rose-50 border-rose-200'
                         )}>
                           <span className="text-sm text-muted-foreground">
                             {cashChange >= 0 ? 'Tiền thừa' : 'Còn thiếu'}
                           </span>
                           <span className={cn(
-                            'text-lg font-bold',
-                            cashChange >= 0 ? 'text-emerald-600' : 'text-red-600'
+                            'text-lg font-bold tabular-nums',
+                            cashChange >= 0 ? 'text-emerald-700' : 'text-rose-700'
                           )}>
                             {formatCurrency(Math.abs(cashChange), true)}
                           </span>
@@ -331,8 +331,8 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                   )}
 
                   {paymentMethod === 'debt' && (
-                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30">
-                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                    <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                      <p className="text-sm text-amber-700">
                         ⚠️ Ghi nợ <strong>{formatCurrency(finalTotal, true)}</strong> cho khách{' '}
                         <strong>{billData.customerName}</strong>
                       </p>
@@ -343,7 +343,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                 {/* Confirm button */}
                 <div className="pt-2">
                   <Button
-                    className="w-full h-12 btn-gradient text-white font-semibold text-base gap-2"
+                    className="w-full h-12 font-bold text-base tracking-wide gap-2"
                     onClick={() => { toast.success('Thanh toán thành công!'); closeAll() }}
                     disabled={!billData || !canConfirm}
                   >
@@ -367,11 +367,11 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
 
 function InfoCard({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/50">
+    <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-card border border-border">
       <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
       <div className="min-w-0">
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className="text-sm font-semibold truncate">{value}</p>
+        <p className="text-sm font-bold truncate tabular-nums">{value}</p>
       </div>
     </div>
   )
@@ -381,7 +381,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div>
       <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{title}</h4>
-      <div className="border border-border/50 rounded-xl p-3 bg-card">
+      <div className="border border-border rounded-xl p-3 bg-card shadow-card">
         {children}
       </div>
     </div>
@@ -392,7 +392,7 @@ function SummaryRow({ label, value, className }: { label: string; value: string;
   return (
     <div className={cn('flex justify-between text-sm', className)}>
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="font-semibold tabular-nums">{value}</span>
     </div>
   )
 }
@@ -404,10 +404,10 @@ function MethodButton({ active, onClick, icon: Icon, label }: {
     <button
       onClick={onClick}
       className={cn(
-        'flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all text-xs font-medium',
+        'flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all text-xs font-semibold',
         active
-          ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary'
-          : 'border-border hover:bg-muted/50 text-muted-foreground'
+          ? 'border-primary bg-accent text-accent-foreground ring-1 ring-primary shadow-card'
+          : 'border-border bg-card hover:bg-muted/50 text-muted-foreground'
       )}
     >
       <Icon className="w-4 h-4" />

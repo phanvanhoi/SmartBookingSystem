@@ -77,32 +77,27 @@ export default function RoomMapPage() {
     <div className="flex flex-col h-full">
       {/* Page header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
-        <div>
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-primary" />
-            Quản lý phòng
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {statusCount.OCCUPIED + statusCount.ENDING_SOON}/{rooms.length} phòng đang hát
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+            <LayoutGrid className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground tracking-tight">
+              Quản lý phòng
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
+              {statusCount.OCCUPIED + statusCount.ENDING_SOON}/{rooms.length} phòng đang hát
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Status summary */}
-          <div className="hidden sm:flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#22c55e]" />
-              <span className="text-muted-foreground">{statusCount.AVAILABLE} trống</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
-              <span className="text-muted-foreground">{statusCount.OCCUPIED} đang hát</span>
-            </span>
+        <div className="flex items-center gap-2">
+          {/* Status summary pills */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            <StatusPill color="emerald" count={statusCount.AVAILABLE} label="trống" />
+            <StatusPill color="rose" count={statusCount.OCCUPIED} label="đang hát" />
             {statusCount.ENDING_SOON > 0 && (
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#f59e0b] animate-pulse" />
-                <span className="text-[#f59e0b]">{statusCount.ENDING_SOON} sắp trống</span>
-              </span>
+              <StatusPill color="amber" count={statusCount.ENDING_SOON} label="sắp hết" pulse />
             )}
           </div>
 
@@ -111,7 +106,7 @@ export default function RoomMapPage() {
             size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="gap-1.5 text-xs h-8"
+            className="gap-1.5 text-xs h-9"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
             <span className="hidden sm:inline">Làm mới</span>
@@ -225,10 +220,54 @@ export default function RoomMapPage() {
   )
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Status pill
+// ──────────────────────────────────────────────────────────────────────────
+
+const pillPalette = {
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+} as const
+
+const pillDot = {
+  emerald: 'bg-emerald-500',
+  rose: 'bg-rose-500',
+  amber: 'bg-amber-500',
+} as const
+
+function StatusPill({
+  color,
+  count,
+  label,
+  pulse,
+}: {
+  color: keyof typeof pillPalette
+  count: number
+  label: string
+  pulse?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium tabular-nums',
+        pillPalette[color],
+      )}
+    >
+      <span className={cn('w-1.5 h-1.5 rounded-full', pillDot[color], pulse && 'animate-pulse')} />
+      <span>{count}</span>
+      <span className="opacity-75">{label}</span>
+    </span>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Skeleton
+// ──────────────────────────────────────────────────────────────────────────
+
 function RoomGridSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Section label */}
       <div className="flex items-center gap-2">
         <div className="h-px flex-1 bg-border" />
         <Skeleton className="h-4 w-24" />
@@ -236,7 +275,7 @@ function RoomGridSkeleton() {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="rounded-lg border-2 border-border bg-card p-3 space-y-3">
+          <div key={i} className="rounded-xl border border-border bg-card shadow-card p-3 space-y-3">
             <div className="flex items-center justify-between">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-4 w-10 rounded-full" />

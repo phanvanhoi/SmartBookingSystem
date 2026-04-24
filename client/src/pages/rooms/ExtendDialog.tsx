@@ -91,10 +91,10 @@ export default function ExtendDialog({ sessionId, open, onClose }: ExtendDialogP
                   setConflictWarning(null)
                 }}
                 className={cn(
-                  'h-10 rounded-md text-sm font-medium border transition-all',
+                  'h-10 rounded-md text-sm font-semibold border transition-all',
                   selectedMinutes === p.value
-                    ? 'btn-gradient text-white border-transparent'
-                    : 'border-border text-foreground bg-muted/30 hover:bg-muted'
+                    ? 'bg-primary text-primary-foreground border-primary shadow-card'
+                    : 'border-border text-foreground bg-card hover:bg-muted'
                 )}
               >
                 {p.label}
@@ -123,7 +123,7 @@ export default function ExtendDialog({ sessionId, open, onClose }: ExtendDialogP
 
           {/* Conflict warning */}
           {conflictWarning && (
-            <div className="p-3 rounded-lg bg-[#f59e0b]/10 border border-[#f59e0b]/30 text-sm text-[#f59e0b]">
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
               {conflictWarning}
             </div>
           )}
@@ -134,7 +134,6 @@ export default function ExtendDialog({ sessionId, open, onClose }: ExtendDialogP
             Hủy
           </Button>
           <Button
-            className="btn-gradient text-white"
             onClick={handleSubmit}
             disabled={extend.isPending || (selectedMinutes === null && !customMinutes)}
           >

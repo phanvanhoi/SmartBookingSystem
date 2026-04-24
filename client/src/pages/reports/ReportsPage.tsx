@@ -17,7 +17,6 @@ import {
   useStockReport,
   useShiftReport,
 } from '@/hooks/useReports'
-import { reportService } from '@/services/reportService'
 import type { RevenueFilters, DateRangeFilters } from '@/services/reportService'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDuration } from '@/utils/formatTime'
@@ -57,21 +56,21 @@ function SummaryCard({
   const isNegative = (trend ?? 0) < 0
 
   return (
-    <Card className="bg-[#111118] border-[#2a2a3a]">
+    <Card className="bg-card border border-border shadow-card">
       <CardContent className="p-5">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-base">{icon}</span>
-          <p className="text-sm text-[#8888a0]">{label}</p>
+          <p className="text-sm text-muted-foreground">{label}</p>
         </div>
         {loading ? (
-          <Skeleton className="h-7 w-28 bg-[#1a1a24]" />
+          <Skeleton className="h-7 w-28 bg-muted" />
         ) : (
           <div className="flex items-end gap-2">
             <p className="text-xl font-bold text-foreground">{value}</p>
             {trend != null && (
               <div
                 className={`flex items-center gap-1 text-xs mb-0.5 ${
-                  isPositive ? 'text-green-400' : isNegative ? 'text-red-400' : 'text-[#8888a0]'
+                  isPositive ? 'text-emerald-700' : isNegative ? 'text-rose-700' : 'text-muted-foreground'
                 }`}
               >
                 {isPositive ? (
@@ -129,7 +128,7 @@ function RevenueTab({ filters }: { filters: RevenueFilters }) {
       </div>
 
       {/* Chart */}
-      <Card className="bg-[#111118] border-[#2a2a3a]">
+      <Card className="bg-card border border-border shadow-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-foreground">
             Biểu đồ doanh thu
@@ -137,7 +136,7 @@ function RevenueTab({ filters }: { filters: RevenueFilters }) {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <Skeleton className="h-64 w-full bg-[#1a1a24]" />
+            <Skeleton className="h-64 w-full bg-muted" />
           ) : (
             <RevenueChart data={data?.chart ?? []} />
           )}
@@ -146,21 +145,21 @@ function RevenueTab({ filters }: { filters: RevenueFilters }) {
 
       {/* Additional Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <Card className="bg-[#111118] border-[#2a2a3a]">
+        <Card className="bg-card border border-border shadow-card">
           <CardContent className="p-4">
-            <p className="text-sm text-[#8888a0] mb-1">Tổng lượt khách</p>
+            <p className="text-sm text-muted-foreground mb-1">Tổng lượt khách</p>
             {isLoading ? (
-              <Skeleton className="h-6 w-16 bg-[#1a1a24]" />
+              <Skeleton className="h-6 w-16 bg-muted" />
             ) : (
               <p className="text-xl font-bold text-foreground">{summary?.totalSessions ?? 0}</p>
             )}
           </CardContent>
         </Card>
-        <Card className="bg-[#111118] border-[#2a2a3a]">
+        <Card className="bg-card border border-border shadow-card">
           <CardContent className="p-4">
-            <p className="text-sm text-[#8888a0] mb-1">TB doanh thu/lượt</p>
+            <p className="text-sm text-muted-foreground mb-1">TB doanh thu/lượt</p>
             {isLoading ? (
-              <Skeleton className="h-6 w-24 bg-[#1a1a24]" />
+              <Skeleton className="h-6 w-24 bg-muted" />
             ) : (
               <p className="text-xl font-bold text-foreground">
                 {formatCurrency(summary?.avgRevenuePerSession ?? 0, true)}
@@ -183,7 +182,7 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top phòng chart */}
-        <Card className="bg-[#111118] border-[#2a2a3a]">
+        <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-foreground">
               Top 5 phòng (Tỉ lệ lấp đầy)
@@ -191,7 +190,7 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-52 w-full bg-[#1a1a24]" />
+              <Skeleton className="h-52 w-full bg-muted" />
             ) : (
               <RoomUsageChart data={rooms} />
             )}
@@ -199,7 +198,7 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
         </Card>
 
         {/* Room Stats Table */}
-        <Card className="bg-[#111118] border-[#2a2a3a]">
+        <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-foreground">
               Chi tiết phòng
@@ -209,16 +208,16 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full bg-[#1a1a24]" />
+                  <Skeleton key={i} className="h-10 w-full bg-muted" />
                 ))}
               </div>
             ) : rooms.length === 0 ? (
-              <p className="text-center text-[#555568] py-6 text-sm">Không có dữ liệu</p>
+              <p className="text-center text-muted-foreground py-6 text-sm">Không có dữ liệu</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[#555568] text-xs border-b border-[#2a2a3a]">
+                    <tr className="text-muted-foreground text-xs border-b border-border">
                       <th className="text-left pb-2 px-2">Phòng</th>
                       <th className="text-right pb-2 px-2">Lượt</th>
                       <th className="text-right pb-2 px-2">Lấp đầy</th>
@@ -229,23 +228,23 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
                     {rooms.slice(0, 8).map((room) => (
                       <tr
                         key={room.roomId}
-                        className="border-b border-[#1a1a24] hover:bg-[#1a1a24]/50 transition-colors"
+                        className="border-b border-border hover:bg-muted/40 transition-colors"
                       >
                         <td className="py-2 px-2">
                           <p className="font-medium text-foreground">{room.roomName}</p>
-                          <p className="text-xs text-[#555568]">{room.roomType}</p>
+                          <p className="text-xs text-muted-foreground">{room.roomType}</p>
                         </td>
-                        <td className="text-right py-2 px-2 text-[#8888a0]">
+                        <td className="text-right py-2 px-2 text-muted-foreground">
                           {room.totalSessions}
                         </td>
                         <td className="text-right py-2 px-2">
                           <span
                             className={`${
                               room.occupancyRate >= 60
-                                ? 'text-green-400'
+                                ? 'text-emerald-700'
                                 : room.occupancyRate >= 30
-                                  ? 'text-amber-400'
-                                  : 'text-red-400'
+                                  ? 'text-amber-700'
+                                  : 'text-rose-700'
                             }`}
                           >
                             {room.occupancyRate}%
@@ -275,7 +274,7 @@ function StockTab({ filters }: { filters: DateRangeFilters }) {
 
   return (
     <div className="space-y-4">
-      <Card className="bg-[#111118] border-[#2a2a3a]">
+      <Card className="bg-card border border-border shadow-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-foreground">
             Top sản phẩm bán chạy
@@ -285,16 +284,16 @@ function StockTab({ filters }: { filters: DateRangeFilters }) {
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full bg-[#1a1a24]" />
+                <Skeleton key={i} className="h-10 w-full bg-muted" />
               ))}
             </div>
           ) : topSelling.length === 0 ? (
-            <p className="text-center text-[#555568] py-8 text-sm">Không có dữ liệu</p>
+            <p className="text-center text-muted-foreground py-8 text-sm">Không có dữ liệu</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[#555568] text-xs border-b border-[#2a2a3a]">
+                  <tr className="text-muted-foreground text-xs border-b border-border">
                     <th className="text-left pb-2 px-2">#</th>
                     <th className="text-left pb-2 px-2">Sản phẩm</th>
                     <th className="text-right pb-2 px-2">Đã bán</th>
@@ -306,16 +305,16 @@ function StockTab({ filters }: { filters: DateRangeFilters }) {
                   {topSelling.map((item, idx) => (
                     <tr
                       key={item.productId}
-                      className="border-b border-[#1a1a24] hover:bg-[#1a1a24]/50 transition-colors"
+                      className="border-b border-border hover:bg-muted/40 transition-colors"
                     >
-                      <td className="py-2.5 px-2 text-[#555568]">{idx + 1}</td>
+                      <td className="py-2.5 px-2 text-muted-foreground">{idx + 1}</td>
                       <td className="py-2.5 px-2 text-foreground font-medium">{item.name}</td>
-                      <td className="text-right py-2.5 px-2 text-[#8888a0]">{item.totalSold}</td>
+                      <td className="text-right py-2.5 px-2 text-muted-foreground">{item.totalSold}</td>
                       <td className="text-right py-2.5 px-2 text-foreground">
                         {formatCurrency(item.revenue)}
                       </td>
                       <td className="text-right py-2.5 px-2">
-                        <span className={item.profit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        <span className={item.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
                           {formatCurrency(item.profit)}
                         </span>
                       </td>
@@ -343,15 +342,15 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
       {/* Summary */}
       {!isLoading && summary && (
         <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-[#111118] border-[#2a2a3a]">
+          <Card className="bg-card border border-border shadow-card">
             <CardContent className="p-4">
-              <p className="text-sm text-[#8888a0] mb-1">Tổng số ca</p>
+              <p className="text-sm text-muted-foreground mb-1">Tổng số ca</p>
               <p className="text-xl font-bold text-foreground">{summary.totalShifts}</p>
             </CardContent>
           </Card>
-          <Card className="bg-[#111118] border-[#2a2a3a]">
+          <Card className="bg-card border border-border shadow-card">
             <CardContent className="p-4">
-              <p className="text-sm text-[#8888a0] mb-1">TB doanh thu/ca</p>
+              <p className="text-sm text-muted-foreground mb-1">TB doanh thu/ca</p>
               <p className="text-xl font-bold text-foreground">
                 {formatCurrency(summary.avgRevenue, true)}
               </p>
@@ -361,7 +360,7 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
       )}
 
       {/* Shifts Table */}
-      <Card className="bg-[#111118] border-[#2a2a3a]">
+      <Card className="bg-card border border-border shadow-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-foreground">Chi tiết ca làm</CardTitle>
         </CardHeader>
@@ -369,16 +368,16 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full bg-[#1a1a24]" />
+                <Skeleton key={i} className="h-12 w-full bg-muted" />
               ))}
             </div>
           ) : shifts.length === 0 ? (
-            <p className="text-center text-[#555568] py-8 text-sm">Không có dữ liệu</p>
+            <p className="text-center text-muted-foreground py-8 text-sm">Không có dữ liệu</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[#555568] text-xs border-b border-[#2a2a3a]">
+                  <tr className="text-muted-foreground text-xs border-b border-border">
                     <th className="text-left pb-2 px-2">Nhân viên</th>
                     <th className="text-left pb-2 px-2">Ngày</th>
                     <th className="text-right pb-2 px-2">Thời lượng</th>
@@ -391,17 +390,17 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
                   {shifts.map((shift) => (
                     <tr
                       key={shift.shiftId}
-                      className="border-b border-[#1a1a24] hover:bg-[#1a1a24]/50 transition-colors"
+                      className="border-b border-border hover:bg-muted/40 transition-colors"
                     >
                       <td className="py-2.5 px-2 text-foreground font-medium">{shift.staffName}</td>
-                      <td className="py-2.5 px-2 text-[#8888a0]">{shift.date}</td>
-                      <td className="text-right py-2.5 px-2 text-[#8888a0]">
+                      <td className="py-2.5 px-2 text-muted-foreground">{shift.date}</td>
+                      <td className="text-right py-2.5 px-2 text-muted-foreground">
                         {formatDuration(shift.duration)}
                       </td>
                       <td className="text-right py-2.5 px-2 text-foreground">
                         {formatCurrency(shift.totalRevenue)}
                       </td>
-                      <td className="text-right py-2.5 px-2 text-[#8888a0]">
+                      <td className="text-right py-2.5 px-2 text-muted-foreground">
                         {formatCurrency(shift.cashRevenue)}
                       </td>
                       <td className="text-right py-2.5 px-2">
@@ -409,17 +408,17 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
                           <span
                             className={
                               shift.cashDifference < 0
-                                ? 'text-red-400'
+                                ? 'text-rose-700'
                                 : shift.cashDifference > 0
-                                  ? 'text-green-400'
-                                  : 'text-[#8888a0]'
+                                  ? 'text-emerald-700'
+                                  : 'text-muted-foreground'
                             }
                           >
                             {shift.cashDifference > 0 ? '+' : ''}
                             {formatCurrency(shift.cashDifference)}
                           </span>
                         ) : (
-                          <span className="text-[#555568]">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
                     </tr>
@@ -468,65 +467,39 @@ export default function ReportsPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Báo cáo</h1>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+          <TrendingUp className="w-5 h-5" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Báo cáo</h1>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Tab Bar + Filter Row */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-          <TabsList className="bg-secondary border border-border h-9 p-1 flex-shrink-0">
-            <TabsTrigger
-              value="revenue"
-              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Doanh thu
-            </TabsTrigger>
-            <TabsTrigger
-              value="rooms"
-              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Phòng
-            </TabsTrigger>
-            <TabsTrigger
-              value="stock"
-              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Kho
-            </TabsTrigger>
-            <TabsTrigger
-              value="shifts"
-              className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Ca làm
-            </TabsTrigger>
+          <TabsList className="h-9 p-1 flex-shrink-0">
+            <TabsTrigger value="revenue" className="text-xs">Doanh thu</TabsTrigger>
+            <TabsTrigger value="rooms" className="text-xs">Phòng</TabsTrigger>
+            <TabsTrigger value="stock" className="text-xs">Kho</TabsTrigger>
+            <TabsTrigger value="shifts" className="text-xs">Ca làm</TabsTrigger>
           </TabsList>
 
           {/* Filters */}
           <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
             <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <SelectTrigger className="h-9 w-36 bg-[#111118] border-[#2a2a3a] text-foreground text-sm">
+              <SelectTrigger className="h-9 w-36 text-sm">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#1a1a24] border-[#2a2a3a]">
+              <SelectContent>
                 {PERIOD_OPTIONS.map((opt) => (
-                  <SelectItem
-                    key={opt.value}
-                    value={opt.value}
-                    className="text-foreground focus:bg-[#2a2a3a]"
-                  >
+                  <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              className="h-9 border-[#2a2a3a] bg-[#111118] text-[#8888a0] hover:text-foreground hover:bg-[#1a1a24]"
-            >
+            <Button variant="outline" size="sm" onClick={handleExport} className="h-9">
               <Download className="w-4 h-4 mr-1.5" />
               Xuất Excel
             </Button>

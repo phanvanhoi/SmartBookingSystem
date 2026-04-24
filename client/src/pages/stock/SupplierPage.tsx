@@ -126,11 +126,11 @@ export default function SupplierPage() {
                       <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">{supplier.notes}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{supplier.phone ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground tabular-nums">{supplier.phone ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     <span className="truncate max-w-[180px] block">{supplier.address ?? '—'}</span>
                   </td>
-                  <td className="px-4 py-3 text-right text-foreground">{supplier.productCount ?? 0}</td>
+                  <td className="px-4 py-3 text-right text-foreground tabular-nums">{supplier.productCount ?? 0}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <Button

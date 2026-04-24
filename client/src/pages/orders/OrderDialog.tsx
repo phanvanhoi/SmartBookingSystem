@@ -74,9 +74,9 @@ export default function OrderDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-4xl w-full h-[90vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border/50">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <ShoppingCart className="h-5 w-5 text-amber-400" />
+        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border">
+          <DialogTitle className="flex items-center gap-2 text-lg tracking-tight">
+            <ShoppingCart className="h-5 w-5 text-primary" />
             Order — {roomName}
           </DialogTitle>
         </DialogHeader>
@@ -84,7 +84,7 @@ export default function OrderDialog({
         {/* Body */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           {/* LEFT: Menu */}
-          <div className="flex flex-col flex-1 overflow-hidden border-b md:border-b-0 md:border-r border-border/50">
+          <div className="flex flex-col flex-1 overflow-hidden border-b md:border-b-0 md:border-r border-border">
             <div className="px-4 pt-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Menu
             </div>
@@ -92,7 +92,7 @@ export default function OrderDialog({
             {menuLoading ? (
               <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="rounded-lg border border-border/50 p-3 space-y-2">
+                  <div key={i} className="rounded-xl border border-border bg-card shadow-card p-3 space-y-2">
                     <Skeleton className="w-full aspect-square rounded-md" />
                     <Skeleton className="h-3 w-20" />
                     <Skeleton className="h-3 w-14" />
@@ -107,7 +107,7 @@ export default function OrderDialog({
                       <TabsTrigger
                         key={cat.id}
                         value={cat.id.toString()}
-                        className="text-xs px-3 py-1.5 rounded-full border border-border/50 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 data-[state=active]:border-amber-500/40"
+                        className="text-xs px-3 py-1.5 rounded-full border border-border bg-card data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:border-primary/40"
                       >
                         {cat.name}
                       </TabsTrigger>
@@ -146,7 +146,7 @@ export default function OrderDialog({
             <div className="px-4 pt-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Giỏ hàng
               {hasItems && (
-                <span className="ml-1 text-amber-400">({cart.length} món)</span>
+                <span className="ml-1 text-primary tabular-nums">({cart.length} món)</span>
               )}
             </div>
 
@@ -157,19 +157,19 @@ export default function OrderDialog({
                   <p className="text-sm">Giỏ hàng trống</p>
                 </div>
               ) : (
-                <div className="space-y-3 pb-2">
+                <div className="space-y-2 pb-2">
                   {cart.map((cartItem) => (
                     <div
                       key={cartItem.menuItem.id}
-                      className="rounded-lg border border-border/40 bg-card/30 p-3 space-y-2"
+                      className="rounded-lg border border-border bg-card p-3 space-y-2"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground leading-tight flex-1">
+                        <p className="text-sm font-semibold text-foreground leading-tight flex-1">
                           {cartItem.menuItem.name}
                         </p>
                         <button
                           onClick={() => removeFromCart(cartItem.menuItem.id)}
-                          className="text-muted-foreground hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                          className="text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-0.5"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -188,7 +188,7 @@ export default function OrderDialog({
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
-                          <span className="text-sm font-semibold w-5 text-center">
+                          <span className="text-sm font-bold w-5 text-center tabular-nums">
                             {cartItem.quantity}
                           </span>
                           <Button
@@ -203,7 +203,7 @@ export default function OrderDialog({
                             <Plus className="h-3 w-3" />
                           </Button>
                         </div>
-                        <span className="text-xs text-amber-400 font-semibold">
+                        <span className="text-xs text-foreground font-bold tabular-nums">
                           {formatCurrency(cartItem.menuItem.price * cartItem.quantity)}
                         </span>
                       </div>
@@ -213,7 +213,7 @@ export default function OrderDialog({
                         placeholder="Ghi chú món..."
                         value={cartItem.notes ?? ''}
                         onChange={(e) => setItemNote(cartItem.menuItem.id, e.target.value)}
-                        className="h-7 text-xs bg-background/40 border-border/40"
+                        className="h-7 text-xs"
                       />
                     </div>
                   ))}
@@ -222,7 +222,7 @@ export default function OrderDialog({
             </ScrollArea>
 
             {/* Footer */}
-            <div className="border-t border-border/50 px-4 pt-3 pb-4 space-y-3">
+            <div className="border-t border-border px-4 pt-3 pb-4 space-y-3 bg-muted/30">
               {/* Order note */}
               <div className="flex items-start gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground mt-2 shrink-0" />
@@ -230,15 +230,15 @@ export default function OrderDialog({
                   placeholder="Ghi chú order..."
                   value={orderNote}
                   onChange={(e) => setOrderNote(e.target.value)}
-                  className="h-8 text-xs bg-background/40 border-border/40"
+                  className="h-8 text-xs"
                 />
               </div>
 
               {/* Total */}
               {hasItems && (
-                <div className="flex justify-between items-center text-sm font-semibold">
-                  <span className="text-muted-foreground">Tổng:</span>
-                  <span className="text-amber-400 text-base">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground font-medium">Tổng:</span>
+                  <span className="text-primary text-lg font-bold tabular-nums">
                     {formatCurrency(cartTotal, true)}
                   </span>
                 </div>
@@ -246,7 +246,7 @@ export default function OrderDialog({
 
               {/* Submit */}
               <Button
-                className="w-full h-10 font-semibold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0 disabled:opacity-40"
+                className="w-full h-10 font-bold tracking-wide disabled:opacity-40"
                 disabled={!hasItems || createOrder.isPending}
                 onClick={handleSubmit}
               >

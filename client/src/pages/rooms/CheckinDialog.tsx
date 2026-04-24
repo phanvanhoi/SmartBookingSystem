@@ -228,10 +228,10 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
   }
 
   const tierColors: Record<string, string> = {
-    BRONZE: 'text-amber-600',
-    SILVER: 'text-slate-400',
-    GOLD: 'text-yellow-400',
-    PLATINUM: 'text-cyan-400',
+    BRONZE: 'text-amber-700',
+    SILVER: 'text-slate-600',
+    GOLD: 'text-amber-600',
+    PLATINUM: 'text-sky-700',
   }
 
   return (
@@ -252,7 +252,7 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
           {/* Customer name with autocomplete */}
           <div ref={nameContainerRef} className="relative">
             <label className="block text-sm font-medium text-foreground mb-1.5">
-              Tên khách <span className="text-[#ef4444]">*</span>
+              Tên khách <span className="text-destructive">*</span>
             </label>
             <div className="relative">
               <Input
@@ -320,9 +320,9 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
                       <span
                         className={cn(
                           'text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full border',
-                          c.tier === 'VIP' && 'border-purple-400 text-purple-500',
-                          c.tier === 'GOLD' && 'border-yellow-400 text-yellow-500',
-                          c.tier === 'SILVER' && 'border-slate-400 text-slate-400',
+                          c.tier === 'VIP' && 'border-fuchsia-300 text-fuchsia-700',
+                          c.tier === 'GOLD' && 'border-amber-300 text-amber-700',
+                          c.tier === 'SILVER' && 'border-slate-300 text-slate-600',
                         )}
                       >
                         {c.tier}
@@ -369,10 +369,10 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
             </div>
           )}
           {!isLookingUp && customerInfo && (
-            <div className="p-3 rounded-lg bg-[#22c55e]/10 border border-[#22c55e]/30">
+            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
               <div className="flex items-center gap-2">
-                <span className="text-[#22c55e] text-sm">✅</span>
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-emerald-700 text-sm">✅</span>
+                <span className="text-sm font-semibold text-foreground">
                   Khách quen: {customerInfo.name}
                 </span>
               </div>
@@ -409,10 +409,10 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
                   key={p.value}
                   onClick={() => setSelectedDuration(p.value)}
                   className={cn(
-                    'h-9 rounded-md text-sm font-medium border transition-all',
+                    'h-9 rounded-md text-sm font-semibold border transition-all',
                     selectedDuration === p.value
-                      ? 'btn-gradient text-white border-transparent'
-                      : 'border-border text-foreground bg-muted/30 hover:bg-muted'
+                      ? 'bg-primary text-primary-foreground border-primary shadow-card'
+                      : 'border-border text-foreground bg-card hover:bg-muted'
                   )}
                 >
                   {p.label}
@@ -451,7 +451,7 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
             Hủy
           </Button>
           <Button
-            className="btn-gradient text-white flex-1"
+            className="flex-1"
             onClick={handleSubmit}
             disabled={checkin.isPending || !customerName.trim()}
           >

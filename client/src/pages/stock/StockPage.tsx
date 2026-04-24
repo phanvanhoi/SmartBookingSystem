@@ -40,7 +40,7 @@ import {
   useSuppliers,
 } from '@/hooks/useStock'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { formatDateTime, formatDate } from '@/utils/formatTime'
+import { formatDateTime } from '@/utils/formatTime'
 import type { Product, StockEntryType } from '@/types/stock'
 import StockEntryForm from './StockEntryForm'
 import InventoryCheckPage from './InventoryCheckPage'
@@ -225,10 +225,10 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
 // ─── Entry Type Label ─────────────────────────────────────────────────────────
 
 const ENTRY_TYPE_LABELS: Record<StockEntryType, { label: string; color: string }> = {
-  IN: { label: 'Nhập kho', color: 'text-[#22c55e]' },
-  OUT_SALE: { label: 'Xuất bán', color: 'text-[#f59e0b]' },
-  OUT_MANUAL: { label: 'Xuất thủ công', color: 'text-[#ef4444]' },
-  ADJUSTMENT: { label: 'Điều chỉnh', color: 'text-[#3b82f6]' },
+  IN: { label: 'Nhập kho', color: 'text-emerald-600' },
+  OUT_SALE: { label: 'Xuất bán', color: 'text-amber-600' },
+  OUT_MANUAL: { label: 'Xuất thủ công', color: 'text-rose-600' },
+  ADJUSTMENT: { label: 'Điều chỉnh', color: 'text-sky-600' },
 }
 
 // ─── Main StockPage ───────────────────────────────────────────────────────────
@@ -301,11 +301,11 @@ export default function StockPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Package className="h-5 w-5 text-primary" />
+          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+            <Package className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Kho hàng</h1>
+            <h1 className="text-xl font-bold text-foreground tracking-tight">Kho hàng</h1>
             <p className="text-xs text-muted-foreground">Quản lý tồn kho & nhập xuất</p>
           </div>
         </div>
@@ -358,7 +358,7 @@ export default function StockPage() {
                   onChange={(e) => { setLowStockOnly(e.target.checked); setPage(1) }}
                   className="accent-primary"
                 />
-                <AlertTriangle className="h-4 w-4 text-[#f59e0b]" />
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
                 Sắp hết
               </label>
               <Button
@@ -402,13 +402,13 @@ export default function StockPage() {
                     {products.map((product) => (
                       <tr
                         key={product.id}
-                        className={`hover:bg-secondary/20 transition-colors cursor-pointer ${product.isLowStock ? 'bg-[#ef4444]/5' : ''}`}
+                        className={`hover:bg-secondary/20 transition-colors cursor-pointer ${product.isLowStock ? 'bg-rose-50' : ''}`}
                         onClick={() => openEditProduct(product)}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {product.isLowStock && (
-                              <AlertTriangle className="h-4 w-4 text-[#f59e0b] shrink-0" />
+                              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                             )}
                             <div>
                               <span className="text-foreground font-medium">{product.name}</span>
@@ -416,7 +416,7 @@ export default function StockPage() {
                                 <span className="ml-2 text-xs text-muted-foreground">{product.sku}</span>
                               )}
                               {product.isLowStock && (
-                                <p className="text-xs text-[#ef4444] mt-0.5">Dưới mức tối thiểu: {product.minStock}</p>
+                                <p className="text-xs text-rose-600 mt-0.5">Dưới mức tối thiểu: {product.minStock}</p>
                               )}
                             </div>
                           </div>
@@ -429,7 +429,7 @@ export default function StockPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className={`font-medium ${product.isLowStock ? 'text-[#ef4444]' : 'text-foreground'}`}>
+                          <span className={`font-medium ${product.isLowStock ? 'text-rose-600' : 'text-foreground'}`}>
                             {product.stockQuantity}
                           </span>
                         </td>

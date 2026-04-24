@@ -834,7 +834,7 @@ function SurchargesTab() {
                   <td className="px-4 py-3 text-muted-foreground capitalize">
                     {SURCHARGE_TYPES.find((t) => t.value === s.type)?.label ?? s.type}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-amber-500">
+                  <td className="px-4 py-3 text-right font-mono text-amber-600">
                     +{s.percentage}%
                   </td>
                   <td className="px-4 py-3">
@@ -1151,7 +1151,7 @@ function VouchersTab() {
                   <td className="px-4 py-3 text-muted-foreground text-xs">
                     {v.discountType === 'PERCENTAGE' ? 'Phần trăm' : 'Số tiền'}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-emerald-500">
+                  <td className="px-4 py-3 text-right font-mono text-emerald-600">
                     {v.discountType === 'PERCENTAGE'
                       ? `-${v.discountValue}%`
                       : `-${formatCurrency(v.discountValue)} đ`}
@@ -1461,7 +1461,7 @@ function RoomsTab() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 text-emerald-500"
+                          className="h-7 w-7 text-emerald-600"
                           aria-label="Lưu tên phòng"
                           onClick={() => {
                             toast('Sửa tên phòng cần gọi API PUT /rooms/:id', { icon: 'ℹ️' })
@@ -1511,9 +1511,11 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Settings className="w-6 h-6 text-muted-foreground" />
+        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+          <Settings className="w-5 h-5" />
+        </div>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Cài đặt</h1>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">Cài đặt</h1>
           <p className="text-sm text-muted-foreground">Quản lý cài đặt hệ thống</p>
         </div>
       </div>

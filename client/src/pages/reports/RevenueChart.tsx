@@ -17,21 +17,39 @@ interface RevenueChartProps {
   className?: string
 }
 
-// Custom dark-theme tooltip
+// Palette — aligned with POS tokens (primary orange + supporting blues/greens)
+const COLORS = {
+  revenue: '#ea580c', // primary — warm orange
+  room: '#0284c7', // sky-600
+  order: '#059669', // emerald-600
+  axis: '#94a3b8', // slate-400
+  grid: '#e2e8f0', // slate-200
+  tooltipBg: '#ffffff',
+  tooltipBorder: '#e2e8f0',
+  tooltipLabel: '#475569', // slate-600
+  tooltipValue: '#0f172a', // slate-900
+}
+
 function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null
 
   return (
-    <div className="bg-[#222230] border border-[#3a3a4a] rounded-lg p-3 shadow-xl text-sm">
-      <p className="text-[#8888a0] mb-2 font-medium">{label}</p>
+    <div
+      className="rounded-lg p-3 text-sm shadow-elevated"
+      style={{ backgroundColor: COLORS.tooltipBg, border: `1px solid ${COLORS.tooltipBorder}` }}
+    >
+      <p className="mb-2 font-semibold" style={{ color: COLORS.tooltipLabel }}>{label}</p>
       {payload.map((entry) => (
         <div key={entry.dataKey} className="flex items-center gap-2 mb-1">
           <span
             className="inline-block w-2 h-2 rounded-full flex-shrink-0"
             style={{ backgroundColor: entry.color }}
           />
-          <span className="text-[#8888a0]">{entry.name}:</span>
-          <span className="text-[#f0f0f5] font-semibold ml-auto pl-4">
+          <span style={{ color: COLORS.tooltipLabel }}>{entry.name}:</span>
+          <span
+            className="font-bold ml-auto pl-4 tabular-nums"
+            style={{ color: COLORS.tooltipValue }}
+          >
             {formatCurrency(entry.value ?? 0, true)}
           </span>
         </div>
@@ -41,7 +59,6 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
 }
 
 function formatAxisDate(dateStr: string): string {
-  // yyyy-MM-dd → d/M or MM → tháng
   const parts = dateStr.split('-')
   if (parts.length === 3) {
     return `${parseInt(parts[2])}/${parseInt(parts[1])}`
@@ -64,71 +81,71 @@ export default function RevenueChart({ data, className = '' }: RevenueChartProps
         <AreaChart data={formattedData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#6c5ce7" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#6c5ce7" stopOpacity={0} />
+              <stop offset="5%" stopColor={COLORS.revenue} stopOpacity={0.25} />
+              <stop offset="95%" stopColor={COLORS.revenue} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradRoom" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+              <stop offset="5%" stopColor={COLORS.room} stopOpacity={0.2} />
+              <stop offset="95%" stopColor={COLORS.room} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradOrder" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+              <stop offset="5%" stopColor={COLORS.order} stopOpacity={0.2} />
+              <stop offset="95%" stopColor={COLORS.order} stopOpacity={0} />
             </linearGradient>
           </defs>
 
-          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
 
           <XAxis
             dataKey="label"
-            tick={{ fill: '#8888a0', fontSize: 12 }}
-            axisLine={{ stroke: '#2a2a3a' }}
+            tick={{ fill: COLORS.axis, fontSize: 12 }}
+            axisLine={{ stroke: COLORS.grid }}
             tickLine={false}
           />
           <YAxis
             tickFormatter={formatCurrencyShort}
-            tick={{ fill: '#8888a0', fontSize: 11 }}
+            tick={{ fill: COLORS.axis, fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             width={48}
           />
 
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: COLORS.grid }} />
 
           <Legend
-            wrapperStyle={{ fontSize: '12px', color: '#8888a0', paddingTop: '8px' }}
-            formatter={(value) => <span style={{ color: '#8888a0' }}>{value}</span>}
+            wrapperStyle={{ fontSize: '12px', color: COLORS.axis, paddingTop: '8px' }}
+            formatter={(value) => <span style={{ color: COLORS.axis }}>{value}</span>}
           />
 
           <Area
             type="monotone"
             dataKey="revenue"
             name="Tổng DT"
-            stroke="#6c5ce7"
+            stroke={COLORS.revenue}
             strokeWidth={2}
             fill="url(#gradRevenue)"
             dot={false}
-            activeDot={{ r: 4, fill: '#6c5ce7' }}
+            activeDot={{ r: 4, fill: COLORS.revenue }}
           />
           <Area
             type="monotone"
             dataKey="roomRevenue"
             name="Phòng"
-            stroke="#3b82f6"
+            stroke={COLORS.room}
             strokeWidth={2}
             fill="url(#gradRoom)"
             dot={false}
-            activeDot={{ r: 4, fill: '#3b82f6' }}
+            activeDot={{ r: 4, fill: COLORS.room }}
           />
           <Area
             type="monotone"
             dataKey="orderRevenue"
             name="Order"
-            stroke="#22c55e"
+            stroke={COLORS.order}
             strokeWidth={2}
             fill="url(#gradOrder)"
             dot={false}
-            activeDot={{ r: 4, fill: '#22c55e' }}
+            activeDot={{ r: 4, fill: COLORS.order }}
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -49,7 +49,7 @@ export default function QRDisplay({ amount, className }: QRDisplayProps) {
 
       <div className="text-center">
         <p className="text-sm text-muted-foreground">Số tiền cần chuyển</p>
-        <p className="text-xl font-bold text-foreground">
+        <p className="text-xl font-bold text-primary tabular-nums">
           {formatCurrency(amount, true)}
         </p>
       </div>

@@ -41,9 +41,11 @@ export default function OrderPage() {
     <div className="flex flex-col h-full gap-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <ShoppingCart className="h-6 w-6 text-amber-400" />
+        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+          <ShoppingCart className="h-5 w-5" />
+        </div>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Order</h1>
+          <h1 className="text-xl font-bold text-foreground tracking-tight">Order</h1>
           <p className="text-sm text-muted-foreground">
             Chọn phòng để tạo order đồ uống / thức ăn
           </p>
@@ -57,7 +59,7 @@ export default function OrderPage() {
             Phòng đang hoạt động
           </h2>
           {!isLoading && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs tabular-nums">
               {activeRooms.length} phòng
             </Badge>
           )}
@@ -66,7 +68,7 @@ export default function OrderPage() {
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-border/50 p-4 space-y-2">
+              <div key={i} className="rounded-xl border border-border bg-card shadow-card p-4 space-y-2">
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="h-3 w-16" />
                 <Skeleton className="h-3 w-24" />
@@ -86,9 +88,9 @@ export default function OrderPage() {
                 <Card
                   key={room.id}
                   className={cn(
-                    'p-4 cursor-pointer border border-border/50 bg-card/60',
-                    'hover:border-amber-500/50 hover:bg-amber-500/5 transition-all duration-200',
-                    'group'
+                    'group p-4 cursor-pointer bg-card border border-border shadow-card',
+                    'hover:border-primary/40 hover:shadow-card-hover hover:-translate-y-0.5',
+                    'transition-all duration-200'
                   )}
                   onClick={() =>
                     setSelectedRoom({ sessionId: session.id, roomName: room.name })
@@ -96,42 +98,40 @@ export default function OrderPage() {
                 >
                   {/* Room name */}
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-foreground text-sm group-hover:text-amber-400 transition-colors">
+                    <h3 className="font-bold text-foreground text-base group-hover:text-primary transition-colors tracking-tight">
                       {room.name}
                     </h3>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] px-1.5 py-0 bg-green-500/10 text-green-400 border-green-500/30"
-                    >
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Active
-                    </Badge>
+                    </span>
                   </div>
 
                   {/* Customer */}
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <Users className="h-3 w-3" />
                     <span className="truncate">{session.customerName}</span>
                   </div>
 
                   {/* Elapsed */}
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
                     <Clock className="h-3 w-3" />
-                    <span>{formatElapsed(session.elapsedMinutes)}</span>
+                    <span className="tabular-nums">{formatElapsed(session.elapsedMinutes)}</span>
                   </div>
 
                   {/* Totals */}
-                  <div className="border-t border-border/30 pt-2 space-y-1">
+                  <div className="border-t border-border pt-2 space-y-1">
                     {session.currentOrderTotal > 0 && (
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Order:</span>
-                        <span className="text-amber-400">
+                        <span className="font-semibold text-foreground tabular-nums">
                           {formatCurrency(session.currentOrderTotal)}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-3 text-center text-xs text-amber-500/70 font-medium group-hover:text-amber-400 transition-colors">
+                  <div className="mt-3 text-center text-xs font-semibold text-muted-foreground group-hover:text-primary transition-colors">
                     + Thêm order
                   </div>
                 </Card>

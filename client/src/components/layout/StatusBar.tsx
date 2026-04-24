@@ -3,8 +3,8 @@ export default function StatusBar() {
     <footer className="h-8 shrink-0 flex items-center px-4 bg-background border-t border-border text-xs text-muted-foreground">
       {/* Online indicator */}
       <span className="flex items-center gap-1.5">
-        <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
-        <span className="text-[#22c55e] font-medium">Online</span>
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-emerald-600 font-medium">Online</span>
       </span>
 
       {/* Shift info */}

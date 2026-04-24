@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { formatDate, formatRelative } from '@/utils/formatTime'
+import { formatRelative } from '@/utils/formatTime'
 import type { CustomerTier, CreateCustomerForm } from '@/types/customer'
 import { cn } from '@/utils/cn'
 
@@ -33,10 +33,10 @@ const TIER_LABELS: Record<CustomerTier, string> = {
 }
 
 const TIER_CLASSES: Record<CustomerTier, string> = {
-  REGULAR: 'border-transparent bg-gray-500/20 text-gray-400 border-gray-500/30',
-  SILVER: 'border-transparent bg-slate-400/20 text-slate-300 border-slate-400/30',
-  GOLD: 'border-transparent bg-amber-500/20 text-amber-400 border-amber-500/30',
-  VIP: 'border-transparent bg-purple-500/20 text-purple-400 border-purple-500/30',
+  REGULAR: 'bg-slate-50 text-slate-700 border border-slate-200',
+  SILVER: 'bg-zinc-100 text-zinc-700 border border-zinc-300',
+  GOLD: 'bg-amber-50 text-amber-700 border border-amber-200',
+  VIP: 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200',
 }
 
 const ITEMS_PER_PAGE = 20
@@ -100,8 +100,10 @@ export default function CustomerListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Khách hàng</h1>
+          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+            <Users className="h-5 w-5" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Khách hàng</h1>
         </div>
         <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
           <Plus className="h-4 w-4" />
@@ -135,17 +137,17 @@ export default function CustomerListPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-secondary/50 border-b border-border">
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tên khách</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Số điện thoại</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Hạng</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Số lần đến</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Tổng chi tiêu</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Lần cuối</th>
+              <tr className="bg-muted/50 border-b border-border">
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-xs">Tên khách</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-xs">Số điện thoại</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-xs">Hạng</th>
+                <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-xs">Số lần đến</th>
+                <th className="text-right px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-xs">Tổng chi tiêu</th>
+                <th className="text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide text-xs">Lần cuối</th>
               </tr>
             </thead>
             <tbody>
@@ -175,28 +177,28 @@ export default function CustomerListPage() {
                     className={cn(
                       'border-b border-border last:border-0 cursor-pointer transition-colors',
                       customer.isBlacklisted
-                        ? 'bg-red-950/20 hover:bg-red-950/30'
-                        : 'hover:bg-secondary/40'
+                        ? 'bg-rose-50 hover:bg-rose-100'
+                        : 'hover:bg-muted/40'
                     )}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">{customer.name}</span>
+                        <span className="font-semibold text-foreground">{customer.name}</span>
                         {customer.isBlacklisted && (
-                          <Badge className="border-transparent bg-red-500/20 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0">
+                          <Badge className="bg-rose-100 text-rose-700 border border-rose-200 text-[10px] px-1.5 py-0 font-semibold">
                             Blacklist
                           </Badge>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{customer.phone}</td>
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums">{customer.phone}</td>
                     <td className="px-4 py-3">
-                      <Badge className={cn(TIER_CLASSES[customer.tier])}>
+                      <Badge className={cn('font-semibold', TIER_CLASSES[customer.tier])}>
                         {TIER_LABELS[customer.tier]}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-right text-foreground">{customer.visitCount}</td>
-                    <td className="px-4 py-3 text-right text-foreground">
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">{customer.visitCount}</td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">
                       {formatCurrency(customer.totalSpent)} VNĐ
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-sm">
@@ -250,27 +252,27 @@ export default function CustomerListPage() {
             <div className="px-6 py-4 flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-foreground">
-                  Tên khách hàng <span className="text-red-400">*</span>
+                  Tên khách hàng <span className="text-destructive">*</span>
                 </label>
                 <Input
                   placeholder="Nhập tên khách hàng"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={formErrors.name ? 'border-red-500' : ''}
+                  className={formErrors.name ? 'border-destructive' : ''}
                 />
-                {formErrors.name && <p className="text-xs text-red-400">{formErrors.name}</p>}
+                {formErrors.name && <p className="text-xs text-destructive">{formErrors.name}</p>}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-foreground">
-                  Số điện thoại <span className="text-red-400">*</span>
+                  Số điện thoại <span className="text-destructive">*</span>
                 </label>
                 <Input
                   placeholder="Nhập số điện thoại"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className={formErrors.phone ? 'border-red-500' : ''}
+                  className={formErrors.phone ? 'border-destructive' : ''}
                 />
-                {formErrors.phone && <p className="text-xs text-red-400">{formErrors.phone}</p>}
+                {formErrors.phone && <p className="text-xs text-destructive">{formErrors.phone}</p>}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-foreground">Ngày sinh</label>

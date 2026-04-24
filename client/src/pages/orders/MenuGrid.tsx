@@ -25,12 +25,13 @@ export default function MenuGrid({ items, onAddItem, cart, onUpdateQuantity }: M
           <div
             key={item.id}
             className={cn(
-              'relative flex flex-col rounded-lg border border-border/50 bg-card/50 p-3 gap-2 transition-opacity',
-              !item.isAvailable && 'opacity-50'
+              'relative flex flex-col rounded-xl border border-border bg-card shadow-card p-3 gap-2 transition-all',
+              item.isAvailable && 'hover:border-primary/40 hover:shadow-card-hover',
+              !item.isAvailable && 'opacity-60'
             )}
           >
             {/* Image or placeholder */}
-            <div className="w-full aspect-square rounded-md bg-muted/40 flex items-center justify-center overflow-hidden">
+            <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center overflow-hidden">
               {item.image ? (
                 <img
                   src={item.image}
@@ -46,17 +47,17 @@ export default function MenuGrid({ items, onAddItem, cart, onUpdateQuantity }: M
             {!item.isAvailable && (
               <Badge
                 variant="destructive"
-                className="absolute top-2 right-2 text-[10px] px-1 py-0"
+                className="absolute top-2 right-2 text-[10px] px-1.5 py-0"
               >
                 Hết
               </Badge>
             )}
 
-            <div className="flex flex-col gap-1 flex-1">
-              <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">
+            <div className="flex flex-col gap-0.5 flex-1">
+              <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">
                 {item.name}
               </p>
-              <p className="text-xs text-amber-400 font-semibold">
+              <p className="text-xs text-primary font-bold tabular-nums">
                 {formatCurrency(item.price)}
               </p>
             </div>

@@ -65,12 +65,12 @@ export default function InventoryCheckPage() {
             <div className="text-2xl font-bold text-foreground">{checkMeta?.totalItems}</div>
             <div className="text-sm text-muted-foreground mt-1">Tổng sản phẩm kiểm</div>
           </div>
-          <div className="rounded-lg border border-[#22c55e]/30 bg-[#22c55e]/10 p-4 text-center">
-            <div className="text-2xl font-bold text-[#22c55e]">{checkMeta?.matchedItems}</div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
+            <div className="text-2xl font-bold text-emerald-700">{checkMeta?.matchedItems}</div>
             <div className="text-sm text-muted-foreground mt-1">Khớp hệ thống</div>
           </div>
-          <div className="rounded-lg border border-[#ef4444]/30 bg-[#ef4444]/10 p-4 text-center">
-            <div className="text-2xl font-bold text-[#ef4444]">{checkMeta?.discrepancyItems}</div>
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-center">
+            <div className="text-2xl font-bold text-rose-700">{checkMeta?.discrepancyItems}</div>
             <div className="text-sm text-muted-foreground mt-1">Có chênh lệch</div>
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function InventoryCheckPage() {
         {/* Discrepancies */}
         {results.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <CheckCircle className="h-12 w-12 text-[#22c55e] mb-3" />
+            <CheckCircle className="h-12 w-12 text-emerald-700 mb-3" />
             <p className="text-foreground font-medium">Tất cả sản phẩm khớp hệ thống!</p>
             <p className="text-muted-foreground text-sm mt-1">Không có chênh lệch nào được ghi nhận.</p>
           </div>
@@ -96,11 +96,11 @@ export default function InventoryCheckPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {results.map((r, i) => (
-                  <tr key={i} className={r.status !== 'MATCH' ? 'bg-[#ef4444]/5' : ''}>
+                  <tr key={i} className={r.status !== 'MATCH' ? 'bg-rose-50' : ''}>
                     <td className="px-4 py-3 text-foreground">{r.product}</td>
                     <td className="px-4 py-3 text-right text-foreground">{r.system}</td>
                     <td className="px-4 py-3 text-right text-foreground">{r.actual}</td>
-                    <td className={`px-4 py-3 text-right font-medium ${r.diff < 0 ? 'text-[#ef4444]' : r.diff > 0 ? 'text-[#22c55e]' : 'text-muted-foreground'}`}>
+                    <td className={`px-4 py-3 text-right font-medium ${r.diff < 0 ? 'text-rose-700' : r.diff > 0 ? 'text-emerald-700' : 'text-muted-foreground'}`}>
                       {r.diff > 0 ? '+' : ''}{r.diff}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -128,7 +128,7 @@ export default function InventoryCheckPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <AlertTriangle className="h-4 w-4 text-[#f59e0b]" />
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
           <span>Điền số lượng thực tế vào ô bên dưới. Ô trống sẽ được bỏ qua.</span>
         </div>
         <span className="text-sm text-muted-foreground">{filledCount} / {products.length} đã nhập</span>
@@ -177,8 +177,8 @@ export default function InventoryCheckPage() {
                     </td>
                     <td className={`px-4 py-2.5 text-right font-medium ${
                       diff === null ? 'text-muted-foreground' :
-                      diff < 0 ? 'text-[#ef4444]' :
-                      diff > 0 ? 'text-[#22c55e]' : 'text-muted-foreground'
+                      diff < 0 ? 'text-rose-700' :
+                      diff > 0 ? 'text-emerald-700' : 'text-muted-foreground'
                     }`}>
                       {diff === null ? '—' : diff > 0 ? `+${diff}` : String(diff)}
                     </td>

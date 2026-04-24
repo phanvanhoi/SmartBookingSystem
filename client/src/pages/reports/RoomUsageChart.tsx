@@ -16,25 +16,26 @@ interface RoomUsageChartProps {
   className?: string
 }
 
-const BAR_COLORS = ['#6c5ce7', '#a855f7', '#3b82f6', '#22c55e', '#f59e0b']
+const BAR_COLORS = ['#ea580c', '#f97316', '#0284c7', '#059669', '#f59e0b']
+const AXIS = '#94a3b8'
+const GRID = '#e2e8f0'
 
 function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null
   const value = payload[0]?.value ?? 0
 
   return (
-    <div className="bg-[#222230] border border-[#3a3a4a] rounded-lg p-3 shadow-xl text-sm">
-      <p className="text-[#f0f0f5] font-semibold mb-1">{label}</p>
-      <p className="text-[#8888a0]">
+    <div className="bg-card border border-border rounded-lg p-3 shadow-elevated text-sm">
+      <p className="text-foreground font-semibold mb-1">{label}</p>
+      <p className="text-muted-foreground">
         Tỉ lệ lấp đầy:{' '}
-        <span className="text-[#f0f0f5] font-semibold">{value}%</span>
+        <span className="text-foreground font-bold tabular-nums">{value}%</span>
       </p>
     </div>
   )
 }
 
 export default function RoomUsageChart({ data, className = '' }: RoomUsageChartProps) {
-  // Take top 5 rooms by occupancy rate
   const top5 = [...data]
     .sort((a, b) => b.occupancyRate - a.occupancyRate)
     .slice(0, 5)
@@ -51,28 +52,28 @@ export default function RoomUsageChart({ data, className = '' }: RoomUsageChartP
           layout="vertical"
           margin={{ top: 4, right: 32, left: 0, bottom: 4 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
 
           <XAxis
             type="number"
             domain={[0, 100]}
             tickFormatter={(v) => `${v}%`}
-            tick={{ fill: '#8888a0', fontSize: 11 }}
+            tick={{ fill: AXIS, fontSize: 11 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             type="category"
             dataKey="name"
-            tick={{ fill: '#8888a0', fontSize: 12 }}
+            tick={{ fill: AXIS, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
             width={64}
           />
 
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
 
-          <Bar dataKey="occupancyRate" name="Lấp đầy" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="occupancyRate" name="Lấp đầy" radius={[0, 6, 6, 0]}>
             {top5.map((_, index) => (
               <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
             ))}

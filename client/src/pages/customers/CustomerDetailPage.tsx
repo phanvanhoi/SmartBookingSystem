@@ -47,16 +47,16 @@ const TIER_LABELS: Record<CustomerTier, string> = {
 }
 
 const TIER_CLASSES: Record<CustomerTier, string> = {
-  REGULAR: 'border-transparent bg-gray-500/20 text-gray-400 border-gray-500/30',
-  SILVER: 'border-transparent bg-slate-400/20 text-slate-300 border-slate-400/30',
-  GOLD: 'border-transparent bg-amber-500/20 text-amber-400 border-amber-500/30',
-  VIP: 'border-transparent bg-purple-500/20 text-purple-400 border-purple-500/30',
+  REGULAR: 'bg-slate-50 text-slate-700 border border-slate-200',
+  SILVER: 'bg-zinc-100 text-zinc-700 border border-zinc-300',
+  GOLD: 'bg-amber-50 text-amber-700 border border-amber-200',
+  VIP: 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200',
 }
 
 const ACTION_CLASSES = {
-  EARN: 'border-transparent bg-green-500/20 text-green-400 border-green-500/30',
-  REDEEM: 'border-transparent bg-blue-500/20 text-blue-400 border-blue-500/30',
-  ADJUST: 'border-transparent bg-orange-500/20 text-orange-400 border-orange-500/30',
+  EARN: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  REDEEM: 'bg-sky-50 text-sky-700 border border-sky-200',
+  ADJUST: 'bg-orange-50 text-orange-700 border border-orange-200',
 }
 
 const ACTION_LABELS = {
@@ -172,12 +172,12 @@ export default function CustomerDetailPage() {
     <div className="flex flex-col gap-6 p-6">
       {/* Blacklist Banner */}
       {customer.isBlacklisted && (
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-red-950/30 border border-red-500/40 text-red-400">
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           <AlertTriangle className="h-5 w-5 flex-shrink-0" />
           <div>
-            <p className="font-medium">Khách hàng đang trong danh sách đen</p>
+            <p className="font-semibold">Khách hàng đang trong danh sách đen</p>
             {customer.blacklistReason && (
-              <p className="text-sm mt-0.5 text-red-400/80">Lý do: {customer.blacklistReason}</p>
+              <p className="text-sm mt-0.5 text-rose-600">Lý do: {customer.blacklistReason}</p>
             )}
           </div>
         </div>
@@ -196,10 +196,10 @@ export default function CustomerDetailPage() {
             Quay lại
           </Button>
           <Separator orientation="vertical" className="h-6" />
-          <h1 className="text-xl font-bold text-foreground truncate">{customer.name}</h1>
-          <Badge className={cn(TIER_CLASSES[customer.tier])}>{TIER_LABELS[customer.tier]}</Badge>
+          <h1 className="text-xl font-bold text-foreground truncate tracking-tight">{customer.name}</h1>
+          <Badge className={cn('font-semibold', TIER_CLASSES[customer.tier])}>{TIER_LABELS[customer.tier]}</Badge>
           {customer.isBlacklisted && (
-            <Badge className="border-transparent bg-red-500/20 text-red-400 border-red-500/30">
+            <Badge className="bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
               Blacklist
             </Badge>
           )}
@@ -212,7 +212,7 @@ export default function CustomerDetailPage() {
             variant={customer.isBlacklisted ? 'outline' : 'destructive'}
             size="sm"
             onClick={() => setShowBlacklistDialog(true)}
-            className={customer.isBlacklisted ? 'border-green-600 text-green-400 hover:bg-green-950/30' : ''}
+            className={customer.isBlacklisted ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : ''}
           >
             {customer.isBlacklisted ? 'Gỡ Blacklist' : 'Blacklist'}
           </Button>
@@ -245,60 +245,30 @@ export default function CustomerDetailPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <TrendingUp className="h-5 w-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tổng chi tiêu</p>
-                <p className="text-base font-bold text-foreground">
-                  {formatCurrency(customer.totalSpent, true)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
-                <Users className="h-5 w-5 text-green-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Số lần đến</p>
-                <p className="text-base font-bold text-foreground">{customer.visitCount} lần</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/10">
-                <CreditCard className="h-5 w-5 text-amber-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Điểm tích lũy</p>
-                <p className="text-base font-bold text-foreground">{customer.totalPoints} điểm</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <Star className="h-5 w-5 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Hạng thành viên</p>
-                <p className="text-base font-bold text-foreground">{TIER_LABELS[customer.tier]}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          icon={<TrendingUp className="h-5 w-5" />}
+          tint="sky"
+          label="Tổng chi tiêu"
+          value={formatCurrency(customer.totalSpent, true)}
+        />
+        <StatCard
+          icon={<Users className="h-5 w-5" />}
+          tint="emerald"
+          label="Số lần đến"
+          value={`${customer.visitCount} lần`}
+        />
+        <StatCard
+          icon={<CreditCard className="h-5 w-5" />}
+          tint="amber"
+          label="Điểm tích lũy"
+          value={`${customer.totalPoints} điểm`}
+        />
+        <StatCard
+          icon={<Star className="h-5 w-5" />}
+          tint="fuchsia"
+          label="Hạng thành viên"
+          value={TIER_LABELS[customer.tier]}
+        />
       </div>
 
       {/* Tabs */}
@@ -435,9 +405,9 @@ export default function CustomerDetailPage() {
                             </Badge>
                           </td>
                           <td className={cn(
-                            'px-4 py-3 text-right font-medium',
-                            item.action === 'EARN' ? 'text-green-400' :
-                            item.action === 'REDEEM' ? 'text-blue-400' : 'text-orange-400'
+                            'px-4 py-3 text-right font-bold tabular-nums',
+                            item.action === 'EARN' ? 'text-emerald-700' :
+                            item.action === 'REDEEM' ? 'text-sky-700' : 'text-orange-700'
                           )}>
                             {item.action === 'EARN' ? '+' : item.action === 'REDEEM' ? '-' : '±'}
                             {Math.abs(item.points)}
@@ -583,7 +553,7 @@ export default function CustomerDetailPage() {
                 </p>
               )}
               {!customer.isBlacklisted && (
-                <p className="text-sm text-amber-400/80 flex items-center gap-2">
+                <p className="text-sm text-amber-700 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
                   Khách sẽ bị đánh dấu trong hệ thống
                 </p>
@@ -623,7 +593,7 @@ export default function CustomerDetailPage() {
               </p>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium text-foreground">
-                  Số điểm muốn đổi <span className="text-red-400">*</span>
+                  Số điểm muốn đổi <span className="text-destructive">*</span>
                 </label>
                 <Input
                   type="number"
@@ -672,5 +642,38 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="text-sm text-foreground">{value}</span>
     </div>
+  )
+}
+
+const STAT_TINT = {
+  sky: 'bg-sky-50 text-sky-700',
+  emerald: 'bg-emerald-50 text-emerald-700',
+  amber: 'bg-amber-50 text-amber-700',
+  fuchsia: 'bg-fuchsia-50 text-fuchsia-700',
+} as const
+
+function StatCard({
+  icon,
+  tint,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  tint: keyof typeof STAT_TINT
+  label: string
+  value: string
+}) {
+  return (
+    <Card className="border border-border bg-card shadow-card">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          <div className={cn('p-2.5 rounded-xl', STAT_TINT[tint])}>{icon}</div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-base font-bold text-foreground tabular-nums truncate">{value}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

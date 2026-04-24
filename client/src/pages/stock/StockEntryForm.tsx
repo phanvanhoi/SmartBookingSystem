@@ -93,8 +93,10 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <PackageOpen className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2.5 tracking-tight">
+            <div className="w-9 h-9 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+              <PackageOpen className="h-5 w-5" />
+            </div>
             Nhập / Xuất kho
           </DialogTitle>
         </DialogHeader>
@@ -178,7 +180,7 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
                           min={1}
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))}
-                          className="h-8 text-right"
+                          className="h-8 text-right tabular-nums"
                         />
                       </td>
                       {type === 'IN' && (
@@ -189,10 +191,10 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
                               min={0}
                               value={item.unitCost}
                               onChange={(e) => updateItem(index, 'unitCost', Number(e.target.value))}
-                              className="h-8 text-right"
+                              className="h-8 text-right tabular-nums"
                             />
                           </td>
-                          <td className="px-3 py-2 text-right text-foreground font-medium">
+                          <td className="px-3 py-2 text-right text-foreground font-bold tabular-nums">
                             {formatCurrency(item.quantity * item.unitCost)}
                           </td>
                         </>
@@ -233,9 +235,9 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
 
           {/* Total */}
           {type === 'IN' && (
-            <div className="flex justify-end items-center gap-2 pt-2 border-t border-border">
-              <span className="text-muted-foreground">Tổng tiền nhập:</span>
-              <span className="text-xl font-bold text-primary">{formatCurrency(totalCost, true)}</span>
+            <div className="flex justify-end items-baseline gap-2 pt-3 border-t border-border">
+              <span className="text-sm text-muted-foreground">Tổng tiền nhập</span>
+              <span className="text-xl font-bold text-primary tabular-nums">{formatCurrency(totalCost, true)}</span>
             </div>
           )}
         </div>

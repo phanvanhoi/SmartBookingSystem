@@ -323,21 +323,26 @@ export default function TimelinePage() {
   return (
     <div className="flex flex-col h-full select-none">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-5 py-2.5 border-b border-border shrink-0">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0 bg-card">
         <div className="flex items-center gap-6">
-          <h1 className="text-base font-bold text-foreground">Ngày</h1>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-accent text-accent-foreground flex items-center justify-center">
+              <CalendarPlus className="w-4 h-4" />
+            </div>
+            <h1 className="text-base font-bold text-foreground tracking-tight">Lịch đặt bàn</h1>
+          </div>
 
           {/* Legend */}
           <div className="hidden md:flex items-center gap-4 text-xs">
-            <span className="flex items-center gap-1.5">
-              <span className="w-4 h-3 rounded-sm bg-emerald-500" /> Đã xếp bàn
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="w-4 h-3 rounded-sm bg-emerald-500" /> Đã xếp
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-4 h-3 rounded-sm bg-blue-500" /> Đã nhận bàn
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="w-4 h-3 rounded-sm bg-sky-500" /> Đã nhận
             </span>
             {upcomingCount > 0 && (
-              <span className="text-emerald-400 font-medium">
-                {upcomingCount} Lượt khách sắp đến
+              <span className="text-emerald-700 font-semibold tabular-nums">
+                {upcomingCount} sắp đến
               </span>
             )}
           </div>
@@ -345,25 +350,27 @@ export default function TimelinePage() {
 
         <div className="flex items-center gap-2">
           {/* Date navigation */}
-          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Ngày trước" onClick={prevDay}>
+          <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Ngày trước" onClick={prevDay}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <button
             onClick={() => setSelectedDate(new Date())}
             className={cn(
-              'px-3 py-1.5 rounded-md text-sm font-medium transition-colors min-w-[180px] text-center',
-              isToday ? 'bg-primary text-primary-foreground' : 'bg-secondary text-foreground hover:bg-muted'
+              'px-3 h-9 rounded-md text-sm font-semibold transition-colors min-w-[180px] text-center border',
+              isToday
+                ? 'bg-primary text-primary-foreground border-primary shadow-card'
+                : 'bg-card text-foreground border-border hover:bg-muted'
             )}
           >
             {formatDateVN(selectedDate)}
           </button>
-          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Ngày sau" onClick={nextDay}>
+          <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Ngày sau" onClick={nextDay}>
             <ChevronRight className="w-4 h-4" />
           </Button>
 
           {/* Đặt bàn button */}
           <Button
-            className="btn-gradient text-white text-sm h-8 px-4 ml-2"
+            className="text-sm h-9 px-4 ml-2"
             onClick={() => setCreateDialog({ roomId: smallRooms[0]?.id ?? 1, hour: Math.ceil(nowHour) })}
           >
             <CalendarPlus className="w-4 h-4 mr-1.5" />
@@ -634,7 +641,7 @@ function BookingDetailDialog({ booking, open, onClose }: { booking: Booking; ope
           <Row label="Giờ đến" value={timeStr} bold />
           {booking.durationHours && <Row label="Thời lượng" value={`${booking.durationHours}h`} />}
           {booking.depositAmount > 0 && (
-            <Row label="Đặt cọc" value={formatCurrency(booking.depositAmount, true)} className="text-green-400" />
+            <Row label="Đặt cọc" value={formatCurrency(booking.depositAmount, true)} className="text-emerald-600" />
           )}
           {booking.notes && (
             <div className="text-sm">
@@ -659,7 +666,7 @@ function BookingDetailDialog({ booking, open, onClose }: { booking: Booking; ope
               Hủy
             </Button>
             <Button
-              size="sm" className="btn-gradient text-white"
+              size="sm"
               onClick={() => { confirmMutation.mutate(booking.id); onClose() }}
               disabled={confirmMutation.isPending}
             >
@@ -782,7 +789,6 @@ function CreateBookingDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Hủy</Button>
           <Button
-            className="btn-gradient text-white"
             onClick={() => {
               if (!form.customerName.trim()) return
               createMutation.mutate(form, { onSuccess: onClose })

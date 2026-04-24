@@ -23,13 +23,13 @@ const TYPE_ICON: Record<NotificationType, string> = {
 }
 
 const TYPE_COLOR: Record<NotificationType, string> = {
-  ROOM_ENDING: 'text-amber-400',
-  ROOM_EXPIRED: 'text-red-400',
-  ORDER_NEW: 'text-blue-400',
-  STOCK_LOW: 'text-orange-400',
-  BOOKING_REMINDER: 'text-purple-400',
-  CUSTOMER_BIRTHDAY: 'text-pink-400',
-  SYSTEM: 'text-slate-400',
+  ROOM_ENDING: 'text-amber-700',
+  ROOM_EXPIRED: 'text-rose-700',
+  ORDER_NEW: 'text-sky-700',
+  STOCK_LOW: 'text-orange-700',
+  BOOKING_REMINDER: 'text-fuchsia-700',
+  CUSTOMER_BIRTHDAY: 'text-pink-700',
+  SYSTEM: 'text-slate-600',
 }
 
 // ── Notification Item ─────────────────────────────────────────────────────────
@@ -52,8 +52,8 @@ function NotificationItem({ notification, onRead }: NotificationItemProps) {
     <button
       type="button"
       className={cn(
-        'w-full text-left px-4 py-3 hover:bg-white/5 transition-colors duration-150 group',
-        !notification.isRead && 'bg-primary/5 border-l-2 border-l-primary',
+        'w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors duration-150 group',
+        !notification.isRead && 'bg-accent border-l-2 border-l-primary',
       )}
       onClick={() => {
         if (!notification.isRead) {
@@ -178,8 +178,8 @@ export function NotificationBell() {
           className={cn(
             'absolute right-0 top-full mt-2 z-50',
             'w-[340px] max-w-[calc(100vw-1rem)]',
-            'rounded-xl border border-border/60',
-            'bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/40',
+            'rounded-xl border border-border',
+            'bg-card shadow-elevated',
             'overflow-hidden',
           )}
           role="dialog"

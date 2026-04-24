@@ -68,7 +68,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
       </Button>
 
       {/* Mobile logo */}
-      <span className="md:hidden font-bold text-sm bg-gradient-to-r from-[#6c5ce7] to-[#a855f7] bg-clip-text text-transparent">
+      <span className="md:hidden font-bold text-sm text-foreground tracking-tight">
         Music Box
       </span>
 
@@ -103,8 +103,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             )}
           >
             {/* Avatar */}
-            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-[#6c5ce7] to-[#a855f7] shrink-0">
-              <User className="w-3.5 h-3.5 text-white" />
+            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary shrink-0">
+              <User className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
             <div className="hidden sm:flex flex-col items-start leading-tight">
               <span className="text-xs font-medium text-foreground">{displayName}</span>

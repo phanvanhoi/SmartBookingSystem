@@ -68,10 +68,10 @@ export default function MergeDialog({
 
         <div className="space-y-4 py-2">
           {/* Phòng chính */}
-          <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
-            <p className="text-xs text-muted-foreground">Phòng chính (giữ lại)</p>
-            <p className="text-sm font-semibold">{primaryRoomName}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+          <div className="p-3 rounded-lg border border-primary/40 bg-accent">
+            <p className="text-xs text-accent-foreground/70">Phòng chính (giữ lại)</p>
+            <p className="text-sm font-bold text-accent-foreground">{primaryRoomName}</p>
+            <p className="text-xs text-accent-foreground/70 mt-0.5">
               Tất cả order sẽ được gộp về phòng này
             </p>
           </div>
@@ -99,7 +99,7 @@ export default function MergeDialog({
 
           {/* Warning */}
           {secondaryRoom && (
-            <div className="text-xs bg-amber-500/10 text-amber-700 p-2.5 rounded-lg border border-amber-500/20">
+            <div className="text-xs bg-amber-50 text-amber-800 p-2.5 rounded-lg border border-amber-200">
               ⚠️ <strong>{secondaryRoom.name}</strong> sẽ được giải phóng.
               Tiền phòng {secondaryRoom.name} tính theo thời gian thực tế đã dùng.
               Toàn bộ order chuyển sang {primaryRoomName}.
@@ -112,7 +112,6 @@ export default function MergeDialog({
             Hủy
           </Button>
           <Button
-            className="btn-gradient text-white"
             onClick={handleMerge}
             disabled={!secondaryRoomId || mergeMutation.isPending}
           >
@@ -132,19 +131,19 @@ function RoomOption({ room, selected, onClick }: { room: Room; selected: boolean
       className={cn(
         'w-full p-3 rounded-lg border text-left transition-all',
         selected
-          ? 'border-primary bg-primary/10 ring-1 ring-primary'
-          : 'border-border hover:border-primary/50 hover:bg-muted/30'
+          ? 'border-primary bg-accent ring-1 ring-primary'
+          : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
       )}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">{room.name}</p>
+          <p className="text-sm font-bold">{room.name}</p>
           <p className="text-xs text-muted-foreground">
             {session?.customerName} {session?.guestCount ? `(${session.guestCount} người)` : ''}
           </p>
         </div>
         {session && (
-          <p className="text-sm font-semibold">{formatCurrency(session.currentTotal)}</p>
+          <p className="text-sm font-bold tabular-nums">{formatCurrency(session.currentTotal)}</p>
         )}
       </div>
     </button>

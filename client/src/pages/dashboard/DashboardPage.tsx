@@ -2,7 +2,6 @@ import { useDashboard } from '@/hooks/useReports'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Separator } from '@/components/ui/separator'
 import {
   TrendingUp,
   TrendingDown,
@@ -13,10 +12,11 @@ import {
   AlertTriangle,
   Package,
   Activity,
+  LayoutDashboard,
 } from 'lucide-react'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDuration, formatTime } from '@/utils/formatTime'
-import { formatRelative } from '@/utils/formatTime'
+import { cn } from '@/utils/cn'
 import RevenueChart from '@/pages/reports/RevenueChart'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -39,19 +39,20 @@ function KpiCard({ icon, label, value, sub, trend, trendLabel, loading }: KpiCar
   const isNeutral = trend === 0 || trend == null
 
   return (
-    <Card className="bg-[#111118] border-[#2a2a3a]">
+    <Card className="bg-card border border-border shadow-card">
       <CardContent className="p-5">
         <div className="flex items-start justify-between mb-3">
-          <div className="p-2 rounded-lg bg-[#1a1a24] text-[#a855f7]">{icon}</div>
+          <div className="p-2.5 rounded-xl bg-accent text-accent-foreground">{icon}</div>
           {trend != null && (
             <div
-              className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
+              className={cn(
+                'flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full',
                 isPositive
-                  ? 'bg-green-500/10 text-green-400'
+                  ? 'bg-emerald-50 text-emerald-700'
                   : isNegative
-                    ? 'bg-red-500/10 text-red-400'
-                    : 'bg-[#1a1a24] text-[#8888a0]'
-              }`}
+                    ? 'bg-rose-50 text-rose-700'
+                    : 'bg-muted text-muted-foreground'
+              )}
             >
               {isPositive ? (
                 <TrendingUp className="w-3 h-3" />
@@ -60,19 +61,21 @@ function KpiCard({ icon, label, value, sub, trend, trendLabel, loading }: KpiCar
               ) : (
                 <Minus className="w-3 h-3" />
               )}
-              {isNeutral ? '0%' : `${isPositive ? '+' : ''}${trend}${trendLabel ?? '%'}`}
+              <span className="tabular-nums">
+                {isNeutral ? '0%' : `${isPositive ? '+' : ''}${trend}${trendLabel ?? '%'}`}
+              </span>
             </div>
           )}
         </div>
         {loading ? (
           <>
-            <Skeleton className="h-8 w-32 mb-1 bg-[#1a1a24]" />
-            <Skeleton className="h-4 w-24 bg-[#1a1a24]" />
+            <Skeleton className="h-8 w-32 mb-1" />
+            <Skeleton className="h-4 w-24" />
           </>
         ) : (
           <>
-            <p className="text-2xl font-bold text-[#f0f0f5] mb-0.5">{value}</p>
-            <p className="text-sm text-[#8888a0]">{sub ?? label}</p>
+            <p className="text-2xl font-bold text-foreground mb-0.5 tabular-nums tracking-tight">{value}</p>
+            <p className="text-sm text-muted-foreground">{sub ?? label}</p>
           </>
         )}
       </CardContent>
@@ -102,24 +105,27 @@ function ActiveRoomItem({
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <span
-            className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-              isEndingSoon ? 'bg-amber-400 animate-pulse' : 'bg-red-400'
-            }`}
+            className={cn(
+              'inline-block w-2 h-2 rounded-full flex-shrink-0',
+              isEndingSoon ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'
+            )}
           />
-          <span className="text-sm font-semibold text-[#f0f0f5]">{roomName}</span>
+          <span className="text-sm font-semibold text-foreground">{roomName}</span>
           {isEndingSoon && (
-            <Badge variant="outline" className="text-amber-400 border-amber-400/40 text-[10px] px-1.5 py-0">
+            <Badge className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] px-1.5 py-0 font-semibold">
               Sắp hết giờ
             </Badge>
           )}
         </div>
-        <span className="text-sm font-semibold text-[#a855f7]">
+        <span className="text-sm font-bold text-primary tabular-nums">
           {formatCurrency(currentTotal, true)}
         </span>
       </div>
       <div className="flex items-center justify-between pl-4">
-        <span className="text-xs text-[#8888a0]">{customerName}</span>
-        <span className="text-xs text-[#8888a0]">Đã hát: {formatDuration(elapsedMinutes)}</span>
+        <span className="text-xs text-muted-foreground truncate">{customerName}</span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          Đã hát: {formatDuration(elapsedMinutes)}
+        </span>
       </div>
     </div>
   )
@@ -155,10 +161,13 @@ export default function DashboardPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+          <LayoutDashboard className="w-5 h-5" />
+        </div>
         <div>
-          <h1 className="text-2xl font-bold text-[#f0f0f5]">Tổng quan</h1>
-          <p className="text-sm text-[#8888a0] mt-0.5">
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Tổng quan</h1>
+          <p className="text-sm text-muted-foreground mt-0.5 capitalize">
             {format(new Date(), 'EEEE, dd/MM/yyyy', { locale: vi })}
           </p>
         </div>
@@ -202,15 +211,15 @@ export default function DashboardPage() {
       {/* Charts + Active Rooms Row */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Revenue Chart */}
-        <Card className="lg:col-span-3 bg-[#111118] border-[#2a2a3a]">
+        <Card className="lg:col-span-3 bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f0f0f5]">
+            <CardTitle className="text-base font-semibold text-foreground tracking-tight">
               Doanh thu 7 ngày qua
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-64 w-full bg-[#1a1a24]" />
+              <Skeleton className="h-64 w-full" />
             ) : (
               <RevenueChart data={revenueChart} />
             )}
@@ -218,10 +227,10 @@ export default function DashboardPage() {
         </Card>
 
         {/* Active Rooms Panel */}
-        <Card className="lg:col-span-2 bg-[#111118] border-[#2a2a3a]">
+        <Card className="lg:col-span-2 bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f0f0f5] flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-red-400" />
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2 tracking-tight">
+              <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
               Phòng đang hoạt động
             </CardTitle>
           </CardHeader>
@@ -229,15 +238,15 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-14 w-full bg-[#1a1a24]" />
+                  <Skeleton key={i} className="h-14 w-full" />
                 ))}
               </div>
             ) : rooms?.list.length === 0 ? (
-              <div className="py-8 text-center text-[#555568] text-sm">
+              <div className="py-8 text-center text-muted-foreground text-sm">
                 Không có phòng nào đang hoạt động
               </div>
             ) : (
-              <div className="divide-y divide-[#2a2a3a] max-h-72 overflow-y-auto">
+              <div className="divide-y divide-border max-h-72 overflow-y-auto">
                 {rooms?.list.map((room) => (
                   <ActiveRoomItem
                     key={room.roomId}
@@ -257,10 +266,10 @@ export default function DashboardPage() {
       {/* Warnings + Recent Activity Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Warnings */}
-        <Card className="bg-[#111118] border-[#2a2a3a]">
+        <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f0f0f5] flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2 tracking-tight">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
               Cảnh báo
             </CardTitle>
           </CardHeader>
@@ -268,11 +277,11 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full bg-[#1a1a24]" />
+                  <Skeleton key={i} className="h-10 w-full" />
                 ))}
               </div>
             ) : warnings.length === 0 ? (
-              <div className="py-6 text-center text-[#555568] text-sm">
+              <div className="py-6 text-center text-muted-foreground text-sm">
                 Không có cảnh báo nào
               </div>
             ) : (
@@ -280,21 +289,23 @@ export default function DashboardPage() {
                 {warnings.map((warn, idx) => (
                   <div
                     key={idx}
-                    className={`flex items-start gap-3 p-3 rounded-lg ${
+                    className={cn(
+                      'flex items-start gap-3 p-3 rounded-lg border',
                       warn.type === 'ROOM_ENDING'
-                        ? 'bg-amber-500/10 border border-amber-500/20'
-                        : 'bg-blue-500/10 border border-blue-500/20'
-                    }`}
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-sky-50 border-sky-200'
+                    )}
                   >
                     {warn.type === 'ROOM_ENDING' ? (
-                      <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     ) : (
-                      <Package className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                      <Package className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
                     )}
                     <p
-                      className={`text-sm ${
-                        warn.type === 'ROOM_ENDING' ? 'text-amber-300' : 'text-blue-300'
-                      }`}
+                      className={cn(
+                        'text-sm',
+                        warn.type === 'ROOM_ENDING' ? 'text-amber-800' : 'text-sky-800'
+                      )}
                     >
                       {warn.message}
                     </p>
@@ -306,10 +317,10 @@ export default function DashboardPage() {
         </Card>
 
         {/* Recent Activity */}
-        <Card className="bg-[#111118] border-[#2a2a3a]">
+        <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f0f0f5] flex items-center gap-2">
-              <Activity className="w-4 h-4 text-[#a855f7]" />
+            <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2 tracking-tight">
+              <Activity className="w-4 h-4 text-primary" />
               Hoạt động gần đây
             </CardTitle>
           </CardHeader>
@@ -317,27 +328,27 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-9 w-full bg-[#1a1a24]" />
+                  <Skeleton key={i} className="h-9 w-full" />
                 ))}
               </div>
             ) : recentActivity.length === 0 ? (
-              <div className="py-6 text-center text-[#555568] text-sm">
+              <div className="py-6 text-center text-muted-foreground text-sm">
                 Chưa có hoạt động nào
               </div>
             ) : (
-              <div className="space-y-0 divide-y divide-[#2a2a3a]">
+              <div className="space-y-0 divide-y divide-border">
                 {recentActivity.slice(0, 8).map((log) => (
                   <div key={log.id} className="flex items-center justify-between py-2.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#6c5ce7] flex-shrink-0" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
                       <div>
-                        <p className="text-sm text-[#f0f0f5]">
+                        <p className="text-sm text-foreground">
                           {activityLabel(log.action, log.entityType)}
                         </p>
-                        <p className="text-xs text-[#555568]">{log.userName}</p>
+                        <p className="text-xs text-muted-foreground">{log.userName}</p>
                       </div>
                     </div>
-                    <span className="text-xs text-[#555568] flex-shrink-0 ml-2">
+                    <span className="text-xs text-muted-foreground flex-shrink-0 ml-2 tabular-nums">
                       {formatTime(log.createdAt)}
                     </span>
                   </div>

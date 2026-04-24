@@ -22,6 +22,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatTime } from '@/utils/formatTime'
+import { cn } from '@/utils/cn'
 import { useRoom } from '@/hooks/useRooms'
 import CountdownTimer from '@/components/CountdownTimer'
 import CheckoutDialog from './CheckoutDialog'
@@ -37,10 +38,10 @@ interface RoomDetailPanelProps {
 }
 
 const orderStatusLabel: Record<string, { label: string; color: string }> = {
-  PENDING: { label: 'Chờ xử lý', color: 'text-[#f59e0b]' },
-  PREPARING: { label: 'Đang pha chế', color: 'text-[#3b82f6]' },
-  SERVED: { label: 'Đã phục vụ', color: 'text-[#22c55e]' },
-  CANCELLED: { label: 'Đã hủy', color: 'text-[#ef4444]' },
+  PENDING: { label: 'Chờ xử lý', color: 'text-amber-700' },
+  PREPARING: { label: 'Đang pha chế', color: 'text-sky-700' },
+  SERVED: { label: 'Đã phục vụ', color: 'text-emerald-700' },
+  CANCELLED: { label: 'Đã hủy', color: 'text-rose-700' },
 }
 
 export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPanelProps) {
@@ -61,15 +62,15 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
           className="w-full sm:max-w-md p-0 flex flex-col bg-card border-l border-border"
         >
           {/* Header */}
-          <SheetHeader className="p-5 pb-0 border-b border-border">
+          <SheetHeader className="p-5 pb-5 border-b border-border">
             <div className="flex items-center justify-between pr-8">
               <div>
-                <SheetTitle className="text-lg font-bold">
+                <SheetTitle className="text-xl font-bold tracking-tight">
                   {room?.name ?? 'Đang tải...'}
                 </SheetTitle>
                 {room && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {room.roomType.name} · Đang hát
+                    {room.roomType.name}
                   </p>
                 )}
               </div>
@@ -139,7 +140,7 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                 <Separator />
 
                 {/* Timer card */}
-                <div className="bg-muted/40 rounded-lg p-4 flex flex-col items-center gap-2">
+                <div className="bg-muted/50 border border-border rounded-xl p-4 flex flex-col items-center gap-2">
                   <CountdownTimer
                     checkInTime={session.checkInTime}
                     estimatedEnd={session.estimatedEnd}
@@ -147,12 +148,12 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                   <div className="grid grid-cols-2 gap-4 w-full mt-1 text-xs text-center">
                     <div>
                       <p className="text-muted-foreground">Check-in</p>
-                      <p className="text-foreground font-medium">{formatTime(session.checkInTime)}</p>
+                      <p className="text-foreground font-semibold tabular-nums">{formatTime(session.checkInTime)}</p>
                     </div>
                     {session.estimatedEnd && (
                       <div>
                         <p className="text-muted-foreground">Dự kiến</p>
-                        <p className="text-foreground font-medium">
+                        <p className="text-foreground font-semibold tabular-nums">
                           {formatTime(session.estimatedEnd)}
                         </p>
                       </div>
@@ -163,23 +164,25 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                 {/* Pricing summary */}
                 <div>
                   <h4 className="text-sm font-semibold text-foreground mb-2">Tạm tính</h4>
-                  <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                  <div className="bg-muted/40 border border-border rounded-xl p-4 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tiền phòng:</span>
-                      <span className="text-foreground">
+                      <span className="text-muted-foreground">Tiền phòng</span>
+                      <span className="text-foreground tabular-nums">
                         {formatCurrency(session.currentRoomCharge)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tiền order:</span>
-                      <span className="text-foreground">
+                      <span className="text-muted-foreground">Tiền order</span>
+                      <span className="text-foreground tabular-nums">
                         {formatCurrency(session.currentOrderTotal)}
                       </span>
                     </div>
                     <Separator />
-                    <div className="flex justify-between text-sm font-bold">
-                      <span className="text-foreground">TỔNG:</span>
-                      <span className="text-primary">{formatCurrency(session.currentTotal)}</span>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-foreground font-bold text-sm">TỔNG</span>
+                      <span className="text-primary font-bold text-lg tabular-nums">
+                        {formatCurrency(session.currentTotal)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -197,30 +200,30 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                         return (
                           <div
                             key={order.id}
-                            className="bg-muted/30 rounded-lg p-3 space-y-1.5"
+                            className="bg-muted/40 border border-border rounded-lg p-3 space-y-1.5"
                           >
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">
+                              <span className="text-muted-foreground tabular-nums">
                                 #{order.id} · {formatTime(order.createdAt)}
                               </span>
-                              <span className={status.color}>
+                              <span className={cn('font-semibold', status.color)}>
                                 {status.label}
                               </span>
                             </div>
                             {order.items?.map((item, i) => (
                               <div key={i} className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">
-                                  {item.quantity}× {item.name}
+                                  <span className="tabular-nums font-semibold">{item.quantity}×</span> {item.name}
                                 </span>
-                                <span className="text-foreground">
+                                <span className="text-foreground tabular-nums">
                                   {formatCurrency(item.subtotal)}
                                 </span>
                               </div>
                             ))}
                             <Separator className="my-1" />
-                            <div className="flex justify-between text-xs font-medium">
-                              <span className="text-muted-foreground">Tổng order:</span>
-                              <span className="text-foreground">
+                            <div className="flex justify-between text-xs font-semibold">
+                              <span className="text-muted-foreground">Tổng order</span>
+                              <span className="text-foreground tabular-nums">
                                 {formatCurrency(order.totalAmount)}
                               </span>
                             </div>
@@ -279,9 +282,9 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
 
           {/* Checkout button */}
           {session && (
-            <div className="p-5 border-t border-border">
+            <div className="p-5 border-t border-border bg-muted/30">
               <Button
-                className="w-full h-11 btn-gradient text-white font-semibold gap-2"
+                className="w-full h-11 font-bold tracking-wide gap-2"
                 onClick={() => setIsCheckoutOpen(true)}
               >
                 <CreditCard className="w-4 h-4" />
