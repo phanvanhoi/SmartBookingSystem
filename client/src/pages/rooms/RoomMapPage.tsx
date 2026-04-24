@@ -126,15 +126,10 @@ export default function RoomMapPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 h-full">
             {/* Cột trái: Phòng lớn (8, 9, 10) */}
             <section className="flex flex-col">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Phòng lớn
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
+              <SectionLabel title="Phòng lớn" count={largeRooms.length} />
               <div className="grid grid-cols-1 grid-rows-3 gap-2 flex-1">
                 {largeRooms.map((room) => (
                   <RoomCard
@@ -151,12 +146,7 @@ export default function RoomMapPage() {
 
             {/* Cột phải: Phòng nhỏ (1-7) - card nhỏ hơn */}
             <section className="flex flex-col">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Phòng nhỏ
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
+              <SectionLabel title="Phòng nhỏ" count={smallRooms.length} />
               <div className="grid grid-cols-4 grid-rows-2 gap-2 flex-1">
                 {/* Dòng 1: 1, 3, 5, 7 */}
                 {smallRooms.filter((_, i) => i % 2 === 0).map((room) => (
@@ -216,6 +206,24 @@ export default function RoomMapPage() {
         open={!!extendRoom}
         onClose={() => setExtendRoom(null)}
       />
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Section label
+// ──────────────────────────────────────────────────────────────────────────
+
+function SectionLabel({ title, count }: { title: string; count: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {title}
+      </span>
+      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-muted text-[10px] font-bold text-muted-foreground tabular-nums">
+        {count}
+      </span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   )
 }

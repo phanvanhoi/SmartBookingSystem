@@ -1,4 +1,4 @@
-import { ShoppingCart, Clock, Info, CreditCard, Wrench } from 'lucide-react'
+import { ShoppingCart, Clock, Info, CreditCard, Wrench, DoorOpen } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { formatCurrency } from '@/utils/formatCurrency'
 import CountdownTimer from '@/components/CountdownTimer'
@@ -94,7 +94,13 @@ export default function RoomCard({
 
       {/* AVAILABLE */}
       {room.status === 'AVAILABLE' && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 pt-1 pb-0.5">
+        <div className="flex-1 flex flex-col pt-1 pb-0.5">
+          <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-2">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+              <DoorOpen className="w-5 h-5 text-emerald-500" strokeWidth={2} />
+            </div>
+            <span className="text-[11px] text-muted-foreground">Sẵn sàng đón khách</span>
+          </div>
           <button
             className="w-full btn-gradient text-xs font-bold tracking-wide py-2 rounded-md"
             onClick={(e) => handleActionClick(e, onClick)}
@@ -124,10 +130,11 @@ export default function RoomCard({
           />
 
           {/* Total */}
-          <div className="flex items-center justify-between text-xs pt-0.5">
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-border/60 mt-0.5">
             <span className="text-muted-foreground">Tạm tính</span>
             <span className="font-bold text-foreground tabular-nums">
               {formatCurrency(session.currentTotal)}
+              <span className="text-muted-foreground font-normal ml-0.5">đ</span>
             </span>
           </div>
 
@@ -170,8 +177,10 @@ export default function RoomCard({
 
       {/* MAINTENANCE */}
       {room.status === 'MAINTENANCE' && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-1 py-1 pl-1">
-          <Wrench className="w-5 h-5 text-slate-400" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 py-2">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+            <Wrench className="w-5 h-5 text-slate-400" />
+          </div>
           <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">
             Bảo trì
           </p>

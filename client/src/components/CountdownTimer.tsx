@@ -1,3 +1,4 @@
+import { Clock, AlertTriangle } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useCountdown } from '@/hooks/useCountdown'
 
@@ -19,26 +20,29 @@ export default function CountdownTimer({
 
   return (
     <div className={cn('flex flex-col items-center', className)}>
-      <span
+      <div
         className={cn(
-          'text-2xl font-bold font-mono tracking-widest tabular-nums transition-colors duration-300',
+          'flex items-center gap-1.5 transition-colors duration-300',
           isExpired && 'text-rose-600 animate-pulse',
           isWarning && !isExpired && 'text-amber-600',
           !isWarning && !isExpired && 'text-foreground'
         )}
       >
-        ⏱ {formatted}
-      </span>
+        <Clock className="w-4 h-4 opacity-70" />
+        <span className="text-2xl font-bold font-mono tracking-wider tabular-nums">
+          {formatted}
+        </span>
+      </div>
       <span
         className={cn(
-          'text-xs mt-0.5',
+          'text-xs mt-0.5 flex items-center gap-1',
           isExpired && 'text-rose-600',
           isWarning && !isExpired && 'text-amber-600',
           !isWarning && !isExpired && 'text-muted-foreground'
         )}
       >
         {label}
-        {isWarning && !isExpired && ' ⚠️'}
+        {isWarning && !isExpired && <AlertTriangle className="w-3 h-3" />}
       </span>
     </div>
   )
