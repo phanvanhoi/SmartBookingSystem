@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
+import { Search, Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,8 @@ import { cn } from '@/utils/cn'
 import { getErrorMessage } from '@/utils/error'
 import { useCheckin } from '@/hooks/useRooms'
 import { roomService } from '@/services/roomService'
+import { customerService } from '@/services/customerService'
+import type { Customer } from '@/types/customer'
 import type { Room } from '@/types/room'
 
 interface CheckinDialogProps {
@@ -47,6 +50,18 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
   const [isLookingUp, setIsLookingUp] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Name-search autocomplete state
+  const [nameSuggestions, setNameSuggestions] = useState<Customer[]>([])
+  const [isNameDropdownOpen, setIsNameDropdownOpen] = useState(false)
+  const [isSearchingName, setIsSearchingName] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const nameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // When the user picks from the dropdown we set both name + phone. Skip the
+  // next debounced search so we don't immediately re-open the dropdown with
+  // the same row.
+  const justSelectedRef = useRef(false)
+  const nameContainerRef = useRef<HTMLDivElement>(null)
+
   const checkin = useCheckin()
 
   // Reset form when dialog opens
@@ -59,6 +74,9 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
       setCustomDuration('')
       setNotes('')
       setCustomerInfo(null)
+      setNameSuggestions([])
+      setIsNameDropdownOpen(false)
+      setHighlightedIndex(-1)
     }
   }, [open])
 
@@ -85,6 +103,99 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [customerPhone])
+
+  // Close suggestion dropdown when clicking outside the name field area.
+  useEffect(() => {
+    if (!isNameDropdownOpen) return
+    function handler(e: MouseEvent) {
+      if (
+        nameContainerRef.current &&
+        !nameContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsNameDropdownOpen(false)
+        setHighlightedIndex(-1)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [isNameDropdownOpen])
+
+  // Cleanup search debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current)
+    }
+  }, [])
+
+  function handleNameChange(value: string) {
+    setCustomerName(value)
+    setHighlightedIndex(-1)
+
+    if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current)
+
+    // Skip the search firing immediately after a dropdown selection — the
+    // value was just set programmatically.
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false
+      return
+    }
+
+    const trimmed = value.trim()
+    if (trimmed.length < 2) {
+      setNameSuggestions([])
+      setIsNameDropdownOpen(false)
+      setIsSearchingName(false)
+      return
+    }
+
+    setIsSearchingName(true)
+    setIsNameDropdownOpen(true)
+    nameDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await customerService.getCustomers({ search: trimmed, limit: 8 })
+        setNameSuggestions(res.data)
+      } catch {
+        setNameSuggestions([])
+      } finally {
+        setIsSearchingName(false)
+      }
+    }, 300)
+  }
+
+  function selectCustomer(c: Customer) {
+    justSelectedRef.current = true
+    setCustomerName(c.name)
+    setCustomerPhone(c.phone ?? '')
+    setCustomerInfo({
+      id: c.id,
+      name: c.name,
+      tier: c.tier,
+      totalVisits: c.visitCount,
+      lastVisit: c.lastVisit,
+    })
+    setIsNameDropdownOpen(false)
+    setHighlightedIndex(-1)
+  }
+
+  function handleNameKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!isNameDropdownOpen || nameSuggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightedIndex((i) => (i + 1) % nameSuggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightedIndex((i) =>
+        i <= 0 ? nameSuggestions.length - 1 : i - 1,
+      )
+    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault()
+      selectCustomer(nameSuggestions[highlightedIndex])
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setIsNameDropdownOpen(false)
+      setHighlightedIndex(-1)
+    }
+  }
 
   const getEstimatedMinutes = (): number | undefined => {
     if (selectedDuration === -1) {
@@ -138,17 +249,89 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
         </DialogHeader>
 
         <div className="px-6 py-4 flex flex-col gap-4">
-          {/* Customer name */}
-          <div>
+          {/* Customer name with autocomplete */}
+          <div ref={nameContainerRef} className="relative">
             <label className="block text-sm font-medium text-foreground mb-1.5">
               Tên khách <span className="text-[#ef4444]">*</span>
             </label>
-            <Input
-              placeholder="Nhập tên khách..."
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="bg-muted/50"
-            />
+            <div className="relative">
+              <Input
+                placeholder="Nhập tên khách (≥ 2 ký tự để tìm)..."
+                value={customerName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onFocus={() => {
+                  if (nameSuggestions.length > 0) setIsNameDropdownOpen(true)
+                }}
+                onKeyDown={handleNameKeyDown}
+                className="bg-muted/50 pr-9"
+                autoComplete="off"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                {isSearchingName ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+              </span>
+            </div>
+
+            {isNameDropdownOpen && (
+              <div
+                className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg max-h-64 overflow-y-auto"
+                role="listbox"
+              >
+                {isSearchingName && nameSuggestions.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                    Đang tìm...
+                  </div>
+                )}
+                {!isSearchingName && nameSuggestions.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                    Không tìm thấy khách. Cứ gõ tên mới rồi bấm NHẬN KHÁCH.
+                  </div>
+                )}
+                {nameSuggestions.map((c, i) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="option"
+                    aria-selected={highlightedIndex === i}
+                    onMouseEnter={() => setHighlightedIndex(i)}
+                    onClick={() => selectCustomer(c)}
+                    className={cn(
+                      'w-full text-left px-3 py-2 flex items-center justify-between gap-2 transition-colors',
+                      highlightedIndex === i
+                        ? 'bg-accent text-accent-foreground'
+                        : 'hover:bg-accent/60',
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {c.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {c.phone || '—'}
+                        {c.visitCount > 0 && (
+                          <span className="ml-2">· {c.visitCount} lượt</span>
+                        )}
+                      </div>
+                    </div>
+                    {c.tier !== 'REGULAR' && (
+                      <span
+                        className={cn(
+                          'text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full border',
+                          c.tier === 'VIP' && 'border-purple-400 text-purple-500',
+                          c.tier === 'GOLD' && 'border-yellow-400 text-yellow-500',
+                          c.tier === 'SILVER' && 'border-slate-400 text-slate-400',
+                        )}
+                      >
+                        {c.tier}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Phone + guest count */}

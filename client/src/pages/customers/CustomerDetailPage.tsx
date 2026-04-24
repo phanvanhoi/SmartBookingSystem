@@ -101,7 +101,7 @@ export default function CustomerDetailPage() {
     if (!customer) return
     setEditForm({
       name: customer.name,
-      phone: customer.phone,
+      phone: customer.phone ?? '',
       birthday: customer.birthday ?? '',
       notes: customer.notes ?? '',
     })
@@ -531,7 +531,7 @@ export default function CustomerDetailPage() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <InfoRow label="Tên khách hàng" value={customer.name} />
-                  <InfoRow label="Số điện thoại" value={customer.phone} />
+                  <InfoRow label="Số điện thoại" value={customer.phone ?? '—'} />
                   <InfoRow
                     label="Ngày sinh"
                     value={customer.birthday ? formatDate(customer.birthday) : '—'}

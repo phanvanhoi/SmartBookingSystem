@@ -3,7 +3,8 @@ export type CustomerTier = 'REGULAR' | 'SILVER' | 'GOLD' | 'VIP'
 export interface Customer {
   id: number
   name: string
-  phone: string
+  // Phone is optional after Phase 4 — imported customers may have no phone.
+  phone: string | null
   birthday?: string
   tier: CustomerTier
   totalSpent: number
