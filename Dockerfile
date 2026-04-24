@@ -49,19 +49,21 @@ COPY --from=server-build /app/server/dist ./dist
 # Copy built client → serve as static files
 COPY --from=client-build /app/client/dist ./public
 
+# Install su-exec so the entrypoint can fix volume ownership as root and then
+# drop to the unprivileged `node` user before exec-ing node.
+RUN apk add --no-cache su-exec
+
 # Copy entrypoint
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
 # Create directories
 RUN mkdir -p uploads/qr uploads/products data logs
-
-# Run as the unprivileged `node` user that ships with the official image
-# (uid 1000) — limits damage if the process is ever compromised. Mounted
-# volumes (musicbox-data, musicbox-uploads, musicbox-logs) inherit ownership
-# from the chown below.
 RUN chown -R node:node /app
-USER node
+
+# Note: we intentionally stay as root here so the entrypoint can chown the
+# mounted volumes (which may have been created root-owned by an older image),
+# then drop to `node` via su-exec. Process never serves traffic as root.
 
 # Expose port
 EXPOSE 3000

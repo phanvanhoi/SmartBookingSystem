@@ -3,6 +3,20 @@ set -e
 
 echo "🎵 Music Box Manager - Starting..."
 
+# ── Volume ownership fix ─────────────────────────────────────────────────────
+# Named volumes mounted on /app/{data,uploads,logs} may be owned by root
+# (eg. created by a previous root-running image). The unprivileged `node`
+# user can't write to them as-is. Run as root briefly to chown, then drop
+# privileges via su-exec for the rest of the script.
+if [ "$(id -u)" = "0" ]; then
+  for d in data uploads logs uploads/qr uploads/products; do
+    mkdir -p "/app/$d"
+    chown -R node:node "/app/$d"
+  done
+  echo "🔐 Re-executing as node user…"
+  exec su-exec node:node "$0" "$@"
+fi
+
 # ── Schema sync ──────────────────────────────────────────────────────────────
 # `prisma db push` (without --accept-data-loss) will refuse to make destructive
 # changes — it only adds new tables/columns. If the schema diverges in a way

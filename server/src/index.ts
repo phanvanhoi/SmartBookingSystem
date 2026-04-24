@@ -68,13 +68,23 @@ async function shutdown(signal: NodeJS.Signals) {
 process.on('SIGTERM', () => void shutdown('SIGTERM'))
 process.on('SIGINT', () => void shutdown('SIGINT'))
 
-// Last-resort: log unhandled rejections/exceptions instead of silent crash.
+// Use console.* directly here — winston file transports may themselves be the
+// source of the failure (eg. unwritable logs/ volume), and we'd lose the
+// signal forever. Also do NOT auto-shutdown on uncaughtException: that hid a
+// silent restart loop in Docker. Better to crash visibly with a stack trace
+// so docker logs shows the real cause.
 process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled promise rejection', { reason })
+  console.error('[FATAL] Unhandled promise rejection:', reason)
+  try { logger.error('Unhandled promise rejection', { reason }) } catch { /* noop */ }
 })
 process.on('uncaughtException', (err) => {
-  logger.error('Uncaught exception', { err })
-  void shutdown('SIGTERM')
+  console.error('[FATAL] Uncaught exception:', err)
+  try { logger.error('Uncaught exception', { err }) } catch { /* noop */ }
+  process.exit(1) // non-zero so Docker shows it as a real failure
+})
+
+process.on('exit', (code) => {
+  console.log(`[exit] process exiting with code ${code}`)
 })
 
 export { server }
