@@ -5,15 +5,20 @@ services:
     build: .
     container_name: musicbox-app
     restart: unless-stopped
-    ports:
-      - "8081:3000"
+    # Use host network instead of bridge — on this VPS the bridge driver
+    # produces "connection reset by peer" on the published port (suspected
+    # iptables / docker-proxy interaction with the host firewall). Host net
+    # bypasses docker-proxy entirely and lets the app bind directly to the
+    # host's port. Override PORT to expose 8081 directly.
+    network_mode: host
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=${APP_PORT:-8081}
       - DATABASE_URL=file:./data/musicbox.db
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-12h}
       - CORS_ORIGINS=${CORS_ORIGINS:?CORS_ORIGINS must be set (comma-separated origins)}
+      - TRUST_PROXY_HOPS=${TRUST_PROXY_HOPS:-1}
       - FB_APP_SECRET=${FB_APP_SECRET:-}
       - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN:-}
       - TZ=Asia/Ho_Chi_Minh

@@ -68,8 +68,8 @@ RUN chown -R node:node /app
 # Expose port
 EXPOSE 3000
 
-# Health check
+# Health check — uses PORT from env (defaults to 3000 in docker, 8081 with host net)
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD wget -q --spider http://localhost:3000/api/health || exit 1
+  CMD wget -q --spider "http://localhost:${PORT:-3000}/api/health" || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
