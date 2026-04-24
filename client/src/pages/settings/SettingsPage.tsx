@@ -107,6 +107,7 @@ function GeneralTab() {
     open_time: '',
     close_time: '',
     min_duration_minutes: '',
+    billing_round_minutes: '',
     warning_before_minutes: '',
     max_cashier_discount_percent: '',
   })
@@ -118,7 +119,8 @@ function GeneralTab() {
       store_address: getValue('store_address'),
       open_time: getValue('open_time', '12:00'),
       close_time: getValue('close_time', '05:00'),
-      min_duration_minutes: getValue('min_duration_minutes', '60'),
+      min_duration_minutes: getValue('min_duration_minutes', '0'),
+      billing_round_minutes: getValue('billing_round_minutes', '5'),
       warning_before_minutes: getValue('warning_before_minutes', '15'),
       max_cashier_discount_percent: getValue('max_cashier_discount_percent', '10'),
     })
@@ -128,7 +130,7 @@ function GeneralTab() {
   function handleSave() {
     const payload = Object.entries(form).map(([key, value]) => ({
       key,
-      value: ['min_duration_minutes', 'warning_before_minutes', 'max_cashier_discount_percent'].includes(key)
+      value: ['min_duration_minutes', 'billing_round_minutes', 'warning_before_minutes', 'max_cashier_discount_percent'].includes(key)
         ? Number(value)
         : value,
     }))
@@ -189,17 +191,36 @@ function GeneralTab() {
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Thời gian hát tối thiểu (phút)
-          </label>
-          <Input
-            type="number"
-            min={0}
-            value={form.min_duration_minutes}
-            onChange={(e) => setForm((f) => ({ ...f, min_duration_minutes: e.target.value }))}
-            placeholder="60"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">
+              Thời gian hát tối thiểu (phút)
+            </label>
+            <Input
+              type="number"
+              min={0}
+              value={form.min_duration_minutes}
+              onChange={(e) => setForm((f) => ({ ...f, min_duration_minutes: e.target.value }))}
+              placeholder="0"
+            />
+            <p className="text-[11px] text-muted-foreground">0 = không thu tối thiểu</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">
+              Làm tròn thời gian (phút)
+            </label>
+            <Input
+              type="number"
+              min={0}
+              max={60}
+              value={form.billing_round_minutes}
+              onChange={(e) => setForm((f) => ({ ...f, billing_round_minutes: e.target.value }))}
+              placeholder="5"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Làm tròn lên mỗi N phút (0 = chính xác từng phút)
+            </p>
+          </div>
         </div>
 
         <div className="space-y-1.5">

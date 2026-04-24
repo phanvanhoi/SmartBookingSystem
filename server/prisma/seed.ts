@@ -172,6 +172,13 @@ async function main() {
       description: 'Thời gian hát tối thiểu (phút) — 0 = tính chính xác theo giờ',
     },
     {
+      key: 'billing_round_minutes',
+      // Làm tròn lên (ceil) thời gian tính tiền. 5 = mỗi 5 phút là một block,
+      // khách hát 47 phút sẽ tính 50 phút. 0 = không làm tròn.
+      value: 5 as unknown as object,
+      description: 'Làm tròn thời gian tính tiền (phút) — 0 = không làm tròn, 5 = mỗi 5 phút',
+    },
+    {
       key: 'warning_before_minutes',
       value: 15 as unknown as object,
       description: 'Cảnh báo trước khi hết giờ (phút)',

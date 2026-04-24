@@ -157,31 +157,44 @@ export async function calculateRoomPrice(
     return true
   })
 
-  // 3. Get minimum duration setting
-  let minDurationMinutes = 0
-  try {
-    const setting = await prisma.setting.findUnique({
-      where: { key: 'min_duration_minutes' },
-    })
-    if (setting?.value) {
+  // 3. Get billing settings (minimum duration + round-up step)
+  async function readNumericSetting(key: string): Promise<number> {
+    try {
+      const setting = await prisma.setting.findUnique({ where: { key } })
+      if (!setting?.value && setting?.value !== 0) return 0
       const val = setting.value
-      if (typeof val === 'number') minDurationMinutes = val
-      else if (typeof val === 'string') minDurationMinutes = parseInt(val, 10) || 0
-      else if (typeof val === 'object' && val !== null && 'value' in val) {
-        minDurationMinutes = Number((val as Record<string, unknown>).value) || 0
+      if (typeof val === 'number') return val
+      if (typeof val === 'string') return parseInt(val, 10) || 0
+      if (typeof val === 'object' && val !== null && 'value' in val) {
+        return Number((val as Record<string, unknown>).value) || 0
       }
+      return 0
+    } catch {
+      return 0
     }
-  } catch {
-    // Setting not found, skip
   }
+  const minDurationMinutes = await readNumericSetting('min_duration_minutes')
+  const roundMinutes = await readNumericSetting('billing_round_minutes')
 
-  // 4. Apply minimum duration if needed
+  // 4. Apply minimum duration, then ceil to nearest billing increment.
+  // Both adjustments work by extending effectiveCheckOut so the existing
+  // splitByTimeSlots step still distributes the time across price slots.
   const actualMinutes = Math.round((checkOutTime.getTime() - checkInTime.getTime()) / 60_000)
-  let effectiveCheckOut = checkOutTime
+  let billedMinutes = actualMinutes
 
-  if (minDurationMinutes > 0 && actualMinutes < minDurationMinutes) {
-    effectiveCheckOut = new Date(checkInTime.getTime() + minDurationMinutes * 60_000)
+  if (minDurationMinutes > 0 && billedMinutes < minDurationMinutes) {
+    billedMinutes = minDurationMinutes
   }
+  if (roundMinutes > 0 && billedMinutes > 0) {
+    // Ceiling: 47 → 50 with step=5. Customer pays for the full 5-min block
+    // they're partway into. Standard karaoke pricing convention.
+    billedMinutes = Math.ceil(billedMinutes / roundMinutes) * roundMinutes
+  }
+
+  const effectiveCheckOut =
+    billedMinutes !== actualMinutes
+      ? new Date(checkInTime.getTime() + billedMinutes * 60_000)
+      : checkOutTime
 
   // 5. Split time into price segments
   const segments = splitByTimeSlots(checkInTime, effectiveCheckOut, rules)

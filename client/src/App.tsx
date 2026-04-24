@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
 import RoomMapPage from './pages/rooms/RoomMapPage'
@@ -80,15 +79,9 @@ function SocketInitializer() {
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const loadFromStorage = useAuthStore((s) => s.loadFromStorage)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const role = useAuthStore((s) => s.user?.role)
   const landing = defaultLandingPath(role)
-
-  // Hydrate auth state from localStorage on first render
-  useEffect(() => {
-    loadFromStorage()
-  }, [loadFromStorage])
 
   return (
     <>
