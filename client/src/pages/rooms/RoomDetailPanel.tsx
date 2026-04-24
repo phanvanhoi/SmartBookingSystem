@@ -62,14 +62,14 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
           className="w-full sm:max-w-md p-0 flex flex-col bg-card border-l border-border"
         >
           {/* Header */}
-          <SheetHeader className="p-5 pb-5 border-b border-border">
+          <SheetHeader className="px-4 py-3 border-b border-border">
             <div className="flex items-center justify-between pr-8">
               <div>
-                <SheetTitle className="text-xl font-bold tracking-tight">
+                <SheetTitle className="text-base font-bold tracking-tight">
                   {room?.name ?? 'Đang tải...'}
                 </SheetTitle>
                 {room && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
                     {room.roomType.name}
                   </p>
                 )}
@@ -104,55 +104,53 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
             </div>
           ) : (
             <ScrollArea className="flex-1">
-              <div className="p-5 space-y-5">
-                {/* Customer info */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground w-24">Khách hàng:</span>
-                    <span className="text-foreground font-medium">{session.customerName}</span>
+              <div className="p-3 space-y-3">
+                {/* Customer info — compact */}
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-20">Khách hàng:</span>
+                    <span className="text-foreground font-medium truncate">{session.customerName}</span>
                   </div>
                   {session.customerPhone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground w-24 flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20 flex items-center gap-1">
                         <Phone className="w-3 h-3" /> SĐT:
                       </span>
                       <span className="text-foreground">{session.customerPhone}</span>
                     </div>
                   )}
                   {session.guestCount && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground w-24 flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20 flex items-center gap-1">
                         <Users className="w-3 h-3" /> Số người:
                       </span>
                       <span className="text-foreground">{session.guestCount}</span>
                     </div>
                   )}
                   {session.notes && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <span className="text-muted-foreground w-24 flex items-center gap-1 mt-0.5">
+                    <div className="flex items-start gap-2">
+                      <span className="text-muted-foreground w-20 flex items-center gap-1 mt-0.5">
                         <FileText className="w-3 h-3" /> Ghi chú:
                       </span>
-                      <span className="text-foreground flex-1">{session.notes}</span>
+                      <span className="text-foreground flex-1 line-clamp-2">{session.notes}</span>
                     </div>
                   )}
                 </div>
 
-                <Separator />
-
-                {/* Timer card */}
-                <div className="bg-muted/50 border border-border rounded-xl p-4 flex flex-col items-center gap-2">
+                {/* Timer card — compact */}
+                <div className="bg-muted/50 border border-border rounded-lg p-2.5 flex flex-col items-center gap-1.5">
                   <CountdownTimer
                     checkInTime={session.checkInTime}
                     estimatedEnd={session.estimatedEnd}
                   />
-                  <div className="grid grid-cols-2 gap-4 w-full mt-1 text-xs text-center">
+                  <div className="grid grid-cols-2 gap-3 w-full text-[11px] text-center">
                     <div>
-                      <p className="text-muted-foreground">Check-in</p>
+                      <p className="text-muted-foreground leading-none">Check-in</p>
                       <p className="text-foreground font-semibold tabular-nums">{formatTime(session.checkInTime)}</p>
                     </div>
                     {session.estimatedEnd && (
                       <div>
-                        <p className="text-muted-foreground">Dự kiến</p>
+                        <p className="text-muted-foreground leading-none">Dự kiến</p>
                         <p className="text-foreground font-semibold tabular-nums">
                           {formatTime(session.estimatedEnd)}
                         </p>
@@ -161,37 +159,37 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                   </div>
                 </div>
 
-                {/* Pricing summary */}
+                {/* Pricing summary — compact */}
                 <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Tạm tính</h4>
-                  <div className="bg-muted/40 border border-border rounded-xl p-4 space-y-2">
-                    <div className="flex justify-between text-sm">
+                  <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Tạm tính</h4>
+                  <div className="bg-muted/40 border border-border rounded-lg p-2.5 space-y-1">
+                    <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Tiền phòng</span>
                       <span className="text-foreground tabular-nums">
                         {formatCurrency(session.currentRoomCharge)}
                       </span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Tiền order</span>
                       <span className="text-foreground tabular-nums">
                         {formatCurrency(session.currentOrderTotal)}
                       </span>
                     </div>
-                    <Separator />
+                    <Separator className="my-1" />
                     <div className="flex justify-between items-baseline">
-                      <span className="text-foreground font-bold text-sm">TỔNG</span>
-                      <span className="text-primary font-bold text-lg tabular-nums">
+                      <span className="text-foreground font-bold text-xs">TỔNG</span>
+                      <span className="text-primary font-bold text-base tabular-nums">
                         {formatCurrency(session.currentTotal)}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Orders list */}
+                {/* Orders list — compact */}
                 {session.orders && session.orders.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-2">Orders</h4>
-                    <div className="space-y-2">
+                    <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Orders</h4>
+                    <div className="space-y-1.5">
                       {session.orders.map((order) => {
                         const status = orderStatusLabel[order.status] ?? {
                           label: order.status,
@@ -200,9 +198,9 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                         return (
                           <div
                             key={order.id}
-                            className="bg-muted/40 border border-border rounded-lg p-3 space-y-1.5"
+                            className="bg-muted/40 border border-border rounded-md p-2 space-y-1"
                           >
-                            <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center justify-between text-[11px]">
                               <span className="text-muted-foreground tabular-nums">
                                 #{order.id} · {formatTime(order.createdAt)}
                               </span>
@@ -211,8 +209,8 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                               </span>
                             </div>
                             {order.items?.map((item, i) => (
-                              <div key={i} className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">
+                              <div key={i} className="flex justify-between text-xs">
+                                <span className="text-muted-foreground truncate">
                                   <span className="tabular-nums font-semibold">{item.quantity}×</span> {item.name}
                                 </span>
                                 <span className="text-foreground tabular-nums">
@@ -220,13 +218,6 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                                 </span>
                               </div>
                             ))}
-                            <Separator className="my-1" />
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-muted-foreground">Tổng order</span>
-                              <span className="text-foreground tabular-nums">
-                                {formatCurrency(order.totalAmount)}
-                              </span>
-                            </div>
                           </div>
                         )
                       })}
@@ -234,44 +225,44 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                   </div>
                 )}
 
-                {/* Action buttons */}
+                {/* Action buttons — compact */}
                 <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Hành động</h4>
-                  <div className="grid grid-cols-2 gap-2">
+                  <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Hành động</h4>
+                  <div className="grid grid-cols-2 gap-1.5">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-10 gap-1.5 text-xs justify-start"
+                      className="h-9 gap-1.5 text-xs justify-start"
                       onClick={() => setIsOrderOpen(true)}
                     >
-                      <ShoppingCart className="w-4 h-4" />
+                      <ShoppingCart className="w-3.5 h-3.5" />
                       Order thêm
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-10 gap-1.5 text-xs justify-start"
+                      className="h-9 gap-1.5 text-xs justify-start"
                       onClick={() => setIsExtendOpen(true)}
                     >
-                      <Clock className="w-4 h-4" />
+                      <Clock className="w-3.5 h-3.5" />
                       Gia hạn
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-10 gap-1.5 text-xs justify-start"
+                      className="h-9 gap-1.5 text-xs justify-start"
                       onClick={() => setIsTransferOpen(true)}
                     >
-                      <ArrowRightLeft className="w-4 h-4" />
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
                       Chuyển phòng
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-10 gap-1.5 text-xs justify-start"
+                      className="h-9 gap-1.5 text-xs justify-start"
                       onClick={() => setIsMergeOpen(true)}
                     >
-                      <Merge className="w-4 h-4" />
+                      <Merge className="w-3.5 h-3.5" />
                       Gộp phòng
                     </Button>
                   </div>
@@ -282,9 +273,9 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
 
           {/* Checkout button */}
           {session && (
-            <div className="p-5 border-t border-border bg-muted/30">
+            <div className="px-3 py-2.5 border-t border-border bg-muted/30">
               <Button
-                className="w-full h-11 font-bold tracking-wide gap-2"
+                className="w-full h-10 font-bold tracking-wide gap-2"
                 onClick={() => setIsCheckoutOpen(true)}
               >
                 <CreditCard className="w-4 h-4" />
