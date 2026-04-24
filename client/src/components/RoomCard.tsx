@@ -10,8 +10,6 @@ interface RoomCardProps {
   onOrderClick?: () => void
   onExtendClick?: () => void
   onCheckoutClick?: () => void
-  /** If true, the card spans 2 columns in the parent grid (used for large rooms) */
-  wide?: boolean
 }
 
 const statusConfig = {
@@ -47,7 +45,6 @@ export default function RoomCard({
   onOrderClick,
   onExtendClick,
   onCheckoutClick,
-  wide,
 }: RoomCardProps) {
   const cfg = statusConfig[room.status]
   const session = room.currentSession
@@ -70,7 +67,6 @@ export default function RoomCard({
         'cursor-pointer transition-all duration-200',
         'hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border/80',
         'p-3 pl-4 flex flex-col h-[196px]',
-        wide && 'col-span-2',
         room.status === 'ENDING_SOON' && 'ring-1 ring-amber-400/40',
         room.status === 'AVAILABLE' && 'hover:border-emerald-300 hover:bg-emerald-50/30',
         room.status === 'MAINTENANCE' && 'opacity-80 cursor-default hover:translate-y-0 hover:shadow-card hover:border-border',

@@ -31,8 +31,8 @@ export default function RoomMapPage() {
   const [extendRoom, setExtendRoom] = useState<Room | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
 
-  // Large rooms first (col-span-2), then small rooms — both sorted by sortOrder
-  const orderedRooms = useMemo(() => {
+  // Group by size — keep the intentional "Phòng lớn / Phòng nhỏ" split.
+  const { largeRooms, smallRooms } = useMemo(() => {
     const large: Room[] = []
     const small: Room[] = []
     rooms.forEach((r) => {
@@ -41,7 +41,7 @@ export default function RoomMapPage() {
     })
     large.sort((a, b) => a.sortOrder - b.sortOrder)
     small.sort((a, b) => a.sortOrder - b.sortOrder)
-    return [...large, ...small]
+    return { largeRooms: large, smallRooms: small }
   }, [rooms])
 
   const statusCount = useMemo(() => {
@@ -50,8 +50,11 @@ export default function RoomMapPage() {
     return counts
   }, [rooms])
 
-  const visibleRooms =
-    filter === 'all' ? orderedRooms : orderedRooms.filter((r) => r.status === filter)
+  const filterRooms = (list: Room[]) =>
+    filter === 'all' ? list : list.filter((r) => r.status === filter)
+
+  const visibleLarge = filterRooms(largeRooms)
+  const visibleSmall = filterRooms(smallRooms)
 
   const handleRoomClick = (room: Room) => {
     if (room.status === 'MAINTENANCE') return
@@ -138,32 +141,53 @@ export default function RoomMapPage() {
         )}
       </div>
 
-      {/* ─── Rooms grid ──────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto px-5 pb-3">
+      {/* ─── Rooms grid — 2 columns: Phòng lớn | Phòng nhỏ ───────── */}
+      <div className="flex-1 overflow-auto px-5 pb-5">
         {isLoading ? (
           <RoomGridSkeleton />
-        ) : visibleRooms.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <LayoutGrid className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">
-                {filter === 'all' ? 'Không tìm thấy phòng nào' : 'Không có phòng nào khớp bộ lọc'}
-              </p>
-            </div>
-          </div>
+        ) : rooms.length === 0 ? (
+          <EmptyState message="Không tìm thấy phòng nào" />
+        ) : visibleLarge.length === 0 && visibleSmall.length === 0 ? (
+          <EmptyState message="Không có phòng nào khớp bộ lọc" />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {visibleRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                wide={room.roomType.capacityMax > 8}
-                onClick={() => handleRoomClick(room)}
-                onOrderClick={() => handleOrderClick(room)}
-                onExtendClick={() => handleExtendClick(room)}
-                onCheckoutClick={() => handleCheckoutClick(room)}
-              />
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+            {/* Cột trái: Phòng lớn */}
+            {visibleLarge.length > 0 && (
+              <section className="flex flex-col">
+                <SectionLabel title="Phòng lớn" count={visibleLarge.length} totalCount={largeRooms.length} filtered={filter !== 'all'} />
+                <div className="grid grid-cols-1 gap-3">
+                  {visibleLarge.map((room) => (
+                    <RoomCard
+                      key={room.id}
+                      room={room}
+                      onClick={() => handleRoomClick(room)}
+                      onOrderClick={() => handleOrderClick(room)}
+                      onExtendClick={() => handleExtendClick(room)}
+                      onCheckoutClick={() => handleCheckoutClick(room)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Cột phải: Phòng nhỏ */}
+            {visibleSmall.length > 0 && (
+              <section className="flex flex-col">
+                <SectionLabel title="Phòng nhỏ" count={visibleSmall.length} totalCount={smallRooms.length} filtered={filter !== 'all'} />
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {visibleSmall.map((room) => (
+                    <RoomCard
+                      key={room.id}
+                      room={room}
+                      onClick={() => handleRoomClick(room)}
+                      onOrderClick={() => handleOrderClick(room)}
+                      onExtendClick={() => handleExtendClick(room)}
+                      onCheckoutClick={() => handleCheckoutClick(room)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>
@@ -184,6 +208,34 @@ export default function RoomMapPage() {
         open={!!extendRoom}
         onClose={() => setExtendRoom(null)}
       />
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Section label
+// ──────────────────────────────────────────────────────────────────────────
+
+function SectionLabel({
+  title,
+  count,
+  totalCount,
+  filtered,
+}: {
+  title: string
+  count: number
+  totalCount: number
+  filtered: boolean
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {title}
+      </span>
+      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-muted text-[10px] font-bold text-muted-foreground tabular-nums">
+        {filtered ? `${count}/${totalCount}` : count}
+      </span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   )
 }
@@ -260,28 +312,49 @@ function FilterChip({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Empty state
+// ──────────────────────────────────────────────────────────────────────────
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center text-muted-foreground">
+        <LayoutGrid className="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">{message}</p>
+      </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Skeleton
 // ──────────────────────────────────────────────────────────────────────────
 
 function RoomGridSkeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-      {Array.from({ length: 10 }).map((_, i) => (
-        <div
-          key={i}
-          className={cn(
-            'h-[196px] rounded-xl border border-border bg-card shadow-card p-3 space-y-3',
-            i < 3 && 'col-span-2',
-          )}
-        >
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-16 rounded-full" />
-          </div>
-          <Skeleton className="h-16 w-full rounded-md" />
-          <Skeleton className="h-8 w-full rounded-md" />
+    <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
+      {/* Left column: 3 large */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-border" />
         </div>
-      ))}
+        <div className="grid grid-cols-1 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-[196px] rounded-xl" />
+          ))}
+        </div>
+      </section>
+      {/* Right column: 7 small */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="h-px flex-1 bg-border" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Skeleton key={i} className="h-[196px] rounded-xl" />
+          ))}
+        </div>
+      </section>
     </div>
   )
 }
