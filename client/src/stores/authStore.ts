@@ -20,7 +20,32 @@ interface AuthStore {
 
   login: (token: string, user: AuthUser) => void
   logout: () => void
-  loadFromStorage: () => void
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Hydration – read persisted session synchronously before first render
+// ────────────────────────────────────────────────────────────────────────────
+
+function readInitialAuth(): Pick<AuthStore, 'user' | 'token' | 'isAuthenticated'> {
+  if (typeof window === 'undefined') {
+    return { user: null, token: null, isAuthenticated: false }
+  }
+
+  const token = localStorage.getItem('token')
+  const userStr = localStorage.getItem('auth_user')
+
+  if (!token || !userStr) {
+    return { user: null, token: null, isAuthenticated: false }
+  }
+
+  try {
+    const user = JSON.parse(userStr) as AuthUser
+    return { user, token, isAuthenticated: true }
+  } catch {
+    localStorage.removeItem('token')
+    localStorage.removeItem('auth_user')
+    return { user: null, token: null, isAuthenticated: false }
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -28,9 +53,7 @@ interface AuthStore {
 // ────────────────────────────────────────────────────────────────────────────
 
 export const useAuthStore = create<AuthStore>((set) => ({
-  user: null,
-  token: null,
-  isAuthenticated: false,
+  ...readInitialAuth(),
 
   login: (token, user) => {
     localStorage.setItem('token', token)
@@ -42,22 +65,5 @@ export const useAuthStore = create<AuthStore>((set) => ({
     localStorage.removeItem('token')
     localStorage.removeItem('auth_user')
     set({ token: null, user: null, isAuthenticated: false })
-  },
-
-  loadFromStorage: () => {
-    const token = localStorage.getItem('token')
-    const userStr = localStorage.getItem('auth_user')
-
-    if (token && userStr) {
-      try {
-        const user = JSON.parse(userStr) as AuthUser
-        set({ token, user, isAuthenticated: true })
-      } catch {
-        // Invalid stored data - clear it
-        localStorage.removeItem('token')
-        localStorage.removeItem('auth_user')
-        set({ token: null, user: null, isAuthenticated: false })
-      }
-    }
   },
 }))
