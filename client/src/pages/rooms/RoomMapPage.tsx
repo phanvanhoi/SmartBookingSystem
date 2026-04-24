@@ -10,7 +10,9 @@ import CheckinDialog from './CheckinDialog'
 import RoomDetailPanel from './RoomDetailPanel'
 import OrderDialog from '../orders/OrderDialog'
 import ExtendDialog from './ExtendDialog'
-import type { Room } from '@/types/room'
+import type { Room, RoomStatus } from '@/types/room'
+
+type Filter = 'all' | RoomStatus
 
 export default function RoomMapPage() {
   const { data: rooms = [], isLoading, isFetching, refetch } = useRooms()
@@ -27,45 +29,20 @@ export default function RoomMapPage() {
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId) ?? null
   const [orderRoom, setOrderRoom] = useState<Room | null>(null)
   const [extendRoom, setExtendRoom] = useState<Room | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
 
-  // Group rooms by type
-  const { smallRooms, largeRooms } = useMemo(() => {
-    const small: Room[] = []
+  // Large rooms first (col-span-2), then small rooms — both sorted by sortOrder
+  const orderedRooms = useMemo(() => {
     const large: Room[] = []
+    const small: Room[] = []
     rooms.forEach((r) => {
-      if (r.roomType.capacityMax <= 8) {
-        small.push(r)
-      } else {
-        large.push(r)
-      }
+      if (r.roomType.capacityMax > 8) large.push(r)
+      else small.push(r)
     })
-    small.sort((a, b) => a.sortOrder - b.sortOrder)
     large.sort((a, b) => a.sortOrder - b.sortOrder)
-    return { smallRooms: small, largeRooms: large }
+    small.sort((a, b) => a.sortOrder - b.sortOrder)
+    return [...large, ...small]
   }, [rooms])
-
-  const handleRoomClick = (room: Room) => {
-    if (room.status === 'MAINTENANCE') return
-
-    if (room.status === 'AVAILABLE') {
-      openCheckin(room.id)
-    } else {
-      openDetail(room.id)
-    }
-  }
-
-  const handleCheckoutClick = (room: Room) => {
-    openCheckout(room.id)
-    openDetail(room.id) // open panel which contains checkout dialog
-  }
-
-  const handleExtendClick = (room: Room) => {
-    setExtendRoom(room)
-  }
-
-  const handleOrderClick = (room: Room) => {
-    setOrderRoom(room)
-  }
 
   const statusCount = useMemo(() => {
     const counts = { AVAILABLE: 0, OCCUPIED: 0, ENDING_SOON: 0, MAINTENANCE: 0 }
@@ -73,9 +50,26 @@ export default function RoomMapPage() {
     return counts
   }, [rooms])
 
+  const visibleRooms =
+    filter === 'all' ? orderedRooms : orderedRooms.filter((r) => r.status === filter)
+
+  const handleRoomClick = (room: Room) => {
+    if (room.status === 'MAINTENANCE') return
+    if (room.status === 'AVAILABLE') openCheckin(room.id)
+    else openDetail(room.id)
+  }
+
+  const handleCheckoutClick = (room: Room) => {
+    openCheckout(room.id)
+    openDetail(room.id)
+  }
+
+  const handleExtendClick = (room: Room) => setExtendRoom(room)
+  const handleOrderClick = (room: Room) => setOrderRoom(room)
+
   return (
     <div className="flex flex-col h-full">
-      {/* Page header */}
+      {/* ─── Page header ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
@@ -91,106 +85,92 @@ export default function RoomMapPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Status summary pills */}
-          <div className="hidden sm:flex items-center gap-1.5">
-            <StatusPill color="emerald" count={statusCount.AVAILABLE} label="trống" />
-            <StatusPill color="rose" count={statusCount.OCCUPIED} label="đang hát" />
-            {statusCount.ENDING_SOON > 0 && (
-              <StatusPill color="amber" count={statusCount.ENDING_SOON} label="sắp hết" pulse />
-            )}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="gap-1.5 text-xs h-9"
-          >
-            <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
-            <span className="hidden sm:inline">Làm mới</span>
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="gap-1.5 text-xs h-9"
+        >
+          <RefreshCw className={cn('w-3.5 h-3.5', isFetching && 'animate-spin')} />
+          <span className="hidden sm:inline">Làm mới</span>
+        </Button>
       </div>
 
-      {/* Rooms grid */}
-      <div className="flex-1 min-h-0 px-5 pb-3">
+      {/* ─── Filter bar ──────────────────────────────────────────── */}
+      <div className="px-5 pb-3 flex items-center gap-1.5 flex-wrap flex-shrink-0">
+        <FilterChip
+          label="Tất cả"
+          count={rooms.length}
+          active={filter === 'all'}
+          onClick={() => setFilter('all')}
+        />
+        <FilterChip
+          label="Trống"
+          color="emerald"
+          count={statusCount.AVAILABLE}
+          active={filter === 'AVAILABLE'}
+          onClick={() => setFilter('AVAILABLE')}
+        />
+        <FilterChip
+          label="Đang hát"
+          color="rose"
+          count={statusCount.OCCUPIED}
+          active={filter === 'OCCUPIED'}
+          onClick={() => setFilter('OCCUPIED')}
+        />
+        <FilterChip
+          label="Sắp hết"
+          color="amber"
+          count={statusCount.ENDING_SOON}
+          active={filter === 'ENDING_SOON'}
+          onClick={() => setFilter('ENDING_SOON')}
+          pulse={statusCount.ENDING_SOON > 0}
+        />
+        {statusCount.MAINTENANCE > 0 && (
+          <FilterChip
+            label="Bảo trì"
+            color="slate"
+            count={statusCount.MAINTENANCE}
+            active={filter === 'MAINTENANCE'}
+            onClick={() => setFilter('MAINTENANCE')}
+          />
+        )}
+      </div>
+
+      {/* ─── Rooms grid ──────────────────────────────────────────── */}
+      <div className="flex-1 overflow-auto px-5 pb-3">
         {isLoading ? (
           <RoomGridSkeleton />
-        ) : rooms.length === 0 ? (
+        ) : visibleRooms.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-muted-foreground">
               <LayoutGrid className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Không tìm thấy phòng nào</p>
+              <p className="text-sm">
+                {filter === 'all' ? 'Không tìm thấy phòng nào' : 'Không có phòng nào khớp bộ lọc'}
+              </p>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 h-full">
-            {/* Cột trái: Phòng lớn (8, 9, 10) */}
-            <section className="flex flex-col">
-              <SectionLabel title="Phòng lớn" count={largeRooms.length} />
-              <div className="grid grid-cols-1 grid-rows-3 gap-2 flex-1">
-                {largeRooms.map((room) => (
-                  <RoomCard
-                    key={room.id}
-                    room={room}
-                    onClick={() => handleRoomClick(room)}
-                    onOrderClick={() => handleOrderClick(room)}
-                    onExtendClick={() => handleExtendClick(room)}
-                    onCheckoutClick={() => handleCheckoutClick(room)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {/* Cột phải: Phòng nhỏ (1-7) - card nhỏ hơn */}
-            <section className="flex flex-col">
-              <SectionLabel title="Phòng nhỏ" count={smallRooms.length} />
-              <div className="grid grid-cols-4 auto-rows-[170px] gap-2 content-start">
-                {/* Dòng 1: 1, 3, 5, 7 */}
-                {smallRooms.filter((_, i) => i % 2 === 0).map((room) => (
-                  <RoomCard
-                    key={room.id}
-                    room={room}
-                    onClick={() => handleRoomClick(room)}
-                    onOrderClick={() => handleOrderClick(room)}
-                    onExtendClick={() => handleExtendClick(room)}
-                    onCheckoutClick={() => handleCheckoutClick(room)}
-                  />
-                ))}
-                {/* Dòng 2: 2, 4, 6 */}
-                {smallRooms.filter((_, i) => i % 2 === 1).map((room) => (
-                  <RoomCard
-                    key={room.id}
-                    room={room}
-                    onClick={() => handleRoomClick(room)}
-                    onOrderClick={() => handleOrderClick(room)}
-                    onExtendClick={() => handleExtendClick(room)}
-                    onCheckoutClick={() => handleCheckoutClick(room)}
-                  />
-                ))}
-              </div>
-            </section>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {visibleRooms.map((room) => (
+              <RoomCard
+                key={room.id}
+                room={room}
+                wide={room.roomType.capacityMax > 8}
+                onClick={() => handleRoomClick(room)}
+                onOrderClick={() => handleOrderClick(room)}
+                onExtendClick={() => handleExtendClick(room)}
+                onCheckoutClick={() => handleCheckoutClick(room)}
+              />
+            ))}
           </div>
         )}
       </div>
 
-      {/* Checkin dialog */}
-      <CheckinDialog
-        room={selectedRoom}
-        open={isCheckinOpen}
-        onClose={closeAll}
-      />
-
-      {/* Room detail panel */}
-      <RoomDetailPanel
-        roomId={selectedRoomId}
-        open={isDetailOpen}
-        onClose={closeAll}
-      />
-
-      {/* Order dialog (from card quick action) */}
+      {/* Dialogs */}
+      <CheckinDialog room={selectedRoom} open={isCheckinOpen} onClose={closeAll} />
+      <RoomDetailPanel roomId={selectedRoomId} open={isDetailOpen} onClose={closeAll} />
       {orderRoom?.currentSession && (
         <OrderDialog
           sessionId={orderRoom.currentSession.id}
@@ -199,8 +179,6 @@ export default function RoomMapPage() {
           onClose={() => setOrderRoom(null)}
         />
       )}
-
-      {/* Extend dialog (from card quick action) */}
       <ExtendDialog
         sessionId={extendRoom?.currentSession?.id ?? null}
         open={!!extendRoom}
@@ -211,61 +189,73 @@ export default function RoomMapPage() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Section label
+// Filter chip
 // ──────────────────────────────────────────────────────────────────────────
 
-function SectionLabel({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="flex items-center gap-2 mb-2">
-      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        {title}
-      </span>
-      <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-muted text-[10px] font-bold text-muted-foreground tabular-nums">
-        {count}
-      </span>
-      <div className="h-px flex-1 bg-border" />
-    </div>
-  )
+type ChipColor = 'emerald' | 'rose' | 'amber' | 'slate'
+
+const chipActive: Record<ChipColor | 'neutral', string> = {
+  neutral: 'bg-foreground text-background border-foreground',
+  emerald: 'bg-emerald-600 text-white border-emerald-600',
+  rose: 'bg-rose-600 text-white border-rose-600',
+  amber: 'bg-amber-600 text-white border-amber-600',
+  slate: 'bg-slate-600 text-white border-slate-600',
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Status pill
-// ──────────────────────────────────────────────────────────────────────────
+const chipIdle: Record<ChipColor | 'neutral', string> = {
+  neutral: 'bg-card text-foreground border-border hover:bg-muted',
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100',
+  rose: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100',
+  slate: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100',
+}
 
-const pillPalette = {
-  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rose: 'bg-rose-50 text-rose-700 border-rose-200',
-  amber: 'bg-amber-50 text-amber-700 border-amber-200',
-} as const
-
-const pillDot = {
+const chipDot: Record<ChipColor, string> = {
   emerald: 'bg-emerald-500',
   rose: 'bg-rose-500',
   amber: 'bg-amber-500',
-} as const
+  slate: 'bg-slate-400',
+}
 
-function StatusPill({
-  color,
-  count,
+function FilterChip({
   label,
+  count,
+  active,
+  onClick,
+  color,
   pulse,
 }: {
-  color: keyof typeof pillPalette
-  count: number
   label: string
+  count: number
+  active: boolean
+  onClick: () => void
+  color?: ChipColor
   pulse?: boolean
 }) {
+  const key: ChipColor | 'neutral' = color ?? 'neutral'
   return (
-    <span
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium tabular-nums',
-        pillPalette[color],
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold tabular-nums transition-colors',
+        active ? chipActive[key] : chipIdle[key],
       )}
     >
-      <span className={cn('w-1.5 h-1.5 rounded-full', pillDot[color], pulse && 'animate-pulse')} />
-      <span>{count}</span>
-      <span className="opacity-75">{label}</span>
-    </span>
+      {color && (
+        <span
+          className={cn(
+            'w-1.5 h-1.5 rounded-full',
+            active ? 'bg-white/80' : chipDot[color],
+            pulse && 'animate-pulse',
+          )}
+        />
+      )}
+      <span>{label}</span>
+      <span className={cn('px-1 rounded-full', active ? 'bg-white/20' : 'bg-black/5')}>
+        {count}
+      </span>
+    </button>
   )
 }
 
@@ -275,24 +265,23 @@ function StatusPill({
 
 function RoomGridSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <div className="h-px flex-1 bg-border" />
-        <Skeleton className="h-4 w-24" />
-        <div className="h-px flex-1 bg-border" />
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-card shadow-card p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-10 rounded-full" />
-            </div>
-            <Skeleton className="h-20 w-full rounded-md" />
-            <Skeleton className="h-8 w-full rounded-md" />
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div
+          key={i}
+          className={cn(
+            'h-[196px] rounded-xl border border-border bg-card shadow-card p-3 space-y-3',
+            i < 3 && 'col-span-2',
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-16 rounded-full" />
           </div>
-        ))}
-      </div>
+          <Skeleton className="h-16 w-full rounded-md" />
+          <Skeleton className="h-8 w-full rounded-md" />
+        </div>
+      ))}
     </div>
   )
 }

@@ -1,7 +1,7 @@
-import { ShoppingCart, Clock, Info, CreditCard, Wrench, DoorOpen } from 'lucide-react'
+import { ShoppingCart, Clock, Info, CreditCard, Wrench, Users } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { formatCurrency } from '@/utils/formatCurrency'
-import CountdownTimer from '@/components/CountdownTimer'
+import { useCountdown } from '@/hooks/useCountdown'
 import type { Room } from '@/types/room'
 
 interface RoomCardProps {
@@ -10,6 +10,8 @@ interface RoomCardProps {
   onOrderClick?: () => void
   onExtendClick?: () => void
   onCheckoutClick?: () => void
+  /** If true, the card spans 2 columns in the parent grid (used for large rooms) */
+  wide?: boolean
 }
 
 const statusConfig = {
@@ -45,6 +47,7 @@ export default function RoomCard({
   onOrderClick,
   onExtendClick,
   onCheckoutClick,
+  wide,
 }: RoomCardProps) {
   const cfg = statusConfig[room.status]
   const session = room.currentSession
@@ -54,6 +57,11 @@ export default function RoomCard({
     handler?.()
   }
 
+  const capacityLabel =
+    room.roomType.capacityMin === room.roomType.capacityMax
+      ? `${room.roomType.capacityMax} khách`
+      : `${room.roomType.capacityMin}–${room.roomType.capacityMax} khách`
+
   return (
     <div
       onClick={onClick}
@@ -61,9 +69,11 @@ export default function RoomCard({
         'group relative bg-card rounded-xl border border-border shadow-card overflow-hidden',
         'cursor-pointer transition-all duration-200',
         'hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border/80',
-        'p-3 flex flex-col',
+        'p-3 pl-4 flex flex-col h-[196px]',
+        wide && 'col-span-2',
         room.status === 'ENDING_SOON' && 'ring-1 ring-amber-400/40',
-        room.status === 'MAINTENANCE' && 'opacity-75 cursor-default hover:translate-y-0 hover:shadow-card'
+        room.status === 'AVAILABLE' && 'hover:border-emerald-300 hover:bg-emerald-50/30',
+        room.status === 'MAINTENANCE' && 'opacity-80 cursor-default hover:translate-y-0 hover:shadow-card hover:border-border',
       )}
     >
       {/* Left status stripe */}
@@ -72,8 +82,20 @@ export default function RoomCard({
         className={cn('absolute left-0 top-0 bottom-0 w-1', cfg.stripe)}
       />
 
+      {/* Maintenance diagonal hatching */}
+      {room.status === 'MAINTENANCE' && (
+        <span
+          aria-hidden
+          className="absolute inset-0 opacity-40 pointer-events-none"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(45deg, transparent 0 10px, rgb(241 245 249) 10px 20px)',
+          }}
+        />
+      )}
+
       {/* Header: name + status pill */}
-      <div className="flex items-center justify-between mb-2 pl-1">
+      <div className="relative flex items-center justify-between">
         <span className="font-bold text-base text-foreground tracking-tight">
           {room.name}
         </span>
@@ -85,107 +107,161 @@ export default function RoomCard({
         </div>
       </div>
 
-      {/* Room type line */}
-      <div className="pl-1 mb-1.5">
+      {/* Type line */}
+      <div className="relative mt-0.5">
         <span className="text-[10px] text-muted-foreground">
           {room.roomType.name}
         </span>
       </div>
 
-      {/* AVAILABLE */}
+      {/* ═══ AVAILABLE ═══ */}
       {room.status === 'AVAILABLE' && (
-        <div className="flex-1 flex flex-col pt-1 pb-0.5">
-          <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-2">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-              <DoorOpen className="w-5 h-5 text-emerald-500" strokeWidth={2} />
+        <>
+          <div className="relative flex-1 flex flex-col items-center justify-center gap-1 py-1">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Users className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium tabular-nums">{capacityLabel}</span>
             </div>
-            <span className="text-[11px] text-muted-foreground">Sẵn sàng đón khách</span>
+            <span className="text-[11px] text-muted-foreground/80">Sẵn sàng đón khách</span>
           </div>
           <button
-            className="w-full btn-gradient text-xs font-bold tracking-wide py-2 rounded-md"
+            className="relative w-full btn-gradient text-xs font-bold tracking-wide py-2 rounded-md"
             onClick={(e) => handleActionClick(e, onClick)}
           >
             + NHẬN KHÁCH
           </button>
-        </div>
+        </>
       )}
 
-      {/* OCCUPIED / ENDING_SOON */}
+      {/* ═══ OCCUPIED / ENDING_SOON ═══ */}
       {(room.status === 'OCCUPIED' || room.status === 'ENDING_SOON') && session && (
-        <div className="flex-1 flex flex-col gap-1.5 pl-1">
-          {/* Customer + guest count */}
-          <p className="text-sm font-semibold text-foreground leading-tight truncate">
+        <>
+          {/* Customer · guest count */}
+          <p className="relative mt-1.5 text-sm font-semibold text-foreground leading-tight truncate">
             {session.customerName}
             {session.guestCount ? (
-              <span className="text-muted-foreground font-normal text-xs ml-1">
-                ({session.guestCount})
+              <span className="text-muted-foreground font-normal ml-1">
+                · {session.guestCount} khách
               </span>
             ) : null}
           </p>
 
-          {/* Timer */}
-          <CountdownTimer
-            checkInTime={session.checkInTime}
-            estimatedEnd={session.estimatedEnd}
-          />
-
-          {/* Total */}
-          <div className="flex items-center justify-between text-xs pt-1 border-t border-border/60 mt-0.5">
-            <span className="text-muted-foreground">Tạm tính</span>
-            <span className="font-bold text-foreground tabular-nums">
-              {formatCurrency(session.currentTotal)}
-              <span className="text-muted-foreground font-normal ml-0.5">đ</span>
-            </span>
-          </div>
+          {/* Info band: timer + total */}
+          <InfoBand session={session} urgent={room.status === 'ENDING_SOON'} />
 
           {/* Actions */}
           {room.status === 'OCCUPIED' ? (
-            <div className="flex items-center gap-1 mt-auto pt-1">
-              <button
-                onClick={(e) => handleActionClick(e, onOrderClick)}
-                className="flex-1 flex items-center justify-center py-1.5 rounded-md bg-secondary hover:bg-accent hover:text-accent-foreground transition-colors"
-                title="Order"
-              >
-                <ShoppingCart className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={(e) => handleActionClick(e, onExtendClick)}
-                className="flex-1 flex items-center justify-center py-1.5 rounded-md bg-secondary hover:bg-accent hover:text-accent-foreground transition-colors"
-                title="Gia hạn"
-              >
-                <Clock className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={(e) => handleActionClick(e, onClick)}
-                className="flex-1 flex items-center justify-center py-1.5 rounded-md bg-secondary hover:bg-accent hover:text-accent-foreground transition-colors"
-                title="Chi tiết"
-              >
-                <Info className="w-3.5 h-3.5" />
-              </button>
+            <div className="relative flex items-center gap-1 mt-auto">
+              <ActionBtn title="Order" onClick={(e) => handleActionClick(e, onOrderClick)}>
+                <ShoppingCart className="w-4 h-4" />
+              </ActionBtn>
+              <ActionBtn title="Gia hạn" onClick={(e) => handleActionClick(e, onExtendClick)}>
+                <Clock className="w-4 h-4" />
+              </ActionBtn>
+              <ActionBtn title="Chi tiết" onClick={(e) => handleActionClick(e, onClick)}>
+                <Info className="w-4 h-4" />
+              </ActionBtn>
             </div>
           ) : (
             <button
-              className="w-full py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-md flex items-center justify-center gap-1.5 mt-auto tracking-wide shadow-sm transition-colors"
+              className="relative mt-auto w-full h-9 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-md flex items-center justify-center gap-1.5 tracking-wide shadow-sm transition-colors"
               onClick={(e) => handleActionClick(e, onCheckoutClick ?? onClick)}
             >
               <CreditCard className="w-3.5 h-3.5" />
               CHECKOUT
             </button>
           )}
-        </div>
+        </>
       )}
 
-      {/* MAINTENANCE */}
+      {/* ═══ MAINTENANCE ═══ */}
       {room.status === 'MAINTENANCE' && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 py-2">
-          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
-            <Wrench className="w-5 h-5 text-slate-400" />
-          </div>
-          <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">
-            Bảo trì
-          </p>
+        <div className="relative flex-1 flex items-center justify-center gap-2">
+          <Wrench className="w-4 h-4 text-slate-500" />
+          <span className="text-xs text-slate-600 font-semibold uppercase tracking-wide">
+            Đang bảo trì
+          </span>
         </div>
       )}
     </div>
+  )
+}
+
+// ─── Info band ───────────────────────────────────────────────────────────────
+
+function InfoBand({
+  session,
+  urgent,
+}: {
+  session: NonNullable<Room['currentSession']>
+  urgent: boolean
+}) {
+  const { formatted, isExpired, isWarning } = useCountdown(session.estimatedEnd, session.checkInTime)
+  const isCountingDown = Boolean(session.estimatedEnd)
+
+  const timerColor = isExpired
+    ? 'text-rose-600'
+    : isWarning
+      ? 'text-amber-700'
+      : 'text-foreground'
+
+  return (
+    <div
+      className={cn(
+        'relative grid grid-cols-[1fr_auto] items-end gap-2 mt-2 mb-2 py-1.5 px-2 rounded-md border',
+        urgent
+          ? 'bg-amber-50/60 border-amber-200/60'
+          : 'bg-muted/40 border-border/60',
+      )}
+    >
+      {/* Left — timer */}
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Clock className="w-3 h-3" />
+          <span>{isCountingDown ? 'Còn lại' : 'Đã hát'}</span>
+        </div>
+        <span
+          className={cn(
+            'text-xl font-bold font-mono tabular-nums leading-none',
+            isExpired && 'animate-pulse',
+            timerColor,
+          )}
+        >
+          {formatted}
+        </span>
+      </div>
+
+      {/* Right — total */}
+      <div className="flex flex-col items-end gap-0.5">
+        <span className="text-[10px] text-muted-foreground">Tạm tính</span>
+        <span className="text-sm font-bold text-foreground tabular-nums leading-none">
+          {formatCurrency(session.currentTotal)}
+          <span className="text-muted-foreground font-normal ml-0.5">đ</span>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Action button ───────────────────────────────────────────────────────────
+
+function ActionBtn({
+  title,
+  onClick,
+  children,
+}: {
+  title: string
+  onClick: (e: React.MouseEvent) => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className="flex-1 flex items-center justify-center h-8 rounded-md bg-secondary text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+    >
+      {children}
+    </button>
   )
 }
