@@ -166,8 +166,10 @@ async function main() {
     },
     {
       key: 'min_duration_minutes',
-      value: 60 as unknown as object,
-      description: 'Thời gian hát tối thiểu (phút)',
+      // 0 = bill exact elapsed time (chủ quán muốn tính theo giờ thực tế).
+      // Increase via Settings UI nếu sau này muốn thu tối thiểu 1 ngưỡng.
+      value: 0 as unknown as object,
+      description: 'Thời gian hát tối thiểu (phút) — 0 = tính chính xác theo giờ',
     },
     {
       key: 'warning_before_minutes',

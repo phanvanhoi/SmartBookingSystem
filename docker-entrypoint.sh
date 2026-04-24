@@ -65,7 +65,7 @@ async function seed() {
     { key: 'operating_hours', value: JSON.stringify({ open: '12:00', close: '05:00' }) },
     { key: 'qr_code_1', value: JSON.stringify({ path: '', label: 'QR 1' }) },
     { key: 'qr_code_2', value: JSON.stringify({ path: '', label: 'QR 2' }) },
-    { key: 'min_duration_minutes', value: 60 },
+    { key: 'min_duration_minutes', value: 0 },
     { key: 'warning_before_minutes', value: 15 },
     { key: 'currency', value: 'VNĐ' },
     { key: 'timezone', value: 'Asia/Ho_Chi_Minh' },
