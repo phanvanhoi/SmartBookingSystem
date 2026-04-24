@@ -23,7 +23,8 @@ function signToken(payload: JwtPayload): string {
     throw new AppError(500, 'INTERNAL_ERROR', 'JWT_SECRET chưa được cấu hình')
   }
 
-  const expiresIn = process.env.JWT_EXPIRES_IN ?? '8h'
+  // Keep this default in sync with docker-compose.yml and .env.example.
+  const expiresIn = process.env.JWT_EXPIRES_IN ?? '12h'
 
   return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions)
 }

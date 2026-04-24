@@ -66,8 +66,9 @@ model RoomType {
   capacityMax Int     @default(10) @map("capacity_max")
   description String?
 
-  rooms        Room[]
-  pricingRules PricingRule[]
+  rooms         Room[]
+  pricingRules  PricingRule[]
+  waitingQueue  WaitingQueue[]
 
   @@map("room_types")
 }
@@ -131,6 +132,14 @@ model Session {
   customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   checkedInBy  User      @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: Restrict)
   checkedOutBy User?     @relation("CheckedOutBy", fields: [checkedOutById], references: [id], onDelete: SetNull)
+
+  // Self-referential links for transfer/merge chains — SetNull so deleting the
+  // old session (e.g. archival) doesn't break the new one's audit trail.
+  transferredFrom    Session?  @relation("TransferredSessions", fields: [transferredFromId], references: [id], onDelete: SetNull)
+  transferredSessions Session[] @relation("TransferredSessions")
+  mergedInto         Session?  @relation("MergedSessions", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedSessions     Session[] @relation("MergedSessions")
+
   orders       Order[]
   invoice      Invoice?
 
@@ -167,6 +176,9 @@ model Booking {
   room      Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
   createdBy User @relation("BookingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
+  // Inbox messages whose auto_booking_id points here.
+  fbMessages FacebookMessage[] @relation("AutoBookingFromFB")
+
   // Optimised for the most frequent query: "all bookings for a room/date,
   // filtered by status, ordered by time" — covers overlap detection and
   // the timeline view.
@@ -197,7 +209,8 @@ model WaitingQueue {
   createdById   Int         @map("created_by")
   createdAt     DateTime    @default(now()) @map("created_at")
 
-  createdBy User @relation("QueueCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy User      @relation("QueueCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  roomType  RoomType? @relation(fields: [preferredType], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@map("waiting_queue")
@@ -624,9 +637,13 @@ model FacebookMessage {
   text          String
   receivedAt    DateTime              @map("received_at")
   parsed        Json?                 // ParsedBooking | null
+  rawPayload    Json?                 @map("raw_payload") // Original Meta event for retry/debug
   autoBookingId Int?                  @map("auto_booking_id")
   status        FacebookMessageStatus @default(NEW)
   createdAt     DateTime              @default(now()) @map("created_at")
+
+  // SetNull: keep the inbox row even if the auto-created booking is deleted.
+  autoBooking   Booking?              @relation("AutoBookingFromFB", fields: [autoBookingId], references: [id], onDelete: SetNull)
 
   @@index([status, receivedAt])
   @@index([receivedAt])

@@ -63,7 +63,9 @@ export async function getCustomers(
   const { search, tier, page, limit } = filters
   const skip = (page - 1) * limit
 
-  const where: Prisma.CustomerWhereInput = {}
+  // Soft delete: hide rows where isActive=false. Hard-deleted customers are
+  // never reachable. To list deactivated customers, add an admin-only flag.
+  const where: Prisma.CustomerWhereInput = { isActive: true }
 
   if (search) {
     where.OR = [
@@ -133,8 +135,11 @@ export interface CustomerLookupResult {
 }
 
 export async function lookupByPhone(phone: string): Promise<CustomerLookupResult | null> {
-  const customer = await prisma.customer.findUnique({
-    where: { phone },
+  // findFirst (not findUnique) so we can also filter on isActive without a
+  // second round-trip — soft-deleted records must not be returned at the
+  // checkout/checkin point of sale.
+  const customer = await prisma.customer.findFirst({
+    where: { phone, isActive: true },
     select: {
       id: true,
       name: true,
@@ -180,8 +185,8 @@ export interface CustomerDetail {
 }
 
 export async function getCustomerById(id: number): Promise<CustomerDetail> {
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+  const customer = await prisma.customer.findFirst({
+    where: { id, isActive: true },
   })
 
   if (!customer) {

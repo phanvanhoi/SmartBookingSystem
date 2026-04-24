@@ -49,28 +49,29 @@ const qrStorage = multer.diskStorage({
   },
 })
 
-const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp']
-const ALLOWED_IMAGE_MIME = ['image/jpeg', '.image/jpg', 'image/png', 'image/webp'].map((m) =>
-  m.replace(/^\./, ''),
-)
+// Explicit allow-list — do NOT use `mime.startsWith('image/')`, that would
+// admit `image/svg+xml` (which can carry inline JS) and other non-raster
+// types. Magic-byte sniffing would be stronger but multer doesn't do it OOB.
+const ALLOWED_IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp'])
+const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
 
 const qrUpload = multer({
   storage: qrStorage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
-  // Validate BOTH extension and mimetype — extension alone can be spoofed
-  // by renaming an .exe to .png. Multer reads mimetype from the upload header,
-  // so this catches the obvious cases without sniffing magic bytes.
+  // Validate BOTH extension and mimetype — extension can be spoofed by renaming,
+  // mimetype comes from the upload header (also spoofable, but together they
+  // catch the casual case).
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase()
     const mime = file.mimetype.toLowerCase()
-    if (!ALLOWED_IMAGE_EXT.includes(ext)) {
+    if (!ALLOWED_IMAGE_EXT.has(ext)) {
       cb(new Error('Chỉ chấp nhận file ảnh (JPG, PNG, WebP)'))
       return
     }
-    if (!mime.startsWith('image/') || !ALLOWED_IMAGE_MIME.includes(mime)) {
-      cb(new Error('File không phải ảnh hợp lệ'))
+    if (!ALLOWED_IMAGE_MIME.has(mime)) {
+      cb(new Error('File không phải ảnh hợp lệ (chỉ JPG/PNG/WebP, không nhận SVG)'))
       return
     }
     cb(null, true)

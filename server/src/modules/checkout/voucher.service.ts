@@ -56,11 +56,27 @@ export async function applyVoucher(
   // Discount can never exceed subtotal
   discountAmount = Math.min(discountAmount, subtotal)
 
-  // Increment usedCount
-  await prisma.voucher.update({
-    where: { id: voucher.id },
-    data: { usedCount: { increment: 1 } },
-  })
+  // Atomic increment with maxUses guard. Two concurrent checkouts cannot both
+  // win the last use: updateMany returns count=0 when usedCount already hit the
+  // cap, and we throw the same error validateVoucher would throw.
+  if (voucher.maxUses !== null) {
+    const claim = await prisma.voucher.updateMany({
+      where: {
+        id: voucher.id,
+        isActive: true,
+        usedCount: { lt: voucher.maxUses },
+      },
+      data: { usedCount: { increment: 1 } },
+    })
+    if (claim.count === 0) {
+      throw new AppError(400, 'VOUCHER_MAX_USES_REACHED', 'Voucher đã hết lượt sử dụng')
+    }
+  } else {
+    await prisma.voucher.update({
+      where: { id: voucher.id },
+      data: { usedCount: { increment: 1 } },
+    })
+  }
 
   return { discountAmount, voucher }
 }

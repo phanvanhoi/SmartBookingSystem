@@ -6,6 +6,11 @@ build/
 .DS_Store
 Thumbs.db
 
+# Customer / supplier data exports — avoid leaking PII through accidental commits
+*.xlsx
+*.xls
+*.csv
+
 # Prisma
 server/prisma/migrations/*
 !server/prisma/migrations/.gitkeep

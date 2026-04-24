@@ -25,6 +25,12 @@ import facebookRoutes from './modules/facebook/facebook.routes'
 
 const app = express()
 
+// Trust the first proxy in front of us (nginx, cloudflare, docker network) so
+// req.ip and req.protocol reflect the real client. WITHOUT this, every request
+// looks like 127.0.0.1 to express-rate-limit and brute-force protection breaks.
+// Set TRUST_PROXY_HOPS in env if multiple proxies are chained.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1))
+
 // ── Security & Performance ────────────────────────────────────────────────────
 // CSP policy compatible with Vite-built React SPA + same-origin API + WS for socket.io.
 // Inline styles are allowed because Tailwind/shadcn injects style tags at runtime.
