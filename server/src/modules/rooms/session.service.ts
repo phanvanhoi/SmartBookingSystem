@@ -92,8 +92,20 @@ export async function checkin(data: CheckinInput, userId: number) {
   }
 }
 
-// ─── checkout ────────────────────────────────────────────────────────────────
-export async function checkout(sessionId: number, userId: number) {
+// ─── checkout (PREVIEW ONLY) ─────────────────────────────────────────────────
+// IMPORTANT: this endpoint is now read-only. It computes the bill so the
+// CheckoutDialog can render the breakdown, but does NOT mutate session/room
+// status. The real checkout — invoice creation, payment recording, stock
+// deduction, status flip — lives in processCheckout (POST /api/v1/checkout)
+// and only fires when the cashier clicks "Xác nhận thanh toán".
+//
+// Previously this function was both preview AND finalize: just opening the
+// dialog set the session to COMPLETED + freed the room without creating an
+// invoice, so orders looked "lost" and revenue didn't increase if the
+// cashier closed the dialog before confirming.
+//
+// `userId` kept for signature compatibility with the controller.
+export async function checkout(sessionId: number, _userId: number) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
@@ -166,23 +178,8 @@ export async function checkout(sessionId: number, userId: number) {
   const memberDiscountAmount = memberDiscount ? Number(memberDiscount.amount) : 0
   const grandTotal = Math.max(0, subtotal - memberDiscountAmount - depositAvailable)
 
-  // Update session (persist checkout time and room charge)
-  await prisma.$transaction(async (tx) => {
-    await tx.session.update({
-      where: { id: sessionId },
-      data: {
-        checkOutTime,
-        checkedOutById: userId,
-        roomCharge: priceBreakdown.total,
-        status: 'COMPLETED',
-      },
-    })
-
-    await tx.room.update({
-      where: { id: session.roomId },
-      data: { status: 'AVAILABLE' },
-    })
-  })
+  // NO mutation here — this is a preview. processCheckout in
+  // checkout/checkout.service.ts performs the actual COMPLETED transition.
 
   return {
     sessionId: session.id,

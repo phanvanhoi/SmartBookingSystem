@@ -16,9 +16,15 @@ import { cn } from '@/utils/cn'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatTime, formatDuration } from '@/utils/formatTime'
 import { useCheckout } from '@/hooks/useRooms'
+import { useProcessCheckout } from '@/hooks/useCheckout'
 import { useRoomStore } from '@/stores/roomStore'
 import QRDisplay from '@/components/QRDisplay'
+import { getErrorMessage } from '@/utils/error'
 import type { CheckoutData } from '@/types/room'
+import type {
+  CheckoutData as ProcessCheckoutPayload,
+  PaymentItem,
+} from '@/services/checkoutService'
 
 interface CheckoutDialogProps {
   sessionId: number | null
@@ -36,7 +42,53 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
   const [qrConfirmed, setQrConfirmed] = useState(false)
 
   const checkout = useCheckout()
+  const processCheckout = useProcessCheckout()
   const closeAll = useRoomStore((s) => s.closeAll)
+
+  async function handleConfirmPayment() {
+    if (!billData || !sessionId) return
+
+    // Map UI state → server payload. Server expects payments as a list so we
+    // can support split-pay later; here it's always one entry.
+    const payments: PaymentItem[] = (() => {
+      if (paymentMethod === 'cash') {
+        const received = cashGiven ? parseFloat(cashGiven) : finalTotal
+        return [
+          {
+            method: 'CASH',
+            amount: finalTotal,
+            cashReceived: received,
+          },
+        ]
+      }
+      if (paymentMethod === 'qr') {
+        return [{ method: 'QR_TRANSFER', amount: finalTotal }]
+      }
+      // DEBT: ghi nợ toàn bộ — server tự đánh PARTIAL
+      return [{ method: 'DEBT', amount: finalTotal }]
+    })()
+
+    const payload: ProcessCheckoutPayload = {
+      sessionId,
+      payments,
+      ...(discountAmount > 0
+        ? {
+            discountAmount,
+            discountReason:
+              discountType === 'percent' ? `Giảm ${discountValue}%` : 'Giảm thủ công',
+          }
+        : {}),
+    }
+
+    try {
+      await processCheckout.mutateAsync(payload)
+      toast.success('Thanh toán thành công!')
+      closeAll()
+      handleClose()
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Thanh toán thất bại'))
+    }
+  }
 
   useEffect(() => {
     if (open && sessionId) {
@@ -344,13 +396,27 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                 <div className="pt-2">
                   <Button
                     className="w-full h-12 font-bold text-base tracking-wide gap-2"
-                    onClick={() => { toast.success('Thanh toán thành công!'); closeAll() }}
-                    disabled={!billData || !canConfirm}
+                    onClick={handleConfirmPayment}
+                    disabled={!billData || !canConfirm || processCheckout.isPending}
                   >
-                    <CheckCircle2 className="w-5 h-5" />
-                    XÁC NHẬN THANH TOÁN
+                    {processCheckout.isPending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ĐANG XỬ LÝ...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        XÁC NHẬN THANH TOÁN
+                      </>
+                    )}
                   </Button>
-                  <Button variant="ghost" className="w-full mt-2 text-sm" onClick={handleClose}>
+                  <Button
+                    variant="ghost"
+                    className="w-full mt-2 text-sm"
+                    onClick={handleClose}
+                    disabled={processCheckout.isPending}
+                  >
                     Hủy
                   </Button>
                 </div>
