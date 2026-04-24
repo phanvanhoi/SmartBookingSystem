@@ -31,7 +31,13 @@ import {
 
 // ── Multer config for QR upload ───────────────────────────────────────────────
 
-const qrUploadDir = path.join(__dirname, '../../../../uploads/qr')
+// Resolve from cwd (set by Docker WORKDIR=/app or by dev script in server/)
+// so the path is the same regardless of dist/ depth in compiled output.
+// Override with UPLOAD_DIR env if needed.
+const uploadRoot = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.resolve(process.cwd(), 'uploads')
+const qrUploadDir = path.join(uploadRoot, 'qr')
 
 // Ensure upload directory exists
 if (!fs.existsSync(qrUploadDir)) {

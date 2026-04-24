@@ -77,10 +77,16 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // ── Static Files ──────────────────────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')))
+// Resolve paths from cwd, not __dirname — the dist/ depth differs between
+// `tsx watch` (server/src) and Docker (/app/dist), so a relative-to-__dirname
+// path resolves to / in the container and breaks uploads serving.
+const uploadDir = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.resolve(process.cwd(), 'uploads')
+app.use('/uploads', express.static(uploadDir))
 
 // ── Serve React client in production ─────────────────────────────────────────
-const clientPath = path.join(__dirname, '../public')
+const clientPath = path.resolve(process.cwd(), 'public')
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(clientPath))
 }
