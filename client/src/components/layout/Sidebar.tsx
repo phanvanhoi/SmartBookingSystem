@@ -137,12 +137,17 @@ export function BottomNav() {
             <li key={item.href} className="flex-1">
               <NavLink
                 to={item.href}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex flex-col items-center gap-1 py-2 text-[10px] font-medium transition-colors',
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  'relative flex flex-col items-center gap-1 py-2 text-[10px] font-medium transition-colors',
+                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                <Icon className="w-5 h-5" />
+                {/* Top accent bar marks the active route — visible at a glance */}
+                {isActive && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b-full bg-primary" />
+                )}
+                <Icon className={cn('w-5 h-5', isActive && 'fill-primary/10')} />
                 <span>{item.label}</span>
               </NavLink>
             </li>

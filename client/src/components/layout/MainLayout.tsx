@@ -2,10 +2,13 @@ import { Outlet } from 'react-router-dom'
 import Sidebar, { BottomNav } from './Sidebar'
 import Header from './Header'
 import StatusBar from './StatusBar'
+import GlobalFetchIndicator from '../GlobalFetchIndicator'
 
 export default function MainLayout() {
   return (
     <div className="h-screen flex overflow-hidden bg-background text-foreground">
+      <GlobalFetchIndicator />
+
       {/* Desktop sidebar */}
       <Sidebar />
 

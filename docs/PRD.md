@@ -3,6 +3,27 @@
 > Hệ thống quản lý quán karaoke - Sử dụng nội bộ
 > Version: 1.0
 > Ngày tạo: 2026-03-25
+> Ngày cập nhật: 2026-04-24
+
+---
+
+## ⚠️ ADDENDUM (2026-04-24) — Features beyond v1 spec
+
+These were added after the original PRD and are now part of the shipped product:
+
+- **Facebook Page integration** (OWNER/MANAGER only) — webhook signature is
+  HMAC-verified with `FB_APP_SECRET`. Incoming page messages are parsed by
+  a Vietnamese rule-based parser; high-confidence requests auto-create a
+  PENDING booking, low-confidence ones land in a manual confirmation inbox.
+- **Role-based UI** — sidebar/routes filter by user role. STAFF sees only
+  Rooms + Order; CASHIER adds Timeline + Customers; MANAGER unlocks
+  Dashboard/Stock/Reports/Staff/Facebook; Settings is OWNER-only.
+- **Real-time** — Socket.io broadcasts room/order/notification events;
+  channel subscription is validated server-side by role.
+- **QR thanh toán đôi** — system auto-picks `qr_code_1` (12:00–24:00) vs
+  `qr_code_2` (00:00–12:00) based on checkout time of day.
+- **Brute-force guard** — POST /login is rate-limited to 10 attempts per IP
+  per 15 minutes.
 
 ---
 

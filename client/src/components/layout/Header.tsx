@@ -96,6 +96,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
+            aria-label={`Tài khoản: ${displayName}`}
             className={cn(
               'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
               'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'

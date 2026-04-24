@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http'
 import { Server as SocketServer, Socket } from 'socket.io'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '../types/index'
+import logger from '../utils/logger'
 
 // ── Socket.data augmentation ─────────────────────────────────────────────────
 declare module 'socket.io' {
@@ -88,7 +89,7 @@ export function setupSocket(server: HttpServer): SocketServer {
 
   io.on('connection', (socket: Socket) => {
     const user = socket.data.user
-    console.log(`[Socket] Connected: ${user?.username} (${socket.id})`)
+    logger.debug('Socket connected', { module: 'socket', user: user?.username, sid: socket.id })
 
     // Join broadcast room for all authenticated users
     socket.join('all')
@@ -122,7 +123,7 @@ export function setupSocket(server: HttpServer): SocketServer {
     })
 
     socket.on('disconnect', (reason) => {
-      console.log(`[Socket] Disconnected: ${user?.username} (${socket.id}) - ${reason}`)
+      logger.debug('Socket disconnected', { module: 'socket', user: user?.username, sid: socket.id, reason })
     })
   })
 

@@ -1,5 +1,6 @@
 import cron from 'node-cron'
 import { prisma } from '../lib/prisma'
+import logger from '../utils/logger'
 import {
   emitRoomTimerWarning,
   emitRoomTimerExpired,
@@ -12,13 +13,13 @@ const expiredSessionsEmitted = new Set<number>()
 
 // ── Room Timer Checker Cron ──────────────────────────────────────────────────
 export function startRoomTimerChecker(): void {
-  console.log('[RoomSocket] Room timer checker started (every 60s)')
+  logger.info('Room timer checker started (every 60s)', { module: 'roomSocket' })
 
   cron.schedule('* * * * *', async () => {
     try {
       await checkRoomTimers()
     } catch (err) {
-      console.error('[RoomSocket] Timer check error:', err)
+      logger.error('Timer check error', { module: 'roomSocket', err })
     }
   })
 }
@@ -129,7 +130,7 @@ async function createWarningNotification(
       })
     }
   } catch (err) {
-    console.error('[RoomSocket] Failed to create warning notification:', err)
+    logger.error('Failed to create warning notification', { module: 'roomSocket', err })
   }
 }
 
@@ -157,6 +158,6 @@ async function createExpiredNotification(
       })
     }
   } catch (err) {
-    console.error('[RoomSocket] Failed to create expired notification:', err)
+    logger.error('Failed to create expired notification', { module: 'roomSocket', err })
   }
 }

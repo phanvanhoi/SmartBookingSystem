@@ -446,6 +446,7 @@ export default function StockPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              aria-label={`Sửa ${product.name}`}
                               onClick={() => openEditProduct(product)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -454,6 +455,7 @@ export default function StockPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              aria-label={`Xóa ${product.name}`}
                               onClick={() => setDeleteConfirm(product)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />

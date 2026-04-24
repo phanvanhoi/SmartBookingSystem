@@ -56,6 +56,13 @@ RUN chmod +x docker-entrypoint.sh
 # Create directories
 RUN mkdir -p uploads/qr uploads/products data logs
 
+# Run as the unprivileged `node` user that ships with the official image
+# (uid 1000) — limits damage if the process is ever compromised. Mounted
+# volumes (musicbox-data, musicbox-uploads, musicbox-logs) inherit ownership
+# from the chown below.
+RUN chown -R node:node /app
+USER node
+
 # Expose port
 EXPOSE 3000
 

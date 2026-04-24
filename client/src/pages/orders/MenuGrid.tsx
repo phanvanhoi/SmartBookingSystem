@@ -70,6 +70,7 @@ export default function MenuGrid({ items, onAddItem, cart, onUpdateQuantity }: M
                   size="icon"
                   variant="outline"
                   className="h-7 w-7 shrink-0"
+                  aria-label={`Giảm số lượng ${item.name}`}
                   onClick={() => onUpdateQuantity(item.id, cartItem.quantity - 1)}
                 >
                   <Minus className="h-3 w-3" />
@@ -81,6 +82,7 @@ export default function MenuGrid({ items, onAddItem, cart, onUpdateQuantity }: M
                   size="icon"
                   variant="outline"
                   className="h-7 w-7 shrink-0"
+                  aria-label={`Tăng số lượng ${item.name}`}
                   onClick={() => onUpdateQuantity(item.id, cartItem.quantity + 1)}
                 >
                   <Plus className="h-3 w-3" />

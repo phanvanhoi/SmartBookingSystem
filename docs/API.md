@@ -5,6 +5,42 @@
 > Format: JSON
 > Authentication: Bearer JWT Token
 > Ngày tạo: 2026-03-25
+> Ngày cập nhật: 2026-04-24
+
+---
+
+## ⚠️ ADDENDUM (2026-04-24) — Endpoints not in v1 spec
+
+The following routes are live but not described in the original sections below.
+Inspect the corresponding `*.routes.ts` for exact validation rules.
+
+### Facebook integration (`/api/v1/facebook`)
+- `GET  /webhook` — Meta verification handshake (token-based, public)
+- `POST /webhook` — Meta event webhook (HMAC-verified via `FB_APP_SECRET`, public)
+- `GET  /settings` — read FB config (OWNER)
+- `PUT  /settings` — update page token / verify token / page id / enabled (OWNER)
+- `GET  /messages?limit=N` — inbox of parsed messages (auth)
+- `PATCH /messages/:messageId/ignore` — mark a message as ignored (CASHIER+)
+- `POST  /messages/:messageId/confirm` — turn an inbox message into a booking (CASHIER+)
+- `POST  /test-parse` — debug endpoint to test the Vietnamese parser (auth)
+
+### Bookings drag-update
+- `PATCH /api/v1/bookings/:id` — update roomId / bookingTime / durationHours
+  (used by the timeline drag-and-drop). Server enforces overlap detection
+  using the standard interval formula.
+
+### Sessions transfer / merge
+- `POST /api/v1/sessions/:id/transfer` — chuyển phòng (atomic claim of target)
+- `POST /api/v1/sessions/merge` — gộp 2 session, dồn order về phòng chính
+
+### Auth rate limit
+- `POST /api/v1/auth/login` — rate-limited to **10 requests per IP per 15 min**.
+  On overflow: HTTP 429 with code `TOO_MANY_REQUESTS`.
+
+### CORS
+- Server only accepts cross-origin requests whose `Origin` header matches
+  one of the entries in the comma-separated `CORS_ORIGINS` env. Same-origin
+  requests (no Origin header) are always accepted.
 
 ---
 

@@ -167,7 +167,10 @@ model Booking {
   room      Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
   createdBy User @relation("BookingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
-  @@index([roomId, bookingDate])
+  // Optimised for the most frequent query: "all bookings for a room/date,
+  // filtered by status, ordered by time" — covers overlap detection and
+  // the timeline view.
+  @@index([roomId, bookingDate, status])
   @@index([bookingDate, status])
   @@map("bookings")
 }

@@ -181,6 +181,7 @@ export default function OrderDialog({
                             size="icon"
                             variant="outline"
                             className="h-6 w-6"
+                            aria-label="Giảm số lượng"
                             onClick={() =>
                               updateQuantity(cartItem.menuItem.id, cartItem.quantity - 1)
                             }
@@ -194,6 +195,7 @@ export default function OrderDialog({
                             size="icon"
                             variant="outline"
                             className="h-6 w-6"
+                            aria-label="Tăng số lượng"
                             onClick={() =>
                               updateQuantity(cartItem.menuItem.id, cartItem.quantity + 1)
                             }

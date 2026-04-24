@@ -1,9 +1,32 @@
 # MUSIC BOX MANAGER - Database Schema Design
 
 > Version: 1.0
-> Database: PostgreSQL 16
-> ORM: Prisma 5.x
+> Database: **SQLite** (dev + production) — see ADDENDUM below
+> ORM: Prisma 6.x
 > Ngày tạo: 2026-03-25
+> Ngày cập nhật: 2026-04-24
+
+---
+
+## ⚠️ ADDENDUM (2026-04-24)
+
+This document is the **original design**. The **shipped implementation differs**:
+
+- **Database**: SQLite (file-backed) instead of PostgreSQL — chosen so the app
+  runs without an external DB server (one container, one file, one VPS).
+  All Prisma models below remain valid; only the datasource provider changes.
+- **FK rules**: explicit `onDelete` rules added to every relation
+  (Restrict for audit/history, Cascade for compositions, SetNull for optional
+  links). Refer to `server/prisma/schema.prisma` for the authoritative list.
+- **Soft delete**: `User`, `Product`, `Supplier`, and `Customer` all have
+  `isActive Boolean` — prefer `isActive=false` over hard delete.
+- **New tables not shown below**: `FacebookMessage` (auto-parse inbox),
+  `Surcharge`, `Voucher`, `WaitingQueue`. See the live schema for shape.
+- **Money**: stored as `Decimal`, computed in JS as integer VND with
+  `Math.round`. No fractional dong.
+
+The ERD and table listings below are still useful for understanding
+*intent*. For the source of truth, read the schema file.
 
 ---
 

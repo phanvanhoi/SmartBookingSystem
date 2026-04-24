@@ -345,7 +345,7 @@ export default function TimelinePage() {
 
         <div className="flex items-center gap-2">
           {/* Date navigation */}
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevDay}>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Ngày trước" onClick={prevDay}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <button
@@ -357,7 +357,7 @@ export default function TimelinePage() {
           >
             {formatDateVN(selectedDate)}
           </button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextDay}>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Ngày sau" onClick={nextDay}>
             <ChevronRight className="w-4 h-4" />
           </Button>
 
