@@ -53,6 +53,7 @@ import {
 import { useRooms } from '@/hooks/useRooms'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDate } from '@/utils/formatTime'
+import { getErrorMessage } from '@/utils/error'
 import type {
   PricingRuleItem,
   SurchargeItem,
@@ -1055,8 +1056,7 @@ function VouchersTab() {
             setDialogOpen(false)
           },
           onError: (err) => {
-            const e = err as { response?: { data?: { error?: { message?: string } } } }
-            toast.error(e?.response?.data?.error?.message ?? 'Cập nhật thất bại')
+            toast.error(getErrorMessage(err, 'Cập nhật thất bại'))
           },
         }
       )
@@ -1067,8 +1067,7 @@ function VouchersTab() {
           setDialogOpen(false)
         },
         onError: (err) => {
-          const e = err as { response?: { data?: { error?: { message?: string } } } }
-          toast.error(e?.response?.data?.error?.message ?? 'Tạo thất bại')
+          toast.error(getErrorMessage(err, 'Tạo thất bại'))
         },
       })
     }

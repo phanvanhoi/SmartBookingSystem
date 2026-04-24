@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/utils/cn'
 import { useAuthStore, type UserRole } from '@/stores/authStore'
+import { useCurrentShift } from '@/hooks/useStaff'
 
 interface HeaderProps {
   onMobileMenuToggle?: () => void
@@ -23,14 +24,30 @@ const ROLE_LABEL: Record<UserRole, string> = {
   STAFF: 'Phục vụ',
 }
 
+function formatShiftTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return '--:--'
+  }
+}
+
 export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const notificationCount = 0
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
+  const { data: shiftRes } = useCurrentShift()
 
   const displayName = user?.fullName || user?.username || 'Người dùng'
   const roleLabel = user ? ROLE_LABEL[user.role] : ''
+
+  // Active shift from API — show "—" when no shift open.
+  const shift = shiftRes?.data ?? null
+  const shiftDisplay = shift
+    ? `${formatShiftTime(shift.startTime)} – ${shift.openedByName}`
+    : 'Chưa mở ca'
 
   function handleLogout() {
     logout()
@@ -58,9 +75,9 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Shift info */}
+      {/* Shift info — from API */}
       <span className="hidden sm:block text-xs text-muted-foreground">
-        Ca: <span className="text-foreground font-medium">17:00 - 05:00</span>
+        Ca: <span className="text-foreground font-medium">{shiftDisplay}</span>
       </span>
 
       {/* Notification bell */}

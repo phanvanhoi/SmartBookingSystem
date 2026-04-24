@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { parseBookingMessage, ParsedBooking } from './messageParser'
 import logger from '../../utils/logger'
@@ -15,8 +16,41 @@ export interface FacebookMessage {
   status: 'new' | 'parsed' | 'booked' | 'ignored'
 }
 
-// In-memory store for messages (could use DB table in production)
-const messageStore: FacebookMessage[] = []
+const STATUS_TO_DB = {
+  new: 'NEW',
+  parsed: 'PARSED',
+  booked: 'BOOKED',
+  ignored: 'IGNORED',
+} as const
+
+const STATUS_FROM_DB: Record<string, FacebookMessage['status']> = {
+  NEW: 'new',
+  PARSED: 'parsed',
+  BOOKED: 'booked',
+  IGNORED: 'ignored',
+}
+
+function toApiMessage(row: {
+  messageId: string
+  senderId: string
+  senderName: string
+  text: string
+  receivedAt: Date
+  parsed: Prisma.JsonValue | null
+  autoBookingId: number | null
+  status: string
+}): FacebookMessage {
+  return {
+    id: row.messageId,
+    senderId: row.senderId,
+    senderName: row.senderName,
+    text: row.text,
+    timestamp: row.receivedAt.getTime(),
+    parsed: (row.parsed as unknown as ParsedBooking) ?? null,
+    autoBookingId: row.autoBookingId,
+    status: STATUS_FROM_DB[row.status] ?? 'new',
+  }
+}
 
 // ── Get Facebook settings ────────────────────────────────────────────────────
 
@@ -27,32 +61,36 @@ export async function getFacebookSettings() {
   const enabled = await prisma.setting.findUnique({ where: { key: 'facebook_enabled' } })
 
   return {
-    pageToken: pageToken?.value as string ?? '',
-    verifyToken: verifyToken?.value as string ?? 'musicbox_verify_2026',
-    pageId: pageId?.value as string ?? '',
-    enabled: (enabled?.value as boolean) ?? false,
+    pageToken: typeof pageToken?.value === 'string' ? pageToken.value : '',
+    verifyToken:
+      typeof verifyToken?.value === 'string' ? verifyToken.value : process.env.FB_VERIFY_TOKEN ?? '',
+    pageId: typeof pageId?.value === 'string' ? pageId.value : '',
+    enabled: typeof enabled?.value === 'boolean' ? enabled.value : false,
   }
 }
 
-export async function updateFacebookSettings(data: {
-  pageToken?: string
-  verifyToken?: string
-  pageId?: string
-  enabled?: boolean
-}, userId: number) {
-  const updates = [
-    { key: 'facebook_page_token', value: data.pageToken },
-    { key: 'facebook_verify_token', value: data.verifyToken },
-    { key: 'facebook_page_id', value: data.pageId },
-    { key: 'facebook_enabled', value: data.enabled },
-  ]
+export async function updateFacebookSettings(
+  data: {
+    pageToken?: string
+    verifyToken?: string
+    pageId?: string
+    enabled?: boolean
+  },
+  userId: number,
+) {
+  // Wrap each Setting.value as a Prisma.InputJsonValue. Avoid `as any` casts —
+  // a stray non-JSON value would crash on read.
+  const updates: Array<{ key: string; value: Prisma.InputJsonValue }> = []
+  if (data.pageToken !== undefined) updates.push({ key: 'facebook_page_token', value: data.pageToken })
+  if (data.verifyToken !== undefined) updates.push({ key: 'facebook_verify_token', value: data.verifyToken })
+  if (data.pageId !== undefined) updates.push({ key: 'facebook_page_id', value: data.pageId })
+  if (data.enabled !== undefined) updates.push({ key: 'facebook_enabled', value: data.enabled })
 
   for (const { key, value } of updates) {
-    if (value === undefined) continue
     await prisma.setting.upsert({
       where: { key },
-      update: { value: value as any, updatedById: userId },
-      create: { key, value: value as any, description: `Facebook ${key}`, updatedById: userId },
+      update: { value, updatedById: userId },
+      create: { key, value, description: `Facebook ${key}`, updatedById: userId },
     })
   }
 }
@@ -68,44 +106,35 @@ export async function processIncomingMessage(
   const settings = await getFacebookSettings()
   if (!settings.enabled) return null
 
-  // Get sender name from Facebook (simplified - in prod, call Graph API)
+  // Idempotency: Meta retries webhooks; skip if we already saw this mid.
+  const existing = await prisma.facebookMessage.findUnique({ where: { messageId } })
+  if (existing) return toApiMessage(existing)
+
   const senderName = await getSenderName(senderId, settings.pageToken)
 
-  // Parse the message
   const parsed = parseBookingMessage(messageText)
+  if (!parsed.customerName && senderName) parsed.customerName = senderName
 
-  // Use sender name as customer name if not found in message
-  if (!parsed.customerName && senderName) {
-    parsed.customerName = senderName
-  }
-
-  const fbMessage: FacebookMessage = {
-    id: messageId,
-    senderId,
-    senderName: senderName || senderId,
-    text: messageText,
-    timestamp,
-    parsed: parsed.confidence > 0.3 ? parsed : null,
-    autoBookingId: null,
-    status: parsed.confidence > 0.3 ? 'parsed' : 'new',
-  }
+  let status: keyof typeof STATUS_TO_DB = parsed.confidence > 0.3 ? 'parsed' : 'new'
+  let autoBookingId: number | null = null
 
   // Auto-create booking if confidence is high enough
   if (parsed.confidence >= 0.7 && parsed.date && parsed.time) {
     try {
       const booking = await autoCreateBooking(parsed, senderName || senderId)
-      fbMessage.autoBookingId = booking.id
-      fbMessage.status = 'booked'
+      autoBookingId = booking.id
+      status = 'booked'
 
-      // Send confirmation reply
       if (settings.pageToken) {
-        await sendReply(senderId, settings.pageToken,
+        await sendReply(
+          senderId,
+          settings.pageToken,
           `✅ Đã đặt phòng thành công!\n` +
-          `📅 Ngày: ${parsed.date}\n` +
-          `🕐 Giờ: ${parsed.time}\n` +
-          `${parsed.roomPreference === 'large' ? '🏠 Phòng lớn' : parsed.roomPreference === 'small' ? '🏠 Phòng nhỏ' : ''}\n` +
-          `${parsed.guestCount ? `👥 ${parsed.guestCount} người` : ''}\n` +
-          `Cảm ơn bạn đã đặt phòng tại Music Box! 🎵`
+            `📅 Ngày: ${parsed.date}\n` +
+            `🕐 Giờ: ${parsed.time}\n` +
+            `${parsed.roomPreference === 'large' ? '🏠 Phòng lớn' : parsed.roomPreference === 'small' ? '🏠 Phòng nhỏ' : ''}\n` +
+            `${parsed.guestCount ? `👥 ${parsed.guestCount} người` : ''}\n` +
+            `Cảm ơn bạn đã đặt phòng tại Music Box! 🎵`,
         )
       }
 
@@ -117,51 +146,56 @@ export async function processIncomingMessage(
       })
     } catch (err) {
       logger.error('Failed to auto-create booking', { module: 'facebook', error: err })
-      fbMessage.status = 'parsed'
+      status = 'parsed'
     }
   } else if (parsed.confidence > 0.3 && settings.pageToken) {
-    // Partially parsed - ask for more info
     const missing: string[] = []
     if (!parsed.date) missing.push('ngày')
     if (!parsed.time) missing.push('giờ')
-
     if (missing.length > 0) {
-      await sendReply(senderId, settings.pageToken,
+      await sendReply(
+        senderId,
+        settings.pageToken,
         `Cảm ơn bạn đã liên hệ Music Box! 🎵\n` +
-        `Mình nhận được yêu cầu đặt phòng nhưng cần thêm thông tin:\n` +
-        `${missing.map(m => `- ${m}`).join('\n')}\n` +
-        `Bạn vui lòng cho mình biết thêm nhé!`
+          `Mình nhận được yêu cầu đặt phòng nhưng cần thêm thông tin:\n` +
+          `${missing.map((m) => `- ${m}`).join('\n')}\n` +
+          `Bạn vui lòng cho mình biết thêm nhé!`,
       )
     }
   }
 
-  // Store message
-  messageStore.unshift(fbMessage)
-  if (messageStore.length > 200) messageStore.length = 200 // keep last 200
+  // Persist to DB so it survives restart and is queryable.
+  const row = await prisma.facebookMessage.create({
+    data: {
+      messageId,
+      senderId,
+      senderName: senderName || senderId,
+      text: messageText,
+      receivedAt: new Date(timestamp),
+      parsed: parsed.confidence > 0.3 ? (parsed as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+      autoBookingId,
+      status: STATUS_TO_DB[status],
+    },
+  })
 
-  return fbMessage
+  return toApiMessage(row)
 }
 
 // ── Auto-create booking ──────────────────────────────────────────────────────
 
 async function autoCreateBooking(parsed: ParsedBooking, customerName: string) {
-  // Find available room
   let roomId: number | null = null
 
   if (parsed.roomPreference) {
     const typeName = parsed.roomPreference === 'large' ? 'Phòng lớn' : 'Phòng nhỏ'
     const room = await prisma.room.findFirst({
-      where: {
-        isActive: true,
-        roomType: { name: typeName },
-      },
+      where: { isActive: true, roomType: { name: typeName } },
       orderBy: { sortOrder: 'asc' },
     })
     roomId = room?.id ?? null
   }
 
   if (!roomId) {
-    // Default: first available room
     const room = await prisma.room.findFirst({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
@@ -176,7 +210,6 @@ async function autoCreateBooking(parsed: ParsedBooking, customerName: string) {
   const bookingTime = new Date(bookingDate)
   bookingTime.setHours(h, m, 0, 0)
 
-  // Get admin user for createdBy
   const admin = await prisma.user.findFirst({ where: { role: 'OWNER' } })
 
   const booking = await prisma.booking.create({
@@ -192,9 +225,7 @@ async function autoCreateBooking(parsed: ParsedBooking, customerName: string) {
       createdById: admin?.id ?? 1,
       status: 'PENDING',
     },
-    include: {
-      room: { select: { id: true, name: true } },
-    },
+    include: { room: { select: { id: true, name: true } } },
   })
 
   return booking
@@ -206,10 +237,10 @@ async function getSenderName(senderId: string, pageToken: string): Promise<strin
   if (!pageToken) return null
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/${senderId}?fields=name&access_token=${pageToken}`
+      `https://graph.facebook.com/v19.0/${senderId}?fields=name&access_token=${pageToken}`,
     )
     if (!res.ok) return null
-    const data = await res.json() as { name?: string }
+    const data = (await res.json()) as { name?: string }
     return data.name ?? null
   } catch {
     return null
@@ -218,43 +249,49 @@ async function getSenderName(senderId: string, pageToken: string): Promise<strin
 
 async function sendReply(recipientId: string, pageToken: string, text: string) {
   try {
-    await fetch(
-      `https://graph.facebook.com/v19.0/me/messages?access_token=${pageToken}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipient: { id: recipientId },
-          message: { text },
-        }),
-      }
-    )
+    await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${pageToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: { text },
+      }),
+    })
   } catch (err) {
     logger.error('Failed to send Facebook reply', { module: 'facebook', error: err })
   }
 }
 
-// ── Get messages for UI ──────────────────────────────────────────────────────
+// ── Get messages for UI (DB-backed) ──────────────────────────────────────────
 
-export function getMessages(limit = 50): FacebookMessage[] {
-  return messageStore.slice(0, limit)
+export async function getMessages(limit = 50): Promise<FacebookMessage[]> {
+  const rows = await prisma.facebookMessage.findMany({
+    orderBy: { receivedAt: 'desc' },
+    take: Math.min(Math.max(limit, 1), 200),
+  })
+  return rows.map(toApiMessage)
 }
 
-export function ignoreMessage(messageId: string) {
-  const msg = messageStore.find((m) => m.id === messageId)
-  if (msg) msg.status = 'ignored'
+export async function ignoreMessage(messageId: string) {
+  await prisma.facebookMessage.update({
+    where: { messageId },
+    data: { status: 'IGNORED' },
+  })
 }
 
-export async function confirmMessage(messageId: string, bookingData: {
-  roomId: number
-  customerName: string
-  customerPhone?: string
-  date: string
-  time: string
-  durationHours?: number
-  guestCount?: number
-}) {
-  const msg = messageStore.find((m) => m.id === messageId)
+export async function confirmMessage(
+  messageId: string,
+  bookingData: {
+    roomId: number
+    customerName: string
+    customerPhone?: string
+    date: string
+    time: string
+    durationHours?: number
+    guestCount?: number
+  },
+) {
+  const msg = await prisma.facebookMessage.findUnique({ where: { messageId } })
   if (!msg) throw new Error('Message not found')
 
   const bookingDate = new Date(bookingData.date)
@@ -277,12 +314,13 @@ export async function confirmMessage(messageId: string, bookingData: {
       createdById: admin?.id ?? 1,
       status: 'PENDING',
     },
-    include: {
-      room: { select: { id: true, name: true } },
-    },
+    include: { room: { select: { id: true, name: true } } },
   })
 
-  msg.autoBookingId = booking.id
-  msg.status = 'booked'
+  await prisma.facebookMessage.update({
+    where: { messageId },
+    data: { autoBookingId: booking.id, status: 'BOOKED' },
+  })
+
   return booking
 }

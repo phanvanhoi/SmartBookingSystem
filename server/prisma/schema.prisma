@@ -80,7 +80,7 @@ model Room {
   sortOrder  Int        @default(0) @map("sort_order")
   isActive   Boolean    @default(true) @map("is_active")
 
-  roomType RoomType  @relation(fields: [roomTypeId], references: [id])
+  roomType RoomType  @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
   sessions Session[]
   bookings Booking[]
 
@@ -124,11 +124,13 @@ model Session {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  room         Room      @relation(fields: [roomId], references: [id])
-  customer     Customer? @relation(fields: [customerId], references: [id])
-  checkedInBy  User      @relation("CheckedInBy", fields: [checkedInById], references: [id])
-  checkedOutBy User?     @relation("CheckedOutBy", fields: [checkedOutById], references: [id])
+  // Relations — Restrict on Room/User keeps historical sessions intact
+  // even if a user/room is removed. Customer becomes null on customer delete
+  // so financial history survives.
+  room         Room      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  checkedInBy  User      @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: Restrict)
+  checkedOutBy User?     @relation("CheckedOutBy", fields: [checkedOutById], references: [id], onDelete: SetNull)
   orders       Order[]
   invoice      Invoice?
 
@@ -162,8 +164,8 @@ model Booking {
   createdById   Int           @map("created_by")
   createdAt     DateTime      @default(now()) @map("created_at")
 
-  room      Room @relation(fields: [roomId], references: [id])
-  createdBy User @relation("BookingCreatedBy", fields: [createdById], references: [id])
+  room      Room @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  createdBy User @relation("BookingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([roomId, bookingDate])
   @@index([bookingDate, status])
@@ -192,7 +194,7 @@ model WaitingQueue {
   createdById   Int         @map("created_by")
   createdAt     DateTime    @default(now()) @map("created_at")
 
-  createdBy User @relation("QueueCreatedBy", fields: [createdById], references: [id])
+  createdBy User @relation("QueueCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([status])
   @@map("waiting_queue")
@@ -222,8 +224,8 @@ model MenuItem {
   sortOrder   Int     @default(0) @map("sort_order")
   productId   Int?    @map("product_id") // Liên kết sản phẩm kho
 
-  category   MenuCategory @relation(fields: [categoryId], references: [id])
-  product    Product?     @relation(fields: [productId], references: [id])
+  category   MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  product    Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
 
   @@index([categoryId])
@@ -248,8 +250,8 @@ model Order {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  session   Session     @relation(fields: [sessionId], references: [id])
-  createdBy User        @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  session   Session     @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  createdBy User        @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   items     OrderItem[]
 
   @@index([sessionId])
@@ -267,9 +269,10 @@ model OrderItem {
   subtotal   Decimal
   notes      String?
 
-  order    Order    @relation(fields: [orderId], references: [id])
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
-  product  Product? @relation(fields: [productId], references: [id])
+  // Cascade: deleting an order removes its items (composition relationship).
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  product  Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@map("order_items")
 }
@@ -307,8 +310,8 @@ model Invoice {
   createdById    Int           @map("created_by")
   createdAt      DateTime      @default(now()) @map("created_at")
 
-  session   Session   @relation(fields: [sessionId], references: [id])
-  createdBy User      @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  createdBy User      @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   payments  Payment[]
 
   @@index([createdAt])
@@ -332,7 +335,8 @@ model Payment {
   cashChange   Decimal?      @map("cash_change")
   createdAt    DateTime      @default(now()) @map("created_at")
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  // Cascade: payments are owned by their invoice.
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@map("payments")
 }
@@ -357,7 +361,7 @@ model Product {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   menuItems    MenuItem[]   // Sản phẩm này xuất hiện ở menu items nào
   stockEntries StockEntry[]
   orderItems   OrderItem[]
@@ -401,9 +405,10 @@ model StockEntry {
   createdById Int            @map("created_by")
   createdAt   DateTime       @default(now()) @map("created_at")
 
-  product   Product   @relation(fields: [productId], references: [id])
-  supplier  Supplier? @relation(fields: [supplierId], references: [id])
-  createdBy User      @relation("StockEntryCreatedBy", fields: [createdById], references: [id])
+  // Restrict product delete: stock history is required for audit/inventory.
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  supplier  Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy User      @relation("StockEntryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([productId, createdAt])
   @@index([type])
@@ -434,6 +439,7 @@ model Customer {
   notes           String?
   isBlacklisted   Boolean      @default(false) @map("is_blacklisted")
   blacklistReason String?      @map("blacklist_reason")
+  isActive        Boolean      @default(true) @map("is_active")  // soft delete
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
@@ -459,7 +465,8 @@ model PointHistory {
   reason     String?
   createdAt  DateTime    @default(now()) @map("created_at")
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  // Cascade: point history is owned by the customer.
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@map("point_history")
@@ -480,7 +487,7 @@ model PricingRule {
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
 
   @@index([roomTypeId, isActive])
   @@map("pricing_rules")
@@ -547,8 +554,8 @@ model Shift {
   notes        String?
   handoverNote String?     @map("handover_note") // Ghi chú bàn giao
 
-  openedBy User  @relation("ShiftOpenedBy", fields: [openedById], references: [id])
-  closedBy User? @relation("ShiftClosedBy", fields: [closedById], references: [id])
+  openedBy User  @relation("ShiftOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  closedBy User? @relation("ShiftClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
 
   @@index([startTime])
   @@index([status])
@@ -567,7 +574,7 @@ model Setting {
   updatedById Int?     @map("updated_by")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  updatedBy User? @relation("SettingUpdatedBy", fields: [updatedById], references: [id])
+  updatedBy User? @relation("SettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@map("settings")
 }
@@ -586,12 +593,41 @@ model AuditLog {
   ipAddress  String?  @map("ip_address")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  // Restrict: audit logs MUST persist even if a user is removed.
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ════════════════════════════════════════════
+// FACEBOOK INBOX
+// ════════════════════════════════════════════
+
+enum FacebookMessageStatus {
+  NEW
+  PARSED
+  BOOKED
+  IGNORED
+}
+
+model FacebookMessage {
+  id            Int                   @id @default(autoincrement())
+  messageId     String                @unique @map("message_id")  // Meta mid
+  senderId      String                @map("sender_id")
+  senderName    String                @map("sender_name")
+  text          String
+  receivedAt    DateTime              @map("received_at")
+  parsed        Json?                 // ParsedBooking | null
+  autoBookingId Int?                  @map("auto_booking_id")
+  status        FacebookMessageStatus @default(NEW)
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  @@index([status, receivedAt])
+  @@index([receivedAt])
+  @@map("facebook_messages")
 }
 
 // ════════════════════════════════════════════
@@ -618,7 +654,8 @@ model Notification {
   metadata  Json?            // Dữ liệu bổ sung (roomId, orderId...)
   createdAt DateTime         @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  // Cascade: a user's notifications are personal — clean up if user removed.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([createdAt])

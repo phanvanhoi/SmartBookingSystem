@@ -49,19 +49,31 @@ const qrStorage = multer.diskStorage({
   },
 })
 
+const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.webp']
+const ALLOWED_IMAGE_MIME = ['image/jpeg', '.image/jpg', 'image/png', 'image/webp'].map((m) =>
+  m.replace(/^\./, ''),
+)
+
 const qrUpload = multer({
   storage: qrStorage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
+  // Validate BOTH extension and mimetype — extension alone can be spoofed
+  // by renaming an .exe to .png. Multer reads mimetype from the upload header,
+  // so this catches the obvious cases without sniffing magic bytes.
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.jpg', '.jpeg', '.png', '.webp']
     const ext = path.extname(file.originalname).toLowerCase()
-    if (allowed.includes(ext)) {
-      cb(null, true)
-    } else {
+    const mime = file.mimetype.toLowerCase()
+    if (!ALLOWED_IMAGE_EXT.includes(ext)) {
       cb(new Error('Chỉ chấp nhận file ảnh (JPG, PNG, WebP)'))
+      return
     }
+    if (!mime.startsWith('image/') || !ALLOWED_IMAGE_MIME.includes(mime)) {
+      cb(new Error('File không phải ảnh hợp lệ'))
+      return
+    }
+    cb(null, true)
   },
 })
 

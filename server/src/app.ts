@@ -26,10 +26,26 @@ import facebookRoutes from './modules/facebook/facebook.routes'
 const app = express()
 
 // ── Security & Performance ────────────────────────────────────────────────────
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false,
-}))
+// CSP policy compatible with Vite-built React SPA + same-origin API + WS for socket.io.
+// Inline styles are allowed because Tailwind/shadcn injects style tags at runtime.
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'"],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  imgSrc: ["'self'", 'data:', 'blob:'],
+  fontSrc: ["'self'", 'data:'],
+  connectSrc: ["'self'", 'ws:', 'wss:'],
+  objectSrc: ["'none'"],
+  frameAncestors: ["'self'"],
+}
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy:
+      process.env.NODE_ENV === 'production' ? { directives: cspDirectives } : false,
+  }),
+)
 
 // CORS — only allow origins explicitly listed in CORS_ORIGINS env (comma-separated).
 // Same-origin requests (no Origin header) and server-to-server tools are always allowed.

@@ -42,8 +42,13 @@ interface OrderNewEvent {
 export function useSocket() {
   const queryClient = useQueryClient()
   const addNotification = useNotificationStore((s) => s.addNotification)
-  const setUnreadCount = useNotificationStore((s) => s.setUnreadCount)
   const socketRef = useRef<Socket | null>(null)
+
+  // Keep handlers in a ref so the effect doesn't reconnect when they change.
+  // Zustand actions and queryClient are stable in practice, but this guards
+  // against future refactors that might break that assumption.
+  const handlersRef = useRef({ queryClient, addNotification })
+  handlersRef.current = { queryClient, addNotification }
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -78,7 +83,7 @@ export function useSocket() {
 
     socket.on('room:updated', (_data: RoomUpdatedEvent) => {
       // Invalidate rooms query to trigger re-fetch
-      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      handlersRef.current.queryClient.invalidateQueries({ queryKey: ['rooms'] })
     })
 
     socket.on('room:timer_warning', (data: RoomTimerWarningEvent) => {
@@ -88,7 +93,7 @@ export function useSocket() {
         duration: 6000,
       })
       // Also invalidate rooms to reflect ENDING_SOON status
-      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      handlersRef.current.queryClient.invalidateQueries({ queryKey: ['rooms'] })
     })
 
     socket.on('room:timer_expired', (data: RoomTimerExpiredEvent) => {
@@ -97,7 +102,7 @@ export function useSocket() {
         `${data.roomName} đã hết giờ - Quá ${data.overtimeMinutes} phút`,
         { duration: 8000 },
       )
-      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      handlersRef.current.queryClient.invalidateQueries({ queryKey: ['rooms'] })
     })
 
     // ── Order events ──────────────────────────────────────────────────────────
@@ -108,28 +113,24 @@ export function useSocket() {
         icon: '🍺',
         duration: 5000,
       })
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      handlersRef.current.queryClient.invalidateQueries({ queryKey: ['orders'] })
     })
 
     socket.on('order:status_changed', () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      handlersRef.current.queryClient.invalidateQueries({ queryKey: ['orders'] })
     })
 
     // ── Notification events ───────────────────────────────────────────────────
 
     socket.on('notification:new', (data: Omit<Notification, 'userId'> & { userId?: number }) => {
-      // Add to store - current user's userId will be filled from server
-      addNotification(data as Notification)
-      // Also update unread count by incrementing via store (handled in addNotification)
-      // Re-fetch unread count from server to keep in sync
-      queryClient.invalidateQueries({ queryKey: ['unread-count'] })
+      handlersRef.current.addNotification(data as Notification)
+      handlersRef.current.queryClient.invalidateQueries({ queryKey: ['unread-count'] })
     })
 
     return () => {
       socket.disconnect()
       socketRef.current = null
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return socketRef.current

@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/utils/cn'
+import { getErrorMessage } from '@/utils/error'
 import { useCheckin } from '@/hooks/useRooms'
 import { roomService } from '@/services/roomService'
 import type { Room } from '@/types/room'
@@ -110,9 +111,8 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
       })
       toast.success(`Check-in ${room.name} thành công`)
       onClose()
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message ?? 'Check-in thất bại'
-      toast.error(msg)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Check-in thất bại'))
     }
   }
 

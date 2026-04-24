@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/utils/cn'
+import { getErrorMessage } from '@/utils/error'
 import { useExtendSession } from '@/hooks/useRooms'
 
 interface ExtendDialogProps {
@@ -64,9 +65,8 @@ export default function ExtendDialog({ sessionId, open, onClose }: ExtendDialogP
         toast.success(`Gia hạn thêm ${label} thành công`)
         handleClose()
       }
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message ?? 'Gia hạn thất bại'
-      toast.error(msg)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Gia hạn thất bại'))
     }
   }
 

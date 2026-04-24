@@ -78,7 +78,7 @@ export async function updateSettings(req: Request, res: Response<ApiResponse>, n
 export async function getMessages(req: Request, res: Response<ApiResponse>, next: NextFunction) {
   try {
     const limit = parseInt(req.query.limit as string) || 50
-    const messages = fbService.getMessages(limit)
+    const messages = await fbService.getMessages(limit)
     res.json({ success: true, data: messages })
   } catch (err) { next(err) }
 }
@@ -86,7 +86,7 @@ export async function getMessages(req: Request, res: Response<ApiResponse>, next
 // ── Ignore Message ───────────────────────────────────────────────────────────
 export async function ignoreMessage(req: Request, res: Response<ApiResponse>, next: NextFunction) {
   try {
-    fbService.ignoreMessage(req.params.messageId as string)
+    await fbService.ignoreMessage(req.params.messageId as string)
     res.json({ success: true, message: 'Đã bỏ qua tin nhắn' })
   } catch (err) { next(err) }
 }

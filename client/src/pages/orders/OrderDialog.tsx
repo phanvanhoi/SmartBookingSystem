@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { getErrorMessage } from '@/utils/error'
 import { useMenu, useCreateOrder } from '@/hooks/useOrders'
 import { useOrderStore } from '@/stores/orderStore'
 import MenuGrid from './MenuGrid'
@@ -63,11 +64,8 @@ export default function OrderDialog({
       setOrderNote('')
       onClose()
       toast.success(`Order ${roomName} thành công!`)
-    } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Tạo order thất bại'
-      toast.error(message)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Tạo order thất bại'))
     }
   }
 
