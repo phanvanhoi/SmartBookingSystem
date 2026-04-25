@@ -163,17 +163,22 @@ export default function RoomMapPage() {
                   totalCount={leftRooms.length}
                   filtered={filter !== 'all'}
                 />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {visibleLeft.map((room) => (
-                    <RoomCard
-                      key={room.id}
-                      room={room}
-                      onClick={() => handleRoomClick(room)}
-                      onOrderClick={() => handleOrderClick(room)}
-                      onExtendClick={() => handleExtendClick(room)}
-                      onCheckoutClick={() => handleCheckoutClick(room)}
-                    />
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 auto-rows-min">
+                  {visibleLeft.map((room) => {
+                    const isLarge = room.roomType.capacityMax > 8
+                    return (
+                      <div key={room.id} className={isLarge ? 'sm:col-span-2' : ''}>
+                        <RoomCard
+                          room={room}
+                          size={isLarge ? 'large' : 'normal'}
+                          onClick={() => handleRoomClick(room)}
+                          onOrderClick={() => handleOrderClick(room)}
+                          onExtendClick={() => handleExtendClick(room)}
+                          onCheckoutClick={() => handleCheckoutClick(room)}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
               </section>
             )}

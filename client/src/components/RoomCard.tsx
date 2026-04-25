@@ -10,6 +10,12 @@ interface RoomCardProps {
   onOrderClick?: () => void
   onExtendClick?: () => void
   onCheckoutClick?: () => void
+  /**
+   * Visual size hint. Large = bigger title, taller card, beefier CTA.
+   * Parent grid decides geometry (col-span); this prop only governs the
+   * card's intrinsic styling so the visual hierarchy reads at a glance.
+   */
+  size?: 'normal' | 'large'
 }
 
 const statusConfig = {
@@ -45,9 +51,11 @@ export default function RoomCard({
   onOrderClick,
   onExtendClick,
   onCheckoutClick,
+  size = 'normal',
 }: RoomCardProps) {
   const cfg = statusConfig[room.status]
   const session = room.currentSession
+  const isLarge = size === 'large'
 
   const handleActionClick = (e: React.MouseEvent, handler?: () => void) => {
     e.stopPropagation()
@@ -70,20 +78,32 @@ export default function RoomCard({
     <div
       onClick={onClick}
       className={cn(
-        'group relative bg-card rounded-xl border border-border shadow-card overflow-hidden',
+        'group relative bg-card rounded-xl border shadow-card overflow-hidden',
         'cursor-pointer transition-all duration-200',
         'hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border/80',
-        'p-3 pl-4 flex flex-col h-[196px]',
+        'flex flex-col',
+        // Size variant — large rooms get a thicker stripe, more padding, taller body.
+        isLarge ? 'p-4 pl-5 h-[240px] border-2 border-primary/30' : 'p-3 pl-4 h-[196px] border-border',
         room.status === 'ENDING_SOON' && 'ring-1 ring-amber-400/40',
         room.status === 'AVAILABLE' && 'hover:border-emerald-300 hover:bg-emerald-50/30',
         room.status === 'MAINTENANCE' && 'opacity-80 cursor-default hover:translate-y-0 hover:shadow-card hover:border-border',
       )}
     >
-      {/* Left status stripe */}
+      {/* Left status stripe — wider on large rooms */}
       <span
         aria-hidden
-        className={cn('absolute left-0 top-0 bottom-0 w-1', cfg.stripe)}
+        className={cn('absolute left-0 top-0 bottom-0', isLarge ? 'w-1.5' : 'w-1', cfg.stripe)}
       />
+
+      {/* "Phòng lớn" badge top-right corner — only on large rooms */}
+      {isLarge && (
+        <span
+          aria-hidden
+          className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20"
+        >
+          VIP
+        </span>
+      )}
 
       {/* Maintenance diagonal hatching */}
       {room.status === 'MAINTENANCE' && (
@@ -98,13 +118,24 @@ export default function RoomCard({
       )}
 
       {/* Header: name + status pill */}
-      <div className="relative flex items-center justify-between">
-        <span className="font-bold text-base text-foreground tracking-tight">
+      <div className={cn('relative flex items-center justify-between', isLarge && 'pr-12')}>
+        <span
+          className={cn(
+            'font-bold text-foreground tracking-tight',
+            isLarge ? 'text-xl' : 'text-base',
+          )}
+        >
           {room.name}
         </span>
         <div className="flex items-center gap-1.5">
-          <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot)} />
-          <span className={cn('text-[10px] font-semibold uppercase tracking-wide', cfg.labelColor)}>
+          <span className={cn('rounded-full', isLarge ? 'w-2 h-2' : 'w-1.5 h-1.5', cfg.dot)} />
+          <span
+            className={cn(
+              'font-semibold uppercase tracking-wide',
+              isLarge ? 'text-[11px]' : 'text-[10px]',
+              cfg.labelColor,
+            )}
+          >
             {cfg.label}
           </span>
         </div>
@@ -112,7 +143,7 @@ export default function RoomCard({
 
       {/* Type line */}
       <div className="relative mt-0.5">
-        <span className="text-[10px] text-muted-foreground">
+        <span className={cn('text-muted-foreground', isLarge ? 'text-xs' : 'text-[10px]')}>
           {room.roomType.name}
         </span>
       </div>
