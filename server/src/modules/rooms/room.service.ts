@@ -166,6 +166,7 @@ export async function getRoomById(id: number) {
         status: order.status,
         totalAmount: Number(order.totalAmount),
         items: order.items.map((item) => ({
+          id: item.id,
           name: item.menuItem.name,
           quantity: item.quantity,
           unitPrice: Number(item.unitPrice),

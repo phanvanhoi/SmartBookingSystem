@@ -197,6 +197,7 @@ export async function checkout(sessionId: number, _userId: number) {
     orders: session.orders.map((o) => ({
       id: o.id,
       items: o.items.map((i) => ({
+        id: i.id,
         name: i.menuItem.name,
         quantity: i.quantity,
         unitPrice: Number(i.unitPrice),
