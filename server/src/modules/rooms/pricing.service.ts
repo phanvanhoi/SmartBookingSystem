@@ -55,6 +55,16 @@ function splitByTimeSlots(
   const totalMinutes = Math.round((checkOut.getTime() - checkIn.getTime()) / 60_000)
   if (totalMinutes <= 0) return segments
 
+  // Fallback rate when no rule covers a minute. Without this safeguard, gaps
+  // between configured pricing rules silently bill 0đ — that was the
+  // 11:34 check-in bug (Off-peak 12-17 + Peak 17-05 left 05-12 uncovered).
+  // We use the highest configured price so misconfiguration over-charges
+  // rather than under-charges; the owner notices and fixes the pricing rules.
+  const fallbackPrice = rules.reduce((max, r) => {
+    const p = typeof r.pricePerHour === 'number' ? r.pricePerHour : r.pricePerHour.toNumber()
+    return p > max ? p : max
+  }, 0)
+
   // Work in absolute milliseconds; step minute by minute grouping same-rule runs
   let cursor = new Date(checkIn)
   let segmentStart = new Date(checkIn)
@@ -81,12 +91,12 @@ function splitByTimeSlots(
           ? typeof currentRule.pricePerHour === 'number'
             ? currentRule.pricePerHour
             : currentRule.pricePerHour.toNumber()
-          : 0
+          : fallbackPrice
 
         segments.push({
           start: `${String(segmentStart.getHours()).padStart(2, '0')}:${String(segmentStart.getMinutes()).padStart(2, '0')}`,
           end: `${String(segEnd.getHours()).padStart(2, '0')}:${String(segEnd.getMinutes()).padStart(2, '0')}`,
-          slotName: currentRule?.name ?? 'Không có bảng giá',
+          slotName: currentRule?.name ?? 'Ngoài giờ (giá cao nhất)',
           minutes: minutesInSegment,
           pricePerHour,
           amount: Math.round((minutesInSegment / 60) * pricePerHour),

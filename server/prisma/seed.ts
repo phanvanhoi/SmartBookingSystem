@@ -87,7 +87,10 @@ async function main() {
   }
 
   // ── Pricing Rules ──
-  // Phòng bé: 40k off-peak / 60k peak. Phòng lớn: 50k off-peak / 80k peak.
+  // Off-peak (12:00–17:00) + Peak (17:00 → 12:00 next day) cover 24h fully.
+  // Critical: nếu để gap (vd 05:00→12:00 không có rule), khách check-in trong
+  // khung đó sẽ tính 0đ/h (rule lookup không match → fallback 0). Cover 24h
+  // tránh bug đó hoàn toàn.
   console.log('Seeding pricing rules...')
   const pricingRulesData = [
     {
@@ -102,7 +105,7 @@ async function main() {
       roomTypeId: roomTypeSmall.id,
       name: 'Peak nhỏ',
       timeStart: '17:00',
-      timeEnd: '05:00',
+      timeEnd: '12:00', // overnight + early morning, giáp Off-peak
       pricePerHour: 60_000,
       dayOfWeek: '[]',
     },
@@ -118,7 +121,7 @@ async function main() {
       roomTypeId: roomTypeLarge.id,
       name: 'Peak lớn',
       timeStart: '17:00',
-      timeEnd: '05:00',
+      timeEnd: '12:00',
       pricePerHour: 80_000,
       dayOfWeek: '[]',
     },

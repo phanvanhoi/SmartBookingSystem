@@ -51,12 +51,13 @@ async function seed() {
   const cats = ['Đồ ăn', 'Đồ uống'];
   for (let i = 0; i < cats.length; i++) await p.menuCategory.create({ data: { name: cats[i], sortOrder: i + 1 } });
 
-  // Pricing: small 40k off-peak / 60k peak; large 50k off-peak / 80k peak
+  // Pricing: small 40k off-peak / 60k peak; large 50k off-peak / 80k peak.
+  // Peak ends at 12:00 next day (NOT 05:00) so 05:00–12:00 isn't a 0đ gap.
   const rules = [
     { roomTypeId: small.id, name: 'Off-peak nhỏ', timeStart: '12:00', timeEnd: '17:00', pricePerHour: 40000 },
-    { roomTypeId: small.id, name: 'Peak nhỏ', timeStart: '17:00', timeEnd: '05:00', pricePerHour: 60000 },
+    { roomTypeId: small.id, name: 'Peak nhỏ', timeStart: '17:00', timeEnd: '12:00', pricePerHour: 60000 },
     { roomTypeId: large.id, name: 'Off-peak lớn', timeStart: '12:00', timeEnd: '17:00', pricePerHour: 50000 },
-    { roomTypeId: large.id, name: 'Peak lớn', timeStart: '17:00', timeEnd: '05:00', pricePerHour: 80000 },
+    { roomTypeId: large.id, name: 'Peak lớn', timeStart: '17:00', timeEnd: '12:00', pricePerHour: 80000 },
   ];
   for (const r of rules) await p.pricingRule.create({ data: { ...r, dayOfWeek: '[]' } });
 
