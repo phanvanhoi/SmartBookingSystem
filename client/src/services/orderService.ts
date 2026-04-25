@@ -27,6 +27,19 @@ export const orderService = {
     return res.data.data
   },
 
+  /**
+   * Sửa số lượng của 1 order item. quantity=0 → xóa item, quantity>0 → cập nhật.
+   * Server tự recalculate order.totalAmount. Chỉ cho phép khi order ở PENDING/PREPARING.
+   */
+  updateOrderItem: async (
+    orderId: number,
+    itemId: number,
+    quantity: number,
+  ): Promise<Order> => {
+    const res = await api.patch(`/orders/${orderId}/items/${itemId}`, { quantity })
+    return res.data.data
+  },
+
   getKitchenOrders: async (): Promise<Order[]> => {
     const res = await api.get('/orders/kitchen')
     return res.data.data

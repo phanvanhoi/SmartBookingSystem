@@ -53,6 +53,29 @@ export function useCancelOrder() {
   })
 }
 
+export function useUpdateOrderItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      itemId,
+      quantity,
+    }: {
+      orderId: number
+      itemId: number
+      quantity: number
+    }) => orderService.updateOrderItem(orderId, itemId, quantity),
+    onSuccess: () => {
+      // Order list, room session totals (currentTotal), kitchen view all
+      // include item-level data — invalidate them all so the UI reflects
+      // the new totalAmount and remaining items immediately.
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] })
+    },
+  })
+}
+
 export function useKitchenOrders() {
   return useQuery({
     queryKey: ['kitchen-orders'],

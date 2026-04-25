@@ -9,13 +9,24 @@ import {
   Users,
   FileText,
   ChevronRight,
+  Plus,
+  Minus,
+  Trash2,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -24,6 +35,8 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { formatTime } from '@/utils/formatTime'
 import { cn } from '@/utils/cn'
 import { useRoom } from '@/hooks/useRooms'
+import { useUpdateOrderItem } from '@/hooks/useOrders'
+import { getErrorMessage } from '@/utils/error'
 import CountdownTimer from '@/components/CountdownTimer'
 import CheckoutDialog from './CheckoutDialog'
 import ExtendDialog from './ExtendDialog'
@@ -53,6 +66,42 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
 
   const { data: room, isLoading } = useRoom(open ? roomId : null)
   const session = room?.currentSession ?? null
+
+  const updateItem = useUpdateOrderItem()
+  // Track which item id is being mutated so only its row disables, not all of
+  // them. updateItem.isPending alone is global to the hook.
+  const [busyItemId, setBusyItemId] = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    orderId: number
+    itemId: number
+    name: string
+    orderStatus: string
+  } | null>(null)
+
+  const MAX_QTY = 999
+
+  const handleItemQty = (orderId: number, itemId: number, nextQty: number) => {
+    if (nextQty < 0 || nextQty > MAX_QTY) return
+    setBusyItemId(itemId)
+    updateItem.mutate(
+      { orderId, itemId, quantity: nextQty },
+      {
+        onSuccess: () => {
+          if (nextQty === 0) toast.success('Đã xóa món')
+        },
+        onError: (err) => {
+          toast.error(getErrorMessage(err, 'Cập nhật món thất bại'))
+        },
+        onSettled: () => setBusyItemId(null),
+      },
+    )
+  }
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return
+    handleItemQty(deleteTarget.orderId, deleteTarget.itemId, 0)
+    setDeleteTarget(null)
+  }
 
   return (
     <>
@@ -185,7 +234,7 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                   </div>
                 </div>
 
-                {/* Orders list — compact */}
+                {/* Orders list — compact, with editable items when order is editable */}
                 {session.orders && session.orders.length > 0 && (
                   <div>
                     <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Orders</h4>
@@ -195,10 +244,13 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                           label: order.status,
                           color: 'text-muted-foreground',
                         }
+                        // Backend cho phép sửa item khi order ở PENDING hoặc PREPARING.
+                        const editable =
+                          order.status === 'PENDING' || order.status === 'PREPARING'
                         return (
                           <div
                             key={order.id}
-                            className="bg-muted/40 border border-border rounded-md p-2 space-y-1"
+                            className="bg-muted/40 border border-border rounded-md p-2 space-y-1.5"
                           >
                             <div className="flex items-center justify-between text-[11px]">
                               <span className="text-muted-foreground tabular-nums">
@@ -208,10 +260,38 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                                 {status.label}
                               </span>
                             </div>
-                            {order.items?.map((item, i) => (
-                              <div key={i} className="flex justify-between text-xs">
-                                <span className="text-muted-foreground truncate">
-                                  <span className="tabular-nums font-semibold">{item.quantity}×</span> {item.name}
+                            {order.items?.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center gap-2 text-xs"
+                              >
+                                {editable ? (
+                                  <ItemQtyControls
+                                    quantity={item.quantity}
+                                    busy={busyItemId === item.id}
+                                    canIncrement={item.quantity < MAX_QTY}
+                                    onDec={() =>
+                                      handleItemQty(order.id, item.id, item.quantity - 1)
+                                    }
+                                    onInc={() =>
+                                      handleItemQty(order.id, item.id, item.quantity + 1)
+                                    }
+                                    onRemove={() =>
+                                      setDeleteTarget({
+                                        orderId: order.id,
+                                        itemId: item.id,
+                                        name: item.name,
+                                        orderStatus: order.status,
+                                      })
+                                    }
+                                  />
+                                ) : (
+                                  <span className="tabular-nums font-semibold w-8 text-center">
+                                    {item.quantity}×
+                                  </span>
+                                )}
+                                <span className="text-muted-foreground truncate flex-1">
+                                  {item.name}
                                 </span>
                                 <span className="text-foreground tabular-nums">
                                   {formatCurrency(item.subtotal)}
@@ -326,6 +406,99 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
           onClose={() => setIsOrderOpen(false)}
         />
       )}
+
+      {/* Confirm delete order item */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Xóa món khỏi order?</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground py-2 space-y-2">
+            <p>
+              Bạn có chắc muốn xóa{' '}
+              <span className="text-foreground font-semibold">
+                {deleteTarget?.name}
+              </span>{' '}
+              khỏi order?
+            </p>
+            {deleteTarget?.orderStatus === 'PREPARING' && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                ⚠️ Order đang được pha chế. Hãy xác nhận với bếp/bar trước khi xóa.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={busyItemId !== null}
+            >
+              Xóa món
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
+  )
+}
+
+// ─── Order item qty controls ─────────────────────────────────────────────────
+
+function ItemQtyControls({
+  quantity,
+  busy,
+  canIncrement,
+  onDec,
+  onInc,
+  onRemove,
+}: {
+  quantity: number
+  busy: boolean
+  canIncrement: boolean
+  onDec: () => void
+  onInc: () => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="inline-flex items-center gap-0.5 border border-border rounded-md bg-card overflow-hidden">
+      <button
+        type="button"
+        onClick={onDec}
+        disabled={busy || quantity <= 1}
+        aria-label={quantity <= 1 ? 'Dùng nút xóa để xóa món' : 'Giảm số lượng'}
+        title={quantity <= 1 ? 'Dùng nút xóa' : 'Giảm số lượng'}
+        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <Minus className="w-3 h-3" />
+      </button>
+      <span className="text-xs font-bold tabular-nums w-5 text-center">{quantity}</span>
+      <button
+        type="button"
+        onClick={onInc}
+        disabled={busy || !canIncrement}
+        aria-label="Tăng số lượng"
+        title={canIncrement ? 'Tăng số lượng' : 'Đã đạt mức tối đa'}
+        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <Plus className="w-3 h-3" />
+      </button>
+      <span className="w-px h-4 bg-border" />
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={busy}
+        aria-label="Xóa món"
+        title="Xóa món"
+        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-rose-50 hover:text-rose-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
   )
 }
