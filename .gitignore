@@ -6,6 +6,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# TypeScript incremental build cache — generated, machine-specific
+*.tsbuildinfo
+
 # Customer / supplier data exports — avoid leaking PII through accidental commits
 *.xlsx
 *.xls
