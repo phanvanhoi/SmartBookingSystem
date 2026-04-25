@@ -31,17 +31,20 @@ export default function RoomMapPage() {
   const [extendRoom, setExtendRoom] = useState<Room | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
 
-  // Group by size — keep the intentional "Phòng lớn / Phòng nhỏ" split.
-  const { largeRooms, smallRooms } = useMemo(() => {
-    const large: Room[] = []
-    const small: Room[] = []
-    rooms.forEach((r) => {
-      if (r.roomType.capacityMax > 8) large.push(r)
-      else small.push(r)
-    })
-    large.sort((a, b) => a.sortOrder - b.sortOrder)
-    small.sort((a, b) => a.sortOrder - b.sortOrder)
-    return { largeRooms: large, smallRooms: small }
+  // Physical floor-plan split — match the actual room positions in the shop.
+  // Left wall (looking in from the entrance):  2, 4, 6, 8, 9, 10
+  // Right wall:                                1, 3, 5, 7
+  // Lookup uses sortOrder which is 1:1 with the room number from seed.
+  const LEFT_ORDER = [2, 4, 6, 8, 9, 10]
+  const RIGHT_ORDER = [1, 3, 5, 7]
+  const { leftRooms, rightRooms } = useMemo(() => {
+    const byOrder = new Map(rooms.map((r) => [r.sortOrder, r]))
+    const pickInOrder = (orderList: number[]) =>
+      orderList.map((n) => byOrder.get(n)).filter((r): r is Room => !!r)
+    return {
+      leftRooms: pickInOrder(LEFT_ORDER),
+      rightRooms: pickInOrder(RIGHT_ORDER),
+    }
   }, [rooms])
 
   const statusCount = useMemo(() => {
@@ -53,8 +56,8 @@ export default function RoomMapPage() {
   const filterRooms = (list: Room[]) =>
     filter === 'all' ? list : list.filter((r) => r.status === filter)
 
-  const visibleLarge = filterRooms(largeRooms)
-  const visibleSmall = filterRooms(smallRooms)
+  const visibleLeft = filterRooms(leftRooms)
+  const visibleRight = filterRooms(rightRooms)
 
   const handleRoomClick = (room: Room) => {
     if (room.status === 'MAINTENANCE') return
@@ -141,22 +144,27 @@ export default function RoomMapPage() {
         )}
       </div>
 
-      {/* ─── Rooms grid — 2 columns: Phòng lớn | Phòng nhỏ ───────── */}
+      {/* ─── Rooms grid — 2 dãy theo vị trí thật ───────────────────── */}
       <div className="flex-1 overflow-auto px-5 pb-5">
         {isLoading ? (
           <RoomGridSkeleton />
         ) : rooms.length === 0 ? (
           <EmptyState message="Không tìm thấy phòng nào" />
-        ) : visibleLarge.length === 0 && visibleSmall.length === 0 ? (
+        ) : visibleLeft.length === 0 && visibleRight.length === 0 ? (
           <EmptyState message="Không có phòng nào khớp bộ lọc" />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
-            {/* Cột trái: Phòng lớn */}
-            {visibleLarge.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Dãy trái: 2, 4, 6, 8, 9, 10 */}
+            {visibleLeft.length > 0 && (
               <section className="flex flex-col">
-                <SectionLabel title="Phòng lớn" count={visibleLarge.length} totalCount={largeRooms.length} filtered={filter !== 'all'} />
-                <div className="grid grid-cols-1 gap-3">
-                  {visibleLarge.map((room) => (
+                <SectionLabel
+                  title="Dãy trái"
+                  count={visibleLeft.length}
+                  totalCount={leftRooms.length}
+                  filtered={filter !== 'all'}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {visibleLeft.map((room) => (
                     <RoomCard
                       key={room.id}
                       room={room}
@@ -170,12 +178,17 @@ export default function RoomMapPage() {
               </section>
             )}
 
-            {/* Cột phải: Phòng nhỏ */}
-            {visibleSmall.length > 0 && (
+            {/* Dãy phải: 1, 3, 5, 7 */}
+            {visibleRight.length > 0 && (
               <section className="flex flex-col">
-                <SectionLabel title="Phòng nhỏ" count={visibleSmall.length} totalCount={smallRooms.length} filtered={filter !== 'all'} />
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {visibleSmall.map((room) => (
+                <SectionLabel
+                  title="Dãy phải"
+                  count={visibleRight.length}
+                  totalCount={rightRooms.length}
+                  filtered={filter !== 'all'}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {visibleRight.map((room) => (
                     <RoomCard
                       key={room.id}
                       room={room}
@@ -332,25 +345,25 @@ function EmptyState({ message }: { message: string }) {
 
 function RoomGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4">
-      {/* Left column: 3 large */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Left wall: 6 rooms (2,4,6,8,9,10) */}
       <section>
         <div className="flex items-center gap-2 mb-2">
           <div className="h-px flex-1 bg-border" />
         </div>
-        <div className="grid grid-cols-1 gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-[196px] rounded-xl" />
           ))}
         </div>
       </section>
-      {/* Right column: 7 small */}
+      {/* Right wall: 4 rooms (1,3,5,7) */}
       <section>
         <div className="flex items-center gap-2 mb-2">
           <div className="h-px flex-1 bg-border" />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {Array.from({ length: 7 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-[196px] rounded-xl" />
           ))}
         </div>
