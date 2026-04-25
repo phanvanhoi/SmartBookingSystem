@@ -8,6 +8,7 @@ import {
   Package,
   Users,
   BarChart3,
+  Receipt,
   UserCog,
   Settings,
   Music2,
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { icon: Users, label: 'Khách hàng', href: '/customers', roles: CASHIER_UP },
   { icon: MessageSquare, label: 'Facebook', href: '/facebook', roles: MANAGEMENT },
   { icon: BarChart3, label: 'Báo cáo', href: '/reports', roles: MANAGEMENT },
+  { icon: Receipt, label: 'Hóa đơn', href: '/invoices', roles: ['OWNER'] },
   { icon: UserCog, label: 'Nhân viên', href: '/staff', roles: MANAGEMENT },
   { icon: Settings, label: 'Cài đặt', href: '/settings', roles: ['OWNER'] },
 ]

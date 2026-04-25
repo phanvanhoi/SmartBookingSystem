@@ -148,4 +148,55 @@ export const checkoutService = {
     const response = await api.get<{ success: boolean; data: Invoice }>(`/checkout/invoices/${id}`)
     return response.data.data!
   },
+
+  // ── Admin invoice editing (OWNER) ────────────────────────────────────────
+
+  async voidInvoice(id: number, reason: string): Promise<void> {
+    await api.post(`/checkout/invoices/${id}/void`, { reason })
+  },
+
+  async settleDebt(
+    id: number,
+    payload: { amount: number; method: 'CASH' | 'QR_TRANSFER'; cashReceived?: number },
+  ): Promise<void> {
+    await api.post(`/checkout/invoices/${id}/settle-debt`, payload)
+  },
+
+  async adjustDiscount(
+    id: number,
+    payload: {
+      discountAmount?: number
+      discountReason?: string
+      surchargeAmount?: number
+      surchargeReason?: string
+    },
+  ): Promise<void> {
+    await api.patch(`/checkout/invoices/${id}/discount`, payload)
+  },
+
+  async changePaymentMethod(
+    id: number,
+    paymentId: number,
+    method: 'CASH' | 'QR_TRANSFER',
+  ): Promise<void> {
+    await api.patch(`/checkout/invoices/${id}/payments/${paymentId}`, { method })
+  },
+
+  async editTimes(
+    id: number,
+    payload: { checkInTime?: string; checkOutTime?: string },
+  ): Promise<void> {
+    await api.patch(`/checkout/invoices/${id}/times`, payload)
+  },
+
+  async addItem(
+    id: number,
+    payload: { menuItemId: number; quantity: number; notes?: string },
+  ): Promise<void> {
+    await api.post(`/checkout/invoices/${id}/items`, payload)
+  },
+
+  async removeItem(id: number, orderItemId: number): Promise<void> {
+    await api.delete(`/checkout/invoices/${id}/items/${orderItemId}`)
+  },
 }

@@ -64,3 +64,99 @@ export function useInvoice(id: number | null) {
     staleTime: 60_000,
   })
 }
+
+// ─── Admin invoice edit mutations ────────────────────────────────────────────
+
+function useInvoiceInvalidator() {
+  const qc = useQueryClient()
+  return (id: number) => {
+    qc.invalidateQueries({ queryKey: ['invoice', id] })
+    qc.invalidateQueries({ queryKey: ['invoices'] })
+    qc.invalidateQueries({ queryKey: ['rooms'] })
+    qc.invalidateQueries({ queryKey: ['reports'] })
+  }
+}
+
+export function useVoidInvoice() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      checkoutService.voidInvoice(id, reason),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}
+
+export function useSettleDebt() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: { id: number; amount: number; method: 'CASH' | 'QR_TRANSFER'; cashReceived?: number }) =>
+      checkoutService.settleDebt(id, payload),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}
+
+export function useAdjustDiscount() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: number
+      discountAmount?: number
+      discountReason?: string
+      surchargeAmount?: number
+      surchargeReason?: string
+    }) => checkoutService.adjustDiscount(id, payload),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}
+
+export function useChangePaymentMethod() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({
+      id,
+      paymentId,
+      method,
+    }: { id: number; paymentId: number; method: 'CASH' | 'QR_TRANSFER' }) =>
+      checkoutService.changePaymentMethod(id, paymentId, method),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}
+
+export function useEditInvoiceTimes() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: { id: number; checkInTime?: string; checkOutTime?: string }) =>
+      checkoutService.editTimes(id, payload),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}
+
+export function useAddInvoiceItem() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: { id: number; menuItemId: number; quantity: number; notes?: string }) =>
+      checkoutService.addItem(id, payload),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}
+
+export function useRemoveInvoiceItem() {
+  const invalidate = useInvoiceInvalidator()
+  return useMutation({
+    mutationFn: ({ id, orderItemId }: { id: number; orderItemId: number }) =>
+      checkoutService.removeItem(id, orderItemId),
+    onSuccess: (_d, v) => invalidate(v.id),
+  })
+}

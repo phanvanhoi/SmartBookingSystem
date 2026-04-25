@@ -9,6 +9,7 @@ import StockPage from './pages/stock/StockPage'
 import StaffPage from './pages/staff/StaffPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import ReportsPage from './pages/reports/ReportsPage'
+import InvoicesPage from './pages/invoices/InvoicesPage'
 import LoginPage from './pages/auth/LoginPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import FacebookInboxPage from './pages/facebook/FacebookInboxPage'
@@ -157,6 +158,14 @@ export default function App() {
             element={
               <RequireRole roles={MANAGEMENT}>
                 <ReportsPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/invoices"
+            element={
+              <RequireRole roles={OWNER_ONLY}>
+                <InvoicesPage />
               </RequireRole>
             }
           />

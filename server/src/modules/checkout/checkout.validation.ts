@@ -52,3 +52,44 @@ export const voucherQuerySchema = z.object({
 })
 
 export type VoucherQueryInput = z.infer<typeof voucherQuerySchema>
+
+// ─── Invoice edit schemas (admin) ─────────────────────────────────────────────
+
+export const voidInvoiceSchema = z.object({
+  reason: z.string().trim().min(3, 'Lý do tối thiểu 3 ký tự').max(500),
+})
+
+export const settleDebtSchema = z.object({
+  amount: z.number({ required_error: 'Số tiền là bắt buộc' }).positive('Số tiền > 0'),
+  method: z.enum(['CASH', 'QR_TRANSFER']),
+  cashReceived: z.number().min(0).optional(),
+})
+
+export const adjustDiscountSchema = z.object({
+  discountAmount: z.number().min(0).optional(),
+  discountReason: z.string().trim().max(300).optional(),
+  surchargeAmount: z.number().min(0).optional(),
+  surchargeReason: z.string().trim().max(300).optional(),
+})
+
+export const changePaymentMethodSchema = z.object({
+  method: z.enum(['CASH', 'QR_TRANSFER']),
+})
+
+export const editTimesSchema = z.object({
+  checkInTime: z.string().datetime({ offset: true }).optional(),
+  checkOutTime: z.string().datetime({ offset: true }).optional(),
+})
+
+export const addInvoiceItemSchema = z.object({
+  menuItemId: z.number().int().positive(),
+  quantity: z.number().int().min(1).max(999),
+  notes: z.string().trim().max(500).optional(),
+})
+
+export type VoidInvoiceInput = z.infer<typeof voidInvoiceSchema>
+export type SettleDebtInput = z.infer<typeof settleDebtSchema>
+export type AdjustDiscountInput = z.infer<typeof adjustDiscountSchema>
+export type ChangePaymentMethodInput = z.infer<typeof changePaymentMethodSchema>
+export type EditTimesInput = z.infer<typeof editTimesSchema>
+export type AddInvoiceItemInput = z.infer<typeof addInvoiceItemSchema>
