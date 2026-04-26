@@ -4,10 +4,16 @@
  * Naming convention: "[Loại phòng] [Khung giờ] [Giá] [(T2-T6)|(T7-CN)]"
  *   e.g. "Phòng nhỏ Trước 14h 40K (T2-T6)"
  *
- * Time slots cover the full day [00:00 → 24:00) with no gaps:
- *   00:00 → 14:00  ("Trước 14h")
- *   14:00 → 18:00  ("14h-18h")
- *   18:00 → 24:00  ("18h-24h")
+ * Quán mở 18:00 → 05:00 sáng hôm sau (đêm) và mở lại từ ~05:00 đến đêm.
+ * Time slots are designed to fully cover the day with no overlap:
+ *   05:00 → 14:00  ("Trước 14h")    — buổi sáng/trưa
+ *   14:00 → 18:00  ("14h-18h")      — buổi chiều
+ *   18:00 → 05:00  ("18h-5h sáng")  — buổi tối + đêm khuya (wrap-around)
+ *
+ * The overnight wrap is handled by pricing.service.ts/findRuleForMinute:
+ * when timeStart > timeEnd it treats the range as [start, 24h) ∪ [0h, end).
+ * So a check-in at 22:30 staying through 03:00 stays on "18h-5h sáng" the
+ * whole time — never silently switches to a morning rate at midnight.
  *
  * Day groups encoded as JSON arrays in PricingRule.dayOfWeek:
  *   T2-T6 (Mon–Fri) = [1,2,3,4,5]
@@ -32,11 +38,12 @@ const WEEKDAYS = JSON.stringify([1, 2, 3, 4, 5])
 const WEEKEND = JSON.stringify([0, 6])
 
 // ── Time slots ──────────────────────────────────────────────────────────────
-type Slot = { label: string; timeStart: string; timeEnd: string }
+type SlotLabel = 'Trước 14h' | '14h-18h' | '18h-5h sáng'
+type Slot = { label: SlotLabel; timeStart: string; timeEnd: string }
 const SLOTS: Slot[] = [
-  { label: 'Trước 14h', timeStart: '00:00', timeEnd: '14:00' },
+  { label: 'Trước 14h', timeStart: '05:00', timeEnd: '14:00' },
   { label: '14h-18h', timeStart: '14:00', timeEnd: '18:00' },
-  { label: '18h-24h', timeStart: '18:00', timeEnd: '24:00' },
+  { label: '18h-5h sáng', timeStart: '18:00', timeEnd: '05:00' },
 ]
 
 // ── Price matrix per the board ──────────────────────────────────────────────
@@ -45,12 +52,12 @@ const PRICES = {
   small: {
     'Trước 14h': { weekday: 40_000, weekend: 50_000 },
     '14h-18h': { weekday: 60_000, weekend: 75_000 },
-    '18h-24h': { weekday: 95_000, weekend: 110_000 },
+    '18h-5h sáng': { weekday: 95_000, weekend: 110_000 },
   },
   medium: {
     'Trước 14h': { weekday: 50_000, weekend: 70_000 },
     '14h-18h': { weekday: 85_000, weekend: 110_000 },
-    '18h-24h': { weekday: 130_000, weekend: 150_000 },
+    '18h-5h sáng': { weekday: 130_000, weekend: 150_000 },
   },
 } as const
 
