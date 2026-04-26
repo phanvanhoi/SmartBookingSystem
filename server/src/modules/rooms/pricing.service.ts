@@ -25,20 +25,38 @@ function formatMinutes(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-// ─── Find which pricing rule covers a given minute-of-day ───────────────────
-function findRuleForMinute(
-  minuteOfDay: number,
+// ─── Helper: parse JSON string of day-of-week numbers ───────────────────────
+function parseDayOfWeek(val: string): number[] {
+  try { return JSON.parse(val) } catch { return [] }
+}
+
+// ─── Find which rule applies to a specific MOMENT in time ───────────────────
+// Per-minute lookup: both the time-of-day AND day-of-week of the moment are
+// considered. This way an overnight session that crosses midnight switches
+// rate when the calendar day changes — e.g. Fri 22:00 → Sat 04:00 bills the
+// Friday-night portion at T2-T6 night rate and the post-midnight Saturday
+// portion at T7-CN night rate, matching the operator convention that
+// weekend prices kick in the moment Saturday begins.
+function findRuleForMoment(
+  date: Date,
   rules: PricingRuleRecord[],
 ): PricingRuleRecord | undefined {
+  const dayOfWeek = date.getDay()
+  const minuteOfDay = date.getHours() * 60 + date.getMinutes()
+
   return rules.find((rule) => {
+    // Day-of-week filter — empty array means "all days".
+    const days = parseDayOfWeek(rule.dayOfWeek)
+    if (days.length > 0 && !days.includes(dayOfWeek)) return false
+
+    // Time-of-day filter
     const start = parseTimeToMinutes(rule.timeStart)
     const end = parseTimeToMinutes(rule.timeEnd)
-
     if (start <= end) {
       // Normal range: e.g. 08:00 – 17:00
       return minuteOfDay >= start && minuteOfDay < end
     } else {
-      // Overnight range: e.g. 17:00 – 05:00 (spans midnight)
+      // Overnight range: e.g. 18:00 – 05:00 (spans midnight)
       return minuteOfDay >= start || minuteOfDay < end
     }
   })
@@ -70,14 +88,12 @@ function splitByTimeSlots(
   let segmentStart = new Date(checkIn)
   let currentRule: PricingRuleRecord | undefined
 
-  const toMinuteOfDay = (d: Date) => d.getHours() * 60 + d.getMinutes()
-
-  currentRule = findRuleForMinute(toMinuteOfDay(cursor), rules)
+  currentRule = findRuleForMoment(cursor, rules)
 
   for (let i = 0; i < totalMinutes; i++) {
     const next = new Date(cursor.getTime() + 60_000)
     const nextRule = i + 1 < totalMinutes
-      ? findRuleForMinute(toMinuteOfDay(next), rules)
+      ? findRuleForMoment(next, rules)
       : undefined
 
     const ruleChanging = nextRule?.id !== currentRule?.id || i + 1 >= totalMinutes
@@ -119,12 +135,7 @@ export async function calculateRoomPrice(
   checkOutTime: Date,
   roomTypeId: number,
 ): Promise<PriceBreakdown> {
-  const dayOfWeek = checkInTime.getDay() // 0=Sun … 6=Sat
-
-  // Helper: parse dayOfWeek JSON string → number[]
-  function parseDayOfWeek(val: string): number[] {
-    try { return JSON.parse(val) } catch { return [] }
-  }
+  const dayOfWeek = checkInTime.getDay() // 0=Sun … 6=Sat (used for surcharges only)
 
   // Helper: check if dayOfWeek matches
   function matchesDayOfWeek(val: string, dow: number): boolean {
@@ -132,22 +143,25 @@ export async function calculateRoomPrice(
     return days.length === 0 || days.includes(dow)
   }
 
-  // 1. Load active pricing rules for this room type, filter dayOfWeek in JS
+  // 1. Load all active pricing rules for this room type. Day-of-week is now
+  //    matched per-minute inside splitByTimeSlots so an overnight session
+  //    crossing midnight bills the post-midnight portion at the new day's
+  //    rate. Pre-filtering by check-in's dayOfWeek (the old behaviour) would
+  //    keep Friday-night customers on T2-T6 rates straight through Saturday
+  //    morning — wrong for weekend pricing.
   const allRules = await prisma.pricingRule.findMany({
     where: { roomTypeId, isActive: true },
     orderBy: { id: 'asc' },
   })
 
-  const rules: PricingRuleRecord[] = allRules
-    .filter((r) => matchesDayOfWeek(r.dayOfWeek, dayOfWeek))
-    .map((r) => ({
-      id: r.id,
-      name: r.name,
-      timeStart: r.timeStart,
-      timeEnd: r.timeEnd,
-      pricePerHour: r.pricePerHour,
-      dayOfWeek: r.dayOfWeek,
-    }))
+  const rules: PricingRuleRecord[] = allRules.map((r) => ({
+    id: r.id,
+    name: r.name,
+    timeStart: r.timeStart,
+    timeEnd: r.timeEnd,
+    pricePerHour: r.pricePerHour,
+    dayOfWeek: r.dayOfWeek,
+  }))
 
   // 2. Load active surcharges applicable today, filter dayOfWeek in JS
   const today = new Date(checkInTime)
