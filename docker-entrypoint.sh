@@ -69,6 +69,8 @@ async function seed() {
     { key: 'min_duration_minutes', value: 0 },
     { key: 'billing_round_minutes', value: 5 },
     { key: 'bill_round_amount', value: 1000 },
+    { key: 'business_day_start_hour', value: 12 },
+    { key: 'business_day_end_hour', value: 5 },
     { key: 'warning_before_minutes', value: 15 },
     { key: 'currency', value: 'VNĐ' },
     { key: 'timezone', value: 'Asia/Ho_Chi_Minh' },

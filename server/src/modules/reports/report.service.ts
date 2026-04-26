@@ -1,4 +1,9 @@
 import { prisma } from '../../lib/prisma'
+import {
+  getCurrentBusinessDay,
+  previousBusinessDay,
+  type BusinessDayWindow,
+} from '../../utils/business-day'
 import type { RevenueQueryInput, DateRangeQueryInput } from './report.validation'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -114,11 +119,15 @@ interface DateRange {
   to: Date
 }
 
-function getDateRange(filters: { period?: string; dateFrom?: string; dateTo?: string }): DateRange {
+async function getDateRange(filters: { period?: string; dateFrom?: string; dateTo?: string }): Promise<DateRange> {
   const now = new Date()
   switch (filters.period) {
-    case 'today':
-      return { from: startOfDay(now), to: endOfDay(now) }
+    case 'today': {
+      // Business day, not calendar day — covers 12:00 → 05:00 next day so
+      // ca tối + ca rạng sáng đếm chung.
+      const window = await getCurrentBusinessDay(now)
+      return { from: window.from, to: window.to }
+    }
     case 'week':
       return { from: startOfWeek(now), to: endOfWeek(now) }
     case 'month':
@@ -154,7 +163,7 @@ function toNumber(decimal: unknown): number {
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getRevenueReport(filters: RevenueQueryInput) {
-  const range = getDateRange(filters)
+  const range = await getDateRange(filters)
   const prevRange = getPreviousRange(range)
   const groupBy = filters.groupBy ?? 'day'
 
@@ -262,7 +271,7 @@ export async function getRevenueReport(filters: RevenueQueryInput) {
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getRoomReport(filters: DateRangeQueryInput) {
-  const range = getDateRange(filters)
+  const range = await getDateRange(filters)
 
   // Business hours: assuming 13 hours/day of operation
   const BUSINESS_HOURS_PER_DAY = 13
@@ -347,7 +356,7 @@ export async function getRoomReport(filters: DateRangeQueryInput) {
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getPeakHoursReport(filters: DateRangeQueryInput) {
-  const range = getDateRange(filters)
+  const range = await getDateRange(filters)
 
   const sessions = await prisma.session.findMany({
     where: {
@@ -392,7 +401,7 @@ export async function getPeakHoursReport(filters: DateRangeQueryInput) {
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getStockReport(filters: DateRangeQueryInput) {
-  const range = getDateRange(filters)
+  const range = await getDateRange(filters)
 
   // Get order items in range with product info
   const orderItems = await prisma.orderItem.findMany({
@@ -466,7 +475,7 @@ export async function getStockReport(filters: DateRangeQueryInput) {
 // ────────────────────────────────────────────────────────────────────────────
 
 export async function getShiftReport(filters: DateRangeQueryInput) {
-  const range = getDateRange(filters)
+  const range = await getDateRange(filters)
 
   const shifts = await prisma.shift.findMany({
     where: {
@@ -553,11 +562,14 @@ export async function getShiftReport(filters: DateRangeQueryInput) {
 
 export async function getDashboardData() {
   const now = new Date()
-  const todayStart = startOfDay(now)
-  const todayEnd = endOfDay(now)
-  const yesterday = subDays(now, 1)
-  const yesterdayStart = startOfDay(yesterday)
-  const yesterdayEnd = endOfDay(yesterday)
+  // Doanh thu "hôm nay" = ngày kinh doanh hiện tại (vd 12h trưa → 5h sáng).
+  // So sánh với ngày kinh doanh liền trước.
+  const todayWindow: BusinessDayWindow = await getCurrentBusinessDay(now)
+  const yesterdayWindow: BusinessDayWindow = previousBusinessDay(todayWindow)
+  const todayStart = todayWindow.from
+  const todayEnd = todayWindow.to
+  const yesterdayStart = yesterdayWindow.from
+  const yesterdayEnd = yesterdayWindow.to
 
   // Today's invoices
   const [todayInvoices, yesterdayInvoices] = await Promise.all([

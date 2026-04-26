@@ -106,6 +106,8 @@ function GeneralTab() {
     store_address: '',
     open_time: '',
     close_time: '',
+    business_day_start_hour: '',
+    business_day_end_hour: '',
     min_duration_minutes: '',
     billing_round_minutes: '',
     bill_round_amount: '',
@@ -120,6 +122,8 @@ function GeneralTab() {
       store_address: getValue('store_address'),
       open_time: getValue('open_time', '12:00'),
       close_time: getValue('close_time', '05:00'),
+      business_day_start_hour: getValue('business_day_start_hour', '12'),
+      business_day_end_hour: getValue('business_day_end_hour', '5'),
       min_duration_minutes: getValue('min_duration_minutes', '0'),
       billing_round_minutes: getValue('billing_round_minutes', '5'),
       bill_round_amount: getValue('bill_round_amount', '1000'),
@@ -130,11 +134,18 @@ function GeneralTab() {
   }
 
   function handleSave() {
+    const numericKeys = [
+      'business_day_start_hour',
+      'business_day_end_hour',
+      'min_duration_minutes',
+      'billing_round_minutes',
+      'bill_round_amount',
+      'warning_before_minutes',
+      'max_cashier_discount_percent',
+    ]
     const payload = Object.entries(form).map(([key, value]) => ({
       key,
-      value: ['min_duration_minutes', 'billing_round_minutes', 'bill_round_amount', 'warning_before_minutes', 'max_cashier_discount_percent'].includes(key)
-        ? Number(value)
-        : value,
+      value: numericKeys.includes(key) ? Number(value) : value,
     }))
 
     updateSettings.mutate(payload, {
@@ -190,6 +201,44 @@ function GeneralTab() {
               value={form.close_time}
               onChange={(e) => setForm((f) => ({ ...f, close_time: e.target.value }))}
             />
+          </div>
+        </div>
+
+        {/* Business day window — used by báo cáo doanh thu "hôm nay" */}
+        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">Ngày kinh doanh</h4>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Doanh thu "hôm nay" sẽ tính từ giờ bắt đầu đến giờ kết thúc (qua đêm). Mặc định 12h trưa → 5h sáng hôm sau.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Bắt đầu (giờ)</label>
+              <Input
+                type="number"
+                min={0}
+                max={23}
+                value={form.business_day_start_hour}
+                onChange={(e) => setForm((f) => ({ ...f, business_day_start_hour: e.target.value }))}
+                placeholder="12"
+              />
+              <p className="text-[11px] text-muted-foreground">0–23 (12 = 12h trưa)</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Kết thúc (giờ)</label>
+              <Input
+                type="number"
+                min={0}
+                max={23}
+                value={form.business_day_end_hour}
+                onChange={(e) => setForm((f) => ({ ...f, business_day_end_hour: e.target.value }))}
+                placeholder="5"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Nhỏ hơn "Bắt đầu" = qua đêm (5 = 5h sáng hôm sau)
+              </p>
+            </div>
           </div>
         </div>
 

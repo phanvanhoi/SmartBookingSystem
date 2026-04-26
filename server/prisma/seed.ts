@@ -189,6 +189,20 @@ async function main() {
       description: 'Làm tròn tổng tiền (VNĐ) — 0 = không làm tròn, 1000 = lên gần nhất nghìn',
     },
     {
+      key: 'business_day_start_hour',
+      // Một "ngày kinh doanh" bắt đầu lúc N giờ trưa (12 = 12h trưa). Hóa đơn
+      // tạo từ 12h trưa hôm nay đến 5h sáng hôm sau được tính cho cùng 1 ngày.
+      value: 12 as unknown as object,
+      description: 'Giờ bắt đầu ngày kinh doanh (0–23, mặc định 12)',
+    },
+    {
+      key: 'business_day_end_hour',
+      // Kết thúc ngày kinh doanh — phải nhỏ hơn start_hour để window cross-midnight.
+      // 5 = 5h sáng hôm sau.
+      value: 5 as unknown as object,
+      description: 'Giờ kết thúc ngày kinh doanh (0–23, < start_hour = qua đêm; mặc định 5)',
+    },
+    {
       key: 'warning_before_minutes',
       value: 15 as unknown as object,
       description: 'Cảnh báo trước khi hết giờ (phút)',
