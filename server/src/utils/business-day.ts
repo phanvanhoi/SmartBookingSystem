@@ -39,14 +39,26 @@ async function readNumber(key: string, fallback: number): Promise<number> {
   }
 }
 
+// Settings change rarely; cache to avoid 2 DB hits on every pricing
+// calculation (called per-minute inside splitByTimeSlots) and every
+// invoice list query.
+let hoursCache: { value: BusinessHours; at: number } | null = null
+const HOURS_CACHE_TTL_MS = 60_000
+
 export async function getBusinessHours(): Promise<BusinessHours> {
-  const startHour = await readNumber('business_day_start_hour', 12)
-  const endHour = await readNumber('business_day_end_hour', 5)
-  // Defensive clamp
-  return {
+  if (hoursCache && Date.now() - hoursCache.at < HOURS_CACHE_TTL_MS) {
+    return hoursCache.value
+  }
+  const [startHour, endHour] = await Promise.all([
+    readNumber('business_day_start_hour', 12),
+    readNumber('business_day_end_hour', 5),
+  ])
+  const value: BusinessHours = {
     startHour: Math.max(0, Math.min(23, startHour)),
     endHour: Math.max(0, Math.min(23, endHour)),
   }
+  hoursCache = { value, at: Date.now() }
+  return value
 }
 
 /**
@@ -125,4 +137,26 @@ export function previousBusinessDay(window: BusinessDayWindow): BusinessDayWindo
   const to = new Date(window.to)
   to.setDate(to.getDate() - 1)
   return { from, to }
+}
+
+/**
+ * Ngày calendar (Y/M/D) của business day chứa moment đã cho, set về 00:00.
+ * Nếu moment ở [00:00, endHour) thì lùi 1 ngày — nó vẫn thuộc business day
+ * của hôm trước.
+ */
+export function businessDayDate(moment: Date, endHour: number): Date {
+  const d = new Date(moment)
+  if (d.getHours() < endHour) {
+    d.setDate(d.getDate() - 1)
+  }
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/**
+ * Day-of-week (0=CN … 6=T7) của business day chứa moment.
+ * Vd với endHour=5: T2 02:00 → 0 (CN), T2 05:00 → 1 (T2).
+ */
+export function businessDayOfWeek(moment: Date, endHour: number): number {
+  return businessDayDate(moment, endHour).getDay()
 }

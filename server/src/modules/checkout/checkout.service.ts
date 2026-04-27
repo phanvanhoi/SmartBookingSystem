@@ -6,6 +6,7 @@ import { deductStockForOrder } from '../stock/stock.service'
 import { updateCustomerAfterCheckout } from '../customers/customer.service'
 import { applyVoucher } from './voucher.service'
 import logger from '../../utils/logger'
+import { getBusinessHours, businessDayDate } from '../../utils/business-day'
 import type { CheckoutInput, InvoiceQueryInput } from './checkout.validation'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -356,15 +357,51 @@ export async function getQRCode() {
 
 // ─── getInvoices ──────────────────────────────────────────────────────────────
 
+/**
+ * Khoảng [from, to) cho filter doanh thu theo cửa sổ business-day.
+ * Tuần bắt đầu thứ 2; ranh giới là endHour (vd 5h sáng) — không phải 00:00.
+ */
+async function resolvePeriodRange(period: 'day' | 'week' | 'month'): Promise<{ from: Date; to: Date }> {
+  const { endHour } = await getBusinessHours()
+  const bdDate = businessDayDate(new Date(), endHour)
+
+  if (period === 'day') {
+    const from = new Date(bdDate)
+    from.setHours(endHour, 0, 0, 0)
+    const to = new Date(from)
+    to.setDate(to.getDate() + 1)
+    return { from, to }
+  }
+
+  if (period === 'week') {
+    const dow = bdDate.getDay()
+    const offsetToMonday = dow === 0 ? 6 : dow - 1
+    const from = new Date(bdDate)
+    from.setDate(from.getDate() - offsetToMonday)
+    from.setHours(endHour, 0, 0, 0)
+    const to = new Date(from)
+    to.setDate(to.getDate() + 7)
+    return { from, to }
+  }
+
+  const from = new Date(bdDate.getFullYear(), bdDate.getMonth(), 1, endHour, 0, 0, 0)
+  const to = new Date(bdDate.getFullYear(), bdDate.getMonth() + 1, 1, endHour, 0, 0, 0)
+  return { from, to }
+}
+
 export async function getInvoices(filters: InvoiceQueryInput) {
-  const { page = 1, limit = 20, dateFrom, dateTo, status, search } = filters
+  const { page = 1, limit = 20, period, dateFrom, dateTo, status, search } = filters
   const skip = (page - 1) * limit
 
   const where: Record<string, unknown> = {}
 
   if (status) where.status = status
 
-  if (dateFrom || dateTo) {
+  // Period ưu tiên hơn dateFrom/dateTo khi cả hai cùng có.
+  if (period) {
+    const range = await resolvePeriodRange(period)
+    where.createdAt = { gte: range.from, lt: range.to }
+  } else if (dateFrom || dateTo) {
     where.createdAt = {
       ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
       ...(dateTo ? { lte: new Date(`${dateTo}T23:59:59.999Z`) } : {}),
@@ -382,7 +419,11 @@ export async function getInvoices(filters: InvoiceQueryInput) {
     ]
   }
 
-  const [invoices, total] = await Promise.all([
+  // Summary luôn tính trên PAID + PARTIAL bất kể status filter của list,
+  // để tổng doanh thu phản ánh toàn bộ khoảng thời gian.
+  const summaryWhere: Record<string, unknown> = { ...where, status: { in: ['PAID', 'PARTIAL'] } }
+
+  const [invoices, total, summaryAgg] = await Promise.all([
     prisma.invoice.findMany({
       where,
       skip,
@@ -404,7 +445,16 @@ export async function getInvoices(filters: InvoiceQueryInput) {
       },
     }),
     prisma.invoice.count({ where }),
+    prisma.invoice.aggregate({
+      where: summaryWhere,
+      _sum: { grandTotal: true, debtAmount: true },
+      _count: { _all: true },
+    }),
   ])
+
+  const totalRevenue = Number(summaryAgg._sum.grandTotal ?? 0)
+  const totalDebt = Number(summaryAgg._sum.debtAmount ?? 0)
+  const invoiceCount = summaryAgg._count._all
 
   return {
     data: invoices.map(mapInvoice),
@@ -413,6 +463,11 @@ export async function getInvoices(filters: InvoiceQueryInput) {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
+    },
+    summary: {
+      totalRevenue,
+      totalDebt,
+      invoiceCount,
     },
   }
 }

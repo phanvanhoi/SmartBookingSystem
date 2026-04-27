@@ -12,6 +12,7 @@ export interface ApiResponse<T = unknown> {
     message: string
   }
   pagination?: PaginationInfo
+  summary?: Record<string, unknown>
 }
 
 export interface PaginationInfo {

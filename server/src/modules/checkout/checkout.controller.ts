@@ -68,6 +68,7 @@ export async function getInvoicesHandler(
     const result = await checkoutService.getInvoices({
       page: query.page ?? 1,
       limit: query.limit ?? 20,
+      period: query.period,
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
       status: query.status,
@@ -78,6 +79,7 @@ export async function getInvoicesHandler(
       success: true,
       data: result.data,
       pagination: result.pagination,
+      summary: result.summary,
     })
   } catch (err) {
     next(err)

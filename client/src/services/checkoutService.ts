@@ -91,10 +91,18 @@ export interface QRCodeInfo {
 export interface InvoiceListParams {
   page?: number
   limit?: number
+  /** Bộ lọc nhanh theo cửa sổ business-day (mốc 5h sáng). */
+  period?: 'day' | 'week' | 'month'
   dateFrom?: string
   dateTo?: string
   status?: 'PENDING' | 'PAID' | 'PARTIAL' | 'VOID'
   search?: string
+}
+
+export interface InvoiceSummary {
+  totalRevenue: number
+  totalDebt: number
+  invoiceCount: number
 }
 
 export interface PaginatedInvoices {
@@ -105,6 +113,7 @@ export interface PaginatedInvoices {
     total: number
     totalPages: number
   }
+  summary: InvoiceSummary
 }
 
 // ─── Service functions ─────────────────────────────────────────────────────────
@@ -134,10 +143,16 @@ export const checkoutService = {
       success: boolean
       data: Invoice[]
       pagination: PaginatedInvoices['pagination']
+      summary?: InvoiceSummary
     }>('/checkout/invoices', { params })
     return {
       data: response.data.data ?? [],
       pagination: response.data.pagination!,
+      summary: response.data.summary ?? {
+        totalRevenue: 0,
+        totalDebt: 0,
+        invoiceCount: 0,
+      },
     }
   },
 

@@ -32,6 +32,7 @@ export type CheckoutInput = z.infer<typeof checkoutSchema>
 export const invoiceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
+  period: z.enum(['day', 'week', 'month']).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   status: z.enum(['PENDING', 'PAID', 'PARTIAL', 'VOID']).optional(),

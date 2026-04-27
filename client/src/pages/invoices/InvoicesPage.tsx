@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Receipt, Search, Filter } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Receipt, Search, Filter, CalendarRange, Wallet, AlertCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,16 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime } from '@/utils/formatTime'
 import InvoiceEditDialog from './InvoiceEditDialog'
 
+type PeriodKey = 'day' | 'week' | 'month' | 'all'
+type StatusKey = 'all' | 'PAID' | 'PARTIAL' | 'PENDING' | 'VOID'
+
+const PERIOD_LABEL: Record<PeriodKey, string> = {
+  day: 'Hôm nay',
+  week: 'Tuần này',
+  month: 'Tháng này',
+  all: 'Tất cả',
+}
+
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   PAID: { text: 'Đã trả', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   PARTIAL: { text: 'Còn nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -23,18 +33,53 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   VOID: { text: 'Đã hủy', cls: 'bg-rose-50 text-rose-700 border-rose-200 line-through' },
 }
 
+const EMPTY_SUMMARY = { totalRevenue: 0, totalDebt: 0, invoiceCount: 0 }
+
+function SummaryCard({
+  icon,
+  label,
+  value,
+  isLoading,
+  valueClassName = '',
+  skeletonWidth = 'w-32',
+}: {
+  icon: ReactNode
+  label: string
+  value: ReactNode
+  isLoading: boolean
+  valueClassName?: string
+  skeletonWidth?: string
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+        {icon}
+        {label}
+      </div>
+      {isLoading ? (
+        <Skeleton className={`h-7 ${skeletonWidth} mt-1.5`} />
+      ) : (
+        <div className={`text-2xl font-bold tabular-nums mt-1 ${valueClassName}`}>{value}</div>
+      )}
+    </div>
+  )
+}
+
 export default function InvoicesPage() {
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<string>('all')
+  const [status, setStatus] = useState<StatusKey>('all')
+  const [period, setPeriod] = useState<PeriodKey>('day')
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const { data, isLoading } = useInvoices({
     search: search.trim() || undefined,
-    status: status === 'all' ? undefined : (status as 'PAID' | 'PARTIAL' | 'PENDING' | 'VOID'),
+    status: status === 'all' ? undefined : status,
+    period: period === 'all' ? undefined : period,
     limit: 50,
   })
 
   const invoices = data?.data ?? []
+  const summary = data?.summary ?? EMPTY_SUMMARY
 
   return (
     <div className="space-y-4">
@@ -62,7 +107,18 @@ export default function InvoicesPage() {
             className="pl-9 h-10"
           />
         </div>
-        <Select value={status} onValueChange={setStatus}>
+        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
+          <SelectTrigger className="w-full sm:w-40 h-10">
+            <CalendarRange className="w-4 h-4 mr-1.5 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.entries(PERIOD_LABEL) as [PeriodKey, string][]).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={status} onValueChange={(v) => setStatus(v as StatusKey)}>
           <SelectTrigger className="w-full sm:w-44 h-10">
             <Filter className="w-4 h-4 mr-1.5 text-muted-foreground" />
             <SelectValue />
@@ -74,6 +130,29 @@ export default function InvoicesPage() {
             <SelectItem value="VOID">Đã hủy</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <SummaryCard
+          icon={<Wallet className="w-3.5 h-3.5" />}
+          label={`Doanh thu ${PERIOD_LABEL[period].toLowerCase()}`}
+          value={formatCurrency(summary.totalRevenue)}
+          isLoading={isLoading}
+        />
+        <SummaryCard
+          icon={<Receipt className="w-3.5 h-3.5" />}
+          label="Số hóa đơn"
+          value={summary.invoiceCount}
+          isLoading={isLoading}
+          skeletonWidth="w-16"
+        />
+        <SummaryCard
+          icon={<AlertCircle className="w-3.5 h-3.5" />}
+          label="Còn nợ"
+          value={formatCurrency(summary.totalDebt)}
+          isLoading={isLoading}
+          valueClassName={summary.totalDebt > 0 ? 'text-amber-700' : ''}
+        />
       </div>
 
       {/* Table */}

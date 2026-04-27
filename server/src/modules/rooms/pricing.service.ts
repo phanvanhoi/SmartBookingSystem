@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma'
 import { PriceBreakdown, PriceSegment } from '../../types'
+import { getBusinessHours, businessDayOfWeek } from '../../utils/business-day'
 
 // ─── Internal type for DB pricing rule ───────────────────────────────────────
 interface PricingRuleRecord {
@@ -30,18 +31,15 @@ function parseDayOfWeek(val: string): number[] {
   try { return JSON.parse(val) } catch { return [] }
 }
 
-// ─── Find which rule applies to a specific MOMENT in time ───────────────────
-// Per-minute lookup: both the time-of-day AND day-of-week of the moment are
-// considered. This way an overnight session that crosses midnight switches
-// rate when the calendar day changes — e.g. Fri 22:00 → Sat 04:00 bills the
-// Friday-night portion at T2-T6 night rate and the post-midnight Saturday
-// portion at T7-CN night rate, matching the operator convention that
-// weekend prices kick in the moment Saturday begins.
+// Per-minute rule lookup. Day-of-week follows the configured business day
+// (endHour, default 5), not midnight — so 00h-05h Mon vẫn được tính theo
+// CN tối (rule "T7-CN"), không chuyển sang T2-T6 lúc qua 00:00.
 function findRuleForMoment(
   date: Date,
   rules: PricingRuleRecord[],
+  endHour: number,
 ): PricingRuleRecord | undefined {
-  const dayOfWeek = date.getDay()
+  const dayOfWeek = businessDayOfWeek(date, endHour)
   const minuteOfDay = date.getHours() * 60 + date.getMinutes()
 
   return rules.find((rule) => {
@@ -67,6 +65,7 @@ function splitByTimeSlots(
   checkIn: Date,
   checkOut: Date,
   rules: PricingRuleRecord[],
+  endHour: number,
 ): PriceSegment[] {
   const segments: PriceSegment[] = []
 
@@ -88,12 +87,12 @@ function splitByTimeSlots(
   let segmentStart = new Date(checkIn)
   let currentRule: PricingRuleRecord | undefined
 
-  currentRule = findRuleForMoment(cursor, rules)
+  currentRule = findRuleForMoment(cursor, rules, endHour)
 
   for (let i = 0; i < totalMinutes; i++) {
     const next = new Date(cursor.getTime() + 60_000)
     const nextRule = i + 1 < totalMinutes
-      ? findRuleForMoment(next, rules)
+      ? findRuleForMoment(next, rules, endHour)
       : undefined
 
     const ruleChanging = nextRule?.id !== currentRule?.id || i + 1 >= totalMinutes
@@ -135,7 +134,8 @@ export async function calculateRoomPrice(
   checkOutTime: Date,
   roomTypeId: number,
 ): Promise<PriceBreakdown> {
-  const dayOfWeek = checkInTime.getDay() // 0=Sun … 6=Sat (used for surcharges only)
+  const { endHour } = await getBusinessHours()
+  const dayOfWeek = businessDayOfWeek(checkInTime, endHour)
 
   // Helper: check if dayOfWeek matches
   function matchesDayOfWeek(val: string, dow: number): boolean {
@@ -221,7 +221,7 @@ export async function calculateRoomPrice(
       : checkOutTime
 
   // 5. Split time into price segments
-  const segments = splitByTimeSlots(checkInTime, effectiveCheckOut, rules)
+  const segments = splitByTimeSlots(checkInTime, effectiveCheckOut, rules, endHour)
 
   // 6. Calculate subtotal
   const subtotal = segments.reduce((sum, s) => sum + s.amount, 0)
