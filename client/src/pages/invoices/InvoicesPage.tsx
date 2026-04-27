@@ -16,11 +16,12 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime } from '@/utils/formatTime'
 import InvoiceEditDialog from './InvoiceEditDialog'
 
-type PeriodKey = 'day' | 'week' | 'month' | 'all'
+type PeriodKey = 'day' | 'yesterday' | 'week' | 'month' | 'all'
 type StatusKey = 'all' | 'PAID' | 'PARTIAL' | 'PENDING' | 'VOID'
 
 const PERIOD_LABEL: Record<PeriodKey, string> = {
   day: 'Hôm nay',
+  yesterday: 'Hôm qua',
   week: 'Tuần này',
   month: 'Tháng này',
   all: 'Tất cả',

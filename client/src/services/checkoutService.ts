@@ -92,7 +92,7 @@ export interface InvoiceListParams {
   page?: number
   limit?: number
   /** Bộ lọc nhanh theo cửa sổ business-day (mốc 5h sáng). */
-  period?: 'day' | 'week' | 'month'
+  period?: 'day' | 'yesterday' | 'week' | 'month'
   dateFrom?: string
   dateTo?: string
   status?: 'PENDING' | 'PAID' | 'PARTIAL' | 'VOID'

@@ -361,12 +361,15 @@ export async function getQRCode() {
  * Khoảng [from, to) cho filter doanh thu theo cửa sổ business-day.
  * Tuần bắt đầu thứ 2; ranh giới là endHour (vd 5h sáng) — không phải 00:00.
  */
-async function resolvePeriodRange(period: 'day' | 'week' | 'month'): Promise<{ from: Date; to: Date }> {
+async function resolvePeriodRange(
+  period: 'day' | 'yesterday' | 'week' | 'month',
+): Promise<{ from: Date; to: Date }> {
   const { endHour } = await getBusinessHours()
   const bdDate = businessDayDate(new Date(), endHour)
 
-  if (period === 'day') {
+  if (period === 'day' || period === 'yesterday') {
     const from = new Date(bdDate)
+    if (period === 'yesterday') from.setDate(from.getDate() - 1)
     from.setHours(endHour, 0, 0, 0)
     const to = new Date(from)
     to.setDate(to.getDate() + 1)
