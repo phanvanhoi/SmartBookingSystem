@@ -11,13 +11,6 @@ import type { CheckoutInput, InvoiceQueryInput } from './checkout.validation'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const TIER_DISCOUNT_PCT: Record<string, number> = {
-  REGULAR: 0,
-  SILVER: 5,
-  GOLD: 10,
-  VIP: 15,
-}
-
 // Sum a list of Prisma.Decimal values and return an integer VND amount.
 // Decimal arithmetic keeps full precision; final round to avoid off-by-1đ.
 function sumVnd(values: Array<Prisma.Decimal | number | null | undefined>): number {
@@ -139,18 +132,9 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
     }
   }
 
-  // 5c. Member discount on room charge only
-  let memberDiscountAmount = 0
-  if (session.customer) {
-    const pct = TIER_DISCOUNT_PCT[session.customer.tier] ?? 0
-    if (pct > 0) {
-      memberDiscountAmount = Math.round(roomCharge * (pct / 100))
-    }
-  }
-
-  // 5d. Total discount (cannot exceed subtotal)
+  // 5c. Total discount (cannot exceed subtotal)
   const totalDiscount = Math.min(
-    voucherDiscountAmount + validatedManualDiscount + memberDiscountAmount,
+    voucherDiscountAmount + validatedManualDiscount,
     subtotal,
   )
 
@@ -158,9 +142,6 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   const discountReasons: string[] = []
   if (voucherDiscountAmount > 0 && appliedVoucherCode) {
     discountReasons.push(`Voucher ${appliedVoucherCode}`)
-  }
-  if (memberDiscountAmount > 0 && session.customer) {
-    discountReasons.push(`Thành viên ${session.customer.tier}`)
   }
   if (validatedManualDiscount > 0 && discountReason) {
     discountReasons.push(discountReason)

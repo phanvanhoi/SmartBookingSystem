@@ -143,27 +143,6 @@ export async function checkout(sessionId: number, _userId: number) {
   const orderTotal = session.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0)
   const subtotal = priceBreakdown.total + orderTotal
 
-  // Member discount (informational only — actual invoice created in Task 12)
-  let memberDiscount: Record<string, unknown> | null = null
-  if (session.customer) {
-    const tierDiscounts: Record<string, number> = {
-      REGULAR: 0,
-      SILVER: 5,
-      GOLD: 10,
-      VIP: 15,
-    }
-    const pct = tierDiscounts[session.customer.tier] ?? 0
-    if (pct > 0) {
-      const discountAmount = Math.round(priceBreakdown.total * (pct / 100))
-      memberDiscount = {
-        tier: session.customer.tier,
-        percentage: pct,
-        amount: discountAmount,
-        appliesTo: 'room',
-      }
-    }
-  }
-
   // Get deposit from booking if any
   const booking = await prisma.booking.findFirst({
     where: {
@@ -175,8 +154,7 @@ export async function checkout(sessionId: number, _userId: number) {
   })
   const depositAvailable = booking ? Number(booking.depositAmount) : 0
 
-  const memberDiscountAmount = memberDiscount ? Number(memberDiscount.amount) : 0
-  const rawGrandTotal = Math.max(0, subtotal - memberDiscountAmount - depositAvailable)
+  const rawGrandTotal = Math.max(0, subtotal - depositAvailable)
 
   // Apply ceiling round (e.g. 45,333 → 46,000) so the preview matches the
   // invoice that processCheckout will save. Owner configures via Settings.
@@ -207,9 +185,7 @@ export async function checkout(sessionId: number, _userId: number) {
     })),
     orderTotal,
     subtotal,
-    applicableDiscounts: memberDiscount
-      ? { memberDiscount }
-      : {},
+    applicableDiscounts: {},
     depositAvailable,
     grandTotal,
   }
