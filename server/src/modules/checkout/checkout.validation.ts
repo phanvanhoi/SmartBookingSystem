@@ -36,6 +36,7 @@ export const invoiceQuerySchema = z.object({
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   status: z.enum(['PENDING', 'PAID', 'PARTIAL', 'VOID']).optional(),
+  paymentMethod: z.enum(['CASH', 'QR_TRANSFER', 'DEBT']).optional(),
   search: z.string().trim().optional(),
 })
 

@@ -93,9 +93,12 @@ export interface InvoiceListParams {
   limit?: number
   /** Bộ lọc nhanh theo cửa sổ business-day (mốc 5h sáng). */
   period?: 'day' | 'yesterday' | 'week' | 'month'
+  /** YYYY-MM-DD; coi như business-date, range = [from 5h, (to+1) 5h). */
   dateFrom?: string
   dateTo?: string
   status?: 'PENDING' | 'PAID' | 'PARTIAL' | 'VOID'
+  /** Match invoice có ≥1 payment thuộc method được chọn. */
+  paymentMethod?: 'CASH' | 'QR_TRANSFER' | 'DEBT'
   search?: string
 }
 
@@ -103,6 +106,8 @@ export interface InvoiceSummary {
   totalRevenue: number
   totalDebt: number
   invoiceCount: number
+  cashTotal: number
+  qrTotal: number
 }
 
 export interface PaginatedInvoices {
@@ -152,6 +157,8 @@ export const checkoutService = {
         totalRevenue: 0,
         totalDebt: 0,
         invoiceCount: 0,
+        cashTotal: 0,
+        qrTotal: 0,
       },
     }
   },

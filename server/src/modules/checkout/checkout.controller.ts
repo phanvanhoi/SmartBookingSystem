@@ -72,6 +72,7 @@ export async function getInvoicesHandler(
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
       status: query.status,
+      paymentMethod: query.paymentMethod,
       search: query.search,
     })
 

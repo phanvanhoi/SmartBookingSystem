@@ -1,5 +1,15 @@
 import { useState, type ReactNode } from 'react'
-import { Receipt, Search, Filter, CalendarRange, Wallet, AlertCircle } from 'lucide-react'
+import {
+  Receipt,
+  Search,
+  Filter,
+  CalendarRange,
+  Wallet,
+  AlertCircle,
+  Banknote,
+  QrCode,
+  CreditCard,
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +28,7 @@ import InvoiceEditDialog from './InvoiceEditDialog'
 
 type PeriodKey = 'day' | 'yesterday' | 'week' | 'month' | 'all'
 type StatusKey = 'all' | 'PAID' | 'PARTIAL' | 'PENDING' | 'VOID'
+type PaymentKey = 'all' | 'CASH' | 'QR_TRANSFER' | 'DEBT'
 
 const PERIOD_LABEL: Record<PeriodKey, string> = {
   day: 'Hôm nay',
@@ -27,6 +38,13 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
   all: 'Tất cả',
 }
 
+const PAYMENT_LABEL: Record<PaymentKey, string> = {
+  all: 'Tất cả thanh toán',
+  CASH: 'Tiền mặt',
+  QR_TRANSFER: 'Chuyển khoản (QR)',
+  DEBT: 'Ghi nợ',
+}
+
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   PAID: { text: 'Đã trả', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   PARTIAL: { text: 'Còn nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -34,7 +52,13 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   VOID: { text: 'Đã hủy', cls: 'bg-rose-50 text-rose-700 border-rose-200 line-through' },
 }
 
-const EMPTY_SUMMARY = { totalRevenue: 0, totalDebt: 0, invoiceCount: 0 }
+const EMPTY_SUMMARY = {
+  totalRevenue: 0,
+  totalDebt: 0,
+  invoiceCount: 0,
+  cashTotal: 0,
+  qrTotal: 0,
+}
 
 function SummaryCard({
   icon,
@@ -70,17 +94,44 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StatusKey>('all')
   const [period, setPeriod] = useState<PeriodKey>('day')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentKey>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
+
+  const hasCustomRange = dateFrom !== '' || dateTo !== ''
+
+  // Server đã ưu tiên period > custom range — UI mirror để rõ ràng:
+  // chọn period quick → bỏ custom range; nhập custom range → period='all'.
+  function handlePeriodChange(next: PeriodKey) {
+    setPeriod(next)
+    if (next !== 'all') {
+      setDateFrom('')
+      setDateTo('')
+    }
+  }
+  function handleDateChange(field: 'from' | 'to', value: string) {
+    if (field === 'from') setDateFrom(value)
+    else setDateTo(value)
+    if (value !== '') setPeriod('all')
+  }
 
   const { data, isLoading } = useInvoices({
     search: search.trim() || undefined,
     status: status === 'all' ? undefined : status,
-    period: period === 'all' ? undefined : period,
+    period: hasCustomRange || period === 'all' ? undefined : period,
+    dateFrom: hasCustomRange ? dateFrom || undefined : undefined,
+    dateTo: hasCustomRange ? dateTo || undefined : undefined,
+    paymentMethod: paymentMethod === 'all' ? undefined : paymentMethod,
     limit: 50,
   })
 
   const invoices = data?.data ?? []
   const summary = data?.summary ?? EMPTY_SUMMARY
+
+  const revenueLabel = hasCustomRange
+    ? 'Doanh thu (khoảng đã chọn)'
+    : `Doanh thu ${PERIOD_LABEL[period].toLowerCase()}`
 
   return (
     <div className="space-y-4">
@@ -97,55 +148,100 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Tìm theo số hóa đơn hoặc tên khách..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10"
-          />
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Tìm theo số hóa đơn hoặc tên khách..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-10"
+            />
+          </div>
+          <Select value={period} onValueChange={(v) => handlePeriodChange(v as PeriodKey)}>
+            <SelectTrigger className="w-full sm:w-40 h-10">
+              <CalendarRange className="w-4 h-4 mr-1.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(PERIOD_LABEL) as [PeriodKey, string][]).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={(v) => setStatus(v as StatusKey)}>
+            <SelectTrigger className="w-full sm:w-44 h-10">
+              <Filter className="w-4 h-4 mr-1.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả trạng thái</SelectItem>
+              <SelectItem value="PAID">Đã trả</SelectItem>
+              <SelectItem value="PARTIAL">Còn nợ</SelectItem>
+              <SelectItem value="VOID">Đã hủy</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKey)}>
-          <SelectTrigger className="w-full sm:w-40 h-10">
-            <CalendarRange className="w-4 h-4 mr-1.5 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.entries(PERIOD_LABEL) as [PeriodKey, string][]).map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={(v) => setStatus(v as StatusKey)}>
-          <SelectTrigger className="w-full sm:w-44 h-10">
-            <Filter className="w-4 h-4 mr-1.5 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tất cả trạng thái</SelectItem>
-            <SelectItem value="PAID">Đã trả</SelectItem>
-            <SelectItem value="PARTIAL">Còn nợ</SelectItem>
-            <SelectItem value="VOID">Đã hủy</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="flex items-center gap-2 flex-1">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => handleDateChange('from', e.target.value)}
+              className="h-10 w-full sm:w-44"
+              aria-label="Từ ngày"
+            />
+            <span className="text-muted-foreground text-sm">→</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => handleDateChange('to', e.target.value)}
+              className="h-10 w-full sm:w-44"
+              aria-label="Đến ngày"
+            />
+            {hasCustomRange && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setDateFrom('')
+                  setDateTo('')
+                }}
+              >
+                Xóa khoảng
+              </Button>
+            )}
+          </div>
+          <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentKey)}>
+            <SelectTrigger className="w-full sm:w-52 h-10">
+              <CreditCard className="w-4 h-4 mr-1.5 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(PAYMENT_LABEL) as [PaymentKey, string][]).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard
-          icon={<Wallet className="w-3.5 h-3.5" />}
-          label={`Doanh thu ${PERIOD_LABEL[period].toLowerCase()}`}
-          value={formatCurrency(summary.totalRevenue)}
+          icon={<Banknote className="w-3.5 h-3.5" />}
+          label="Tiền mặt"
+          value={formatCurrency(summary.cashTotal)}
           isLoading={isLoading}
+          valueClassName="text-emerald-700"
         />
         <SummaryCard
-          icon={<Receipt className="w-3.5 h-3.5" />}
-          label="Số hóa đơn"
-          value={summary.invoiceCount}
+          icon={<QrCode className="w-3.5 h-3.5" />}
+          label="Chuyển khoản (QR)"
+          value={formatCurrency(summary.qrTotal)}
           isLoading={isLoading}
-          skeletonWidth="w-16"
+          valueClassName="text-sky-700"
         />
         <SummaryCard
           icon={<AlertCircle className="w-3.5 h-3.5" />}
@@ -153,6 +249,19 @@ export default function InvoicesPage() {
           value={formatCurrency(summary.totalDebt)}
           isLoading={isLoading}
           valueClassName={summary.totalDebt > 0 ? 'text-amber-700' : ''}
+        />
+        <SummaryCard
+          icon={<Wallet className="w-3.5 h-3.5" />}
+          label={revenueLabel}
+          value={
+            <span className="flex items-baseline gap-2">
+              {formatCurrency(summary.totalRevenue)}
+              <span className="text-xs font-normal text-muted-foreground">
+                · {summary.invoiceCount} HĐ
+              </span>
+            </span>
+          }
+          isLoading={isLoading}
         />
       </div>
 

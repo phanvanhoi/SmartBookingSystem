@@ -373,8 +373,33 @@ async function resolvePeriodRange(
   return { from, to }
 }
 
+/**
+ * Custom date range theo business-day boundary: dateFrom/dateTo coi như
+ * YYYY-MM-DD business-date, range = [dateFrom endHour, (dateTo+1) endHour).
+ * Vd 5h: dateFrom=2026-05-01, dateTo=2026-05-03 → [01/5 5h, 04/5 5h).
+ */
+async function resolveCustomRange(
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+): Promise<{ gte?: Date; lt?: Date }> {
+  const { endHour } = await getBusinessHours()
+  const range: { gte?: Date; lt?: Date } = {}
+  if (dateFrom) {
+    const d = new Date(dateFrom)
+    d.setHours(endHour, 0, 0, 0)
+    range.gte = d
+  }
+  if (dateTo) {
+    const d = new Date(dateTo)
+    d.setDate(d.getDate() + 1)
+    d.setHours(endHour, 0, 0, 0)
+    range.lt = d
+  }
+  return range
+}
+
 export async function getInvoices(filters: InvoiceQueryInput) {
-  const { page = 1, limit = 20, period, dateFrom, dateTo, status, search } = filters
+  const { page = 1, limit = 20, period, dateFrom, dateTo, status, paymentMethod, search } = filters
   const skip = (page - 1) * limit
 
   const where: Record<string, unknown> = {}
@@ -386,10 +411,11 @@ export async function getInvoices(filters: InvoiceQueryInput) {
     const range = await resolvePeriodRange(period)
     where.createdAt = { gte: range.from, lt: range.to }
   } else if (dateFrom || dateTo) {
-    where.createdAt = {
-      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-      ...(dateTo ? { lte: new Date(`${dateTo}T23:59:59.999Z`) } : {}),
-    }
+    where.createdAt = await resolveCustomRange(dateFrom, dateTo)
+  }
+
+  if (paymentMethod) {
+    where.payments = { some: { method: paymentMethod } }
   }
 
   if (search) {
@@ -407,7 +433,7 @@ export async function getInvoices(filters: InvoiceQueryInput) {
   // để tổng doanh thu phản ánh toàn bộ khoảng thời gian.
   const summaryWhere: Record<string, unknown> = { ...where, status: { in: ['PAID', 'PARTIAL'] } }
 
-  const [invoices, total, summaryAgg] = await Promise.all([
+  const [invoices, total, summaryAgg, cashAgg, qrAgg] = await Promise.all([
     prisma.invoice.findMany({
       where,
       skip,
@@ -434,11 +460,21 @@ export async function getInvoices(filters: InvoiceQueryInput) {
       _sum: { grandTotal: true, debtAmount: true },
       _count: { _all: true },
     }),
+    prisma.payment.aggregate({
+      where: { method: 'CASH', invoice: summaryWhere },
+      _sum: { amount: true },
+    }),
+    prisma.payment.aggregate({
+      where: { method: 'QR_TRANSFER', invoice: summaryWhere },
+      _sum: { amount: true },
+    }),
   ])
 
   const totalRevenue = Number(summaryAgg._sum.grandTotal ?? 0)
   const totalDebt = Number(summaryAgg._sum.debtAmount ?? 0)
   const invoiceCount = summaryAgg._count._all
+  const cashTotal = Number(cashAgg._sum.amount ?? 0)
+  const qrTotal = Number(qrAgg._sum.amount ?? 0)
 
   return {
     data: invoices.map(mapInvoice),
@@ -452,6 +488,8 @@ export async function getInvoices(filters: InvoiceQueryInput) {
       totalRevenue,
       totalDebt,
       invoiceCount,
+      cashTotal,
+      qrTotal,
     },
   }
 }
