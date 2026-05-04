@@ -17,6 +17,14 @@ Thumbs.db
 # Prisma
 server/prisma/migrations/*
 !server/prisma/migrations/.gitkeep
+# SQLite local dev DB — mỗi máy mỗi khác, không nên share qua git
+server/prisma/*.db
+server/prisma/*.db-journal
+server/prisma/*.db-shm
+server/prisma/*.db-wal
+
+# Runtime logs
+server/logs/
 
 # Uploads
 uploads/qr/*
