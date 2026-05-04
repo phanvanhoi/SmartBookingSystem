@@ -110,6 +110,14 @@ export interface InvoiceSummary {
   qrTotal: number
 }
 
+export const EMPTY_INVOICE_SUMMARY: InvoiceSummary = {
+  totalRevenue: 0,
+  totalDebt: 0,
+  invoiceCount: 0,
+  cashTotal: 0,
+  qrTotal: 0,
+}
+
 export interface PaginatedInvoices {
   data: Invoice[]
   pagination: {
@@ -153,13 +161,7 @@ export const checkoutService = {
     return {
       data: response.data.data ?? [],
       pagination: response.data.pagination!,
-      summary: response.data.summary ?? {
-        totalRevenue: 0,
-        totalDebt: 0,
-        invoiceCount: 0,
-        cashTotal: 0,
-        qrTotal: 0,
-      },
+      summary: response.data.summary ?? EMPTY_INVOICE_SUMMARY,
     }
   },
 

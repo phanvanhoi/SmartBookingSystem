@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useInvoices } from '@/hooks/useCheckout'
+import { EMPTY_INVOICE_SUMMARY } from '@/services/checkoutService'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime } from '@/utils/formatTime'
 import InvoiceEditDialog from './InvoiceEditDialog'
@@ -50,14 +51,6 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   PARTIAL: { text: 'Còn nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   PENDING: { text: 'Chờ', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
   VOID: { text: 'Đã hủy', cls: 'bg-rose-50 text-rose-700 border-rose-200 line-through' },
-}
-
-const EMPTY_SUMMARY = {
-  totalRevenue: 0,
-  totalDebt: 0,
-  invoiceCount: 0,
-  cashTotal: 0,
-  qrTotal: 0,
 }
 
 function SummaryCard({
@@ -99,7 +92,9 @@ export default function InvoicesPage() {
   const [dateTo, setDateTo] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
 
-  const hasCustomRange = dateFrom !== '' || dateTo !== ''
+  // Cần cả 2 mốc để filter — tránh user nhập 1 mốc rồi tưởng đã lọc.
+  const hasCustomRange = dateFrom !== '' && dateTo !== ''
+  const partialRange = (dateFrom !== '') !== (dateTo !== '')
 
   // Server đã ưu tiên period > custom range — UI mirror để rõ ràng:
   // chọn period quick → bỏ custom range; nhập custom range → period='all'.
@@ -127,11 +122,13 @@ export default function InvoicesPage() {
   })
 
   const invoices = data?.data ?? []
-  const summary = data?.summary ?? EMPTY_SUMMARY
+  const summary = data?.summary ?? EMPTY_INVOICE_SUMMARY
 
   const revenueLabel = hasCustomRange
     ? 'Doanh thu (khoảng đã chọn)'
-    : `Doanh thu ${PERIOD_LABEL[period].toLowerCase()}`
+    : period === 'all'
+      ? 'Tổng doanh thu'
+      : `Doanh thu ${PERIOD_LABEL[period].toLowerCase()}`
 
   return (
     <div className="space-y-4">
@@ -184,7 +181,7 @@ export default function InvoicesPage() {
           </Select>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex flex-wrap items-center gap-2 flex-1">
             <Input
               type="date"
               value={dateFrom}
@@ -200,7 +197,7 @@ export default function InvoicesPage() {
               className="h-10 w-full sm:w-44"
               aria-label="Đến ngày"
             />
-            {hasCustomRange && (
+            {(hasCustomRange || partialRange) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -212,6 +209,9 @@ export default function InvoicesPage() {
               >
                 Xóa khoảng
               </Button>
+            )}
+            {partialRange && (
+              <span className="text-xs text-amber-700">Cần cả Từ và Đến ngày</span>
             )}
           </div>
           <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentKey)}>

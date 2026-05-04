@@ -373,6 +373,14 @@ async function resolvePeriodRange(
   return { from, to }
 }
 
+// Parse YYYY-MM-DD as a local date — `new Date('2026-05-01')` parses as
+// UTC midnight, which on a server in a negative-offset timezone shifts to
+// the previous calendar day. Explicit local construction avoids that.
+function parseLocalYmd(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 /**
  * Custom date range theo business-day boundary: dateFrom/dateTo coi như
  * YYYY-MM-DD business-date, range = [dateFrom endHour, (dateTo+1) endHour).
@@ -385,12 +393,12 @@ async function resolveCustomRange(
   const { endHour } = await getBusinessHours()
   const range: { gte?: Date; lt?: Date } = {}
   if (dateFrom) {
-    const d = new Date(dateFrom)
+    const d = parseLocalYmd(dateFrom)
     d.setHours(endHour, 0, 0, 0)
     range.gte = d
   }
   if (dateTo) {
-    const d = new Date(dateTo)
+    const d = parseLocalYmd(dateTo)
     d.setDate(d.getDate() + 1)
     d.setHours(endHour, 0, 0, 0)
     range.lt = d
