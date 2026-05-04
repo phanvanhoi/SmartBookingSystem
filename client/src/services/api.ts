@@ -47,7 +47,15 @@ export function clearAuthSession() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Sliding session: server cấp lại token khi gần hết hạn. Lưu ngay vào
+    // localStorage + authStore để request kế tiếp + UI cùng dùng.
+    const newToken = response.headers['x-new-token']
+    if (typeof newToken === 'string' && newToken) {
+      useAuthStore.getState().setToken(newToken)
+    }
+    return response
+  },
   (error) => {
     const status = error.response?.status
     if (status === 401) {

@@ -17,14 +17,14 @@ interface JwtPayload {
   fullName: string
 }
 
-function signToken(payload: JwtPayload): string {
+export function signToken(payload: JwtPayload): string {
   const secret = process.env.JWT_SECRET
   if (!secret) {
     throw new AppError(500, 'INTERNAL_ERROR', 'JWT_SECRET chưa được cấu hình')
   }
 
   // Keep this default in sync with docker-compose.yml and .env.example.
-  const expiresIn = process.env.JWT_EXPIRES_IN ?? '12h'
+  const expiresIn = process.env.JWT_EXPIRES_IN ?? '30d'
 
   return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions)
 }

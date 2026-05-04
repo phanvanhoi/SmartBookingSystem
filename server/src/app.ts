@@ -77,6 +77,9 @@ app.use(
       return callback(new Error(`CORS: origin ${origin} not allowed`))
     },
     credentials: true,
+    // Browser ẩn mọi response header không-safelisted trừ khi expose. Sliding
+    // session yêu cầu client đọc được X-New-Token.
+    exposedHeaders: ['X-New-Token'],
   }),
 )
 app.use(compression())

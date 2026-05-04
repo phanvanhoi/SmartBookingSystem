@@ -19,6 +19,8 @@ interface AuthStore {
   isAuthenticated: boolean
 
   login: (token: string, user: AuthUser) => void
+  /** Cập nhật chỉ token (sliding refresh) — không đụng auth_user. */
+  setToken: (token: string) => void
   logout: () => void
 }
 
@@ -59,6 +61,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
     localStorage.setItem('token', token)
     localStorage.setItem('auth_user', JSON.stringify(user))
     set({ token, user, isAuthenticated: true })
+  },
+
+  setToken: (token) => {
+    localStorage.setItem('token', token)
+    set({ token })
   },
 
   logout: () => {
