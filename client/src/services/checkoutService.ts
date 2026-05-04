@@ -16,6 +16,8 @@ export interface CheckoutData {
   depositApplied?: number
   payments: PaymentItem[]
   notes?: string
+  /** ISO datetime của lúc preview — server cap 10 phút, ngoài cap dùng now. */
+  checkOutTime?: string
 }
 
 // ─── Response types ────────────────────────────────────────────────────────────

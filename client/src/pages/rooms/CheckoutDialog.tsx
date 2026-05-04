@@ -71,6 +71,8 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
     const payload: ProcessCheckoutPayload = {
       sessionId,
       payments,
+      // Freeze giá tại thời điểm preview — server validate + cap 10 phút.
+      checkOutTime: billData.checkOutTime,
       ...(discountAmount > 0
         ? {
             discountAmount,

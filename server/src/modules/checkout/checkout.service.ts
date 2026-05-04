@@ -22,6 +22,25 @@ function sumVnd(values: Array<Prisma.Decimal | number | null | undefined>): numb
   return Math.round(total.toNumber())
 }
 
+// Freeze giá khi cashier mở dialog: client gửi lại checkOutTime đã preview.
+// Cap 10 phút — quá thì server tự dùng `new Date()` để tránh dialog quên.
+const FREEZE_CAP_MS = 10 * 60 * 1000
+const FUTURE_SKEW_MS = 60 * 1000
+
+function resolveCheckoutTime(
+  requested: string | undefined,
+  sessionCheckIn: Date,
+  now: Date,
+): Date {
+  if (!requested) return now
+  const candidate = new Date(requested)
+  if (Number.isNaN(candidate.getTime())) return now
+  if (candidate < sessionCheckIn) return now
+  if (candidate.getTime() > now.getTime() + FUTURE_SKEW_MS) return now
+  if (now.getTime() - candidate.getTime() > FREEZE_CAP_MS) return now
+  return candidate
+}
+
 async function generateInvoiceNumber(): Promise<string> {
   const now = new Date()
   const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
@@ -80,7 +99,15 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
     throw new AppError(400, 'SESSION_NOT_ACTIVE', 'Session không ở trạng thái ACTIVE')
   }
 
-  const checkOutTime = new Date()
+  const now = new Date()
+  const checkOutTime = resolveCheckoutTime(data.checkOutTime, session.checkInTime, now)
+  if (data.checkOutTime && checkOutTime.getTime() === now.getTime()) {
+    logger.warn('[checkout] frozen checkOutTime ignored', {
+      sessionId,
+      requested: data.checkOutTime,
+      fallbackTo: now.toISOString(),
+    })
+  }
 
   // 2. Calculate room charge
   const priceBreakdown = await calculateRoomPrice(

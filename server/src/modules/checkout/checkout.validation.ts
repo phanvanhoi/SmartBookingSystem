@@ -12,6 +12,10 @@ export const checkoutSchema = z.object({
 
   depositApplied: z.number().min(0).default(0).optional(),
 
+  // Freeze giá tại thời điểm dialog mở. Server validate + cap 10 phút,
+  // ngoài cap thì fall back sang now (xem checkout.service:resolveCheckoutTime).
+  checkOutTime: z.string().datetime({ offset: true }).optional(),
+
   payments: z
     .array(
       z.object({
