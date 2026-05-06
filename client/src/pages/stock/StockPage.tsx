@@ -60,6 +60,10 @@ interface ProductFormData {
   isActive: boolean
 }
 
+// Radix Select không cho empty string làm value, dùng sentinel này cho
+// option "không chọn nhà cung cấp"; convert về undefined trước khi gửi API.
+const NO_SUPPLIER = 'none'
+
 const emptyProductForm: ProductFormData = {
   name: '',
   sku: '',
@@ -68,7 +72,7 @@ const emptyProductForm: ProductFormData = {
   packSize: '24',
   costPrice: '0',
   minStock: '0',
-  supplierId: '',
+  supplierId: NO_SUPPLIER,
   isActive: true,
 }
 
@@ -95,7 +99,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
           packSize: String(product.packSize),
           costPrice: String(product.costPrice),
           minStock: String(product.minStock),
-          supplierId: product.supplier ? String(product.supplier.id) : '',
+          supplierId: product.supplier ? String(product.supplier.id) : NO_SUPPLIER,
           isActive: product.isActive,
         }
       : emptyProductForm
@@ -112,7 +116,10 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
       packSize: Number(form.packSize),
       costPrice: Number(form.costPrice),
       minStock: Number(form.minStock),
-      supplierId: form.supplierId ? Number(form.supplierId) : undefined,
+      supplierId:
+        form.supplierId && form.supplierId !== NO_SUPPLIER
+          ? Number(form.supplierId)
+          : undefined,
       isActive: form.isActive,
     }
 
@@ -199,7 +206,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
                   <SelectValue placeholder="Chọn NCC..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— Không có —</SelectItem>
+                  <SelectItem value={NO_SUPPLIER}>— Không có —</SelectItem>
                   {suppliers.map((s) => (
                     <SelectItem key={s.id} value={String(s.id)}>
                       {s.name}
