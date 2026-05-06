@@ -36,7 +36,9 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
   const [items, setItems] = useState<EntryItem[]>([{ productId: null, quantity: 1, unitCost: 0 }])
   const [notes, setNotes] = useState('')
 
-  const { data: productsData } = useProducts({ limit: 200 })
+  // Server cap limit ở 100; vượt sẽ 422. Đủ cho ~17 product hiện tại;
+  // khi vượt 100 cần đổi sang typeahead/search thay vì load all.
+  const { data: productsData } = useProducts({ limit: 100 })
   const { data: suppliersData } = useSuppliers()
   const createEntry = useCreateStockEntry()
 
