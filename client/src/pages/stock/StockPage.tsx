@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Package,
   Plus,
@@ -76,6 +76,20 @@ const emptyProductForm: ProductFormData = {
   isActive: true,
 }
 
+function productToForm(product: Product): ProductFormData {
+  return {
+    name: product.name,
+    sku: product.sku ?? '',
+    category: product.category ?? '',
+    unit: product.unit,
+    packSize: String(product.packSize),
+    costPrice: String(product.costPrice),
+    minStock: String(product.minStock),
+    supplierId: product.supplier ? String(product.supplier.id) : NO_SUPPLIER,
+    isActive: product.isActive,
+  }
+}
+
 interface ProductDialogProps {
   open: boolean
   onClose: () => void
@@ -89,21 +103,16 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
   const createProduct = useCreateProduct()
   const updateProduct = useUpdateProduct()
 
-  const [form, setForm] = useState<ProductFormData>(() =>
-    product
-      ? {
-          name: product.name,
-          sku: product.sku ?? '',
-          category: product.category ?? '',
-          unit: product.unit,
-          packSize: String(product.packSize),
-          costPrice: String(product.costPrice),
-          minStock: String(product.minStock),
-          supplierId: product.supplier ? String(product.supplier.id) : NO_SUPPLIER,
-          isActive: product.isActive,
-        }
-      : emptyProductForm
-  )
+  const [form, setForm] = useState<ProductFormData>(emptyProductForm)
+
+  // Dialog được mount thường trú; khi prop product đổi (click Edit sản
+  // phẩm khác, hoặc chuyển giữa Add/Edit) phải reset form thủ công vì
+  // useState initializer chỉ chạy lần đầu.
+  useEffect(() => {
+    if (open) {
+      setForm(product ? productToForm(product) : emptyProductForm)
+    }
+  }, [open, product])
 
   const isSaving = createProduct.isPending || updateProduct.isPending
 
