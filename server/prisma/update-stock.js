@@ -1,20 +1,25 @@
 /**
  * Cập nhật tồn kho theo kiểm kê thực tế.
  *
- * Usage (local dev):
- *   cd server && npx ts-node --transpile-only prisma/update-stock.ts
+ * Plain CommonJS — chạy được trong production container (không có ts-node).
+ * Giữ đồng bộ với update-stock.ts nếu sửa dữ liệu.
  *
- * VPS / production Docker (no ts-node in image):
+ * Local:
+ *   cd server && node prisma/update-stock.js
+ *
+ * VPS (Docker):
+ *   cd /opt/SmartBookingSystem
+ *   git pull
+ *   docker compose up -d --build
  *   docker exec musicbox-app node prisma/update-stock.js
- *   Keep update-stock.js in sync when editing this file.
  */
 
-import { PrismaClient } from '@prisma/client'
+const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
 /** SKU → số lượng thực tế (kiểm kê) */
-const STOCK_UPDATES: Record<string, number> = {
+const STOCK_UPDATES = {
   // Đồ uống
   REDBULL: 20, // Bò húc
   'COCA COLA': 10, // Coca
@@ -26,7 +31,7 @@ const STOCK_UPDATES: Record<string, number> = {
   'TEA PLUS': 0, // Olong
   LAVIE: 201, // Suối
 
-  // Snack (tổng 27) — phân bổ theo tỷ lệ hiện tại
+  // Snack (tổng 27)
   PINATTSU: 9,
   PILLOWS: 0,
   SWING: 0,
