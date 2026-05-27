@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "import:customers": "ts-node --transpile-only prisma/import-customers.ts",
-    "seed:pricing": "ts-node --transpile-only prisma/seed-pricing.ts"
+    "seed:pricing": "ts-node --transpile-only prisma/seed-pricing.ts",
+    "update:stock": "ts-node --transpile-only prisma/update-stock.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

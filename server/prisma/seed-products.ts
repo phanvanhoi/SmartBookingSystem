@@ -15,21 +15,21 @@ async function main() {
     { sku: 'PILLOWS', name: 'Snack Pillows', category: 'Đồ ăn', unit: 'Gói', costPrice: 9000, stockQuantity: 0, minStock: 5 },
     { sku: 'SWING', name: 'Snack Swing', category: 'Đồ ăn', unit: 'Gói', costPrice: 9000, stockQuantity: 0, minStock: 5 },
     { sku: 'OSTAR', name: 'Snack Ostar', category: 'Đồ ăn', unit: 'Gói', costPrice: 9000, stockQuantity: 5, minStock: 5 },
-    { sku: 'LAYS', name: 'Snack Lays', category: 'Đồ ăn', unit: 'Gói', costPrice: 9000, stockQuantity: 10, minStock: 5 },
-    { sku: 'KHO GA', name: 'Khô Gà', category: 'Đồ ăn', unit: 'Gói', costPrice: 8600, stockQuantity: 14, minStock: 5 },
+    { sku: 'LAYS', name: 'Snack Lays', category: 'Đồ ăn', unit: 'Gói', costPrice: 9000, stockQuantity: 11, minStock: 5 },
+    { sku: 'KHO GA', name: 'Khô Gà', category: 'Đồ ăn', unit: 'Gói', costPrice: 8600, stockQuantity: 38, minStock: 5 },
     { sku: 'DORKBUA', name: 'Snack que Thái', category: 'Đồ ăn', unit: 'Gói', costPrice: 9000, stockQuantity: 2, minStock: 5 },
-    { sku: 'KHO BO', name: 'Khô bò', category: 'Đồ ăn', unit: 'Gói', costPrice: 7500, stockQuantity: 17, minStock: 5 },
+    { sku: 'KHO BO', name: 'Khô bò', category: 'Đồ ăn', unit: 'Gói', costPrice: 7500, stockQuantity: 38, minStock: 5 },
 
     // ── Đồ uống ──
-    { sku: 'STRONGBOW', name: 'Nước trái cây Strongbow', category: 'Đồ uống', unit: 'Lon', costPrice: 18000, stockQuantity: 26, minStock: 10 },
-    { sku: 'STING', name: 'Sting', category: 'Đồ uống', unit: 'Chai', costPrice: 7750, stockQuantity: 19, minStock: 10 },
-    { sku: 'TEA PLUS', name: 'Trà ô long Tea Plus', category: 'Đồ uống', unit: 'Chai', costPrice: 7500, stockQuantity: 3, minStock: 10 },
-    { sku: 'TWISTER', name: 'Nước cam ép Twister', category: 'Đồ uống', unit: 'Lon', costPrice: 7708, stockQuantity: 24, minStock: 10 },
-    { sku: 'REVIVE', name: 'Revive', category: 'Đồ uống', unit: 'Chai', costPrice: 7083, stockQuantity: 26, minStock: 10 },
-    { sku: 'ICE', name: 'Nước trái cây ICE', category: 'Đồ uống', unit: 'Chai', costPrice: 6875, stockQuantity: 9, minStock: 10 },
-    { sku: 'REDBULL', name: 'Bò húc', category: 'Đồ uống', unit: 'Lon', costPrice: 10625, stockQuantity: 25, minStock: 10 },
-    { sku: 'COCA COLA', name: 'Coca cola', category: 'Đồ uống', unit: 'Lon', costPrice: 7292, stockQuantity: 23, minStock: 10 },
-    { sku: 'LAVIE', name: 'Nước suối', category: 'Đồ uống', unit: 'Chai', costPrice: 3958, stockQuantity: 184, minStock: 20 },
+    { sku: 'STRONGBOW', name: 'Nước trái cây Strongbow', category: 'Đồ uống', unit: 'Lon', costPrice: 18000, stockQuantity: 0, minStock: 10 },
+    { sku: 'STING', name: 'Sting', category: 'Đồ uống', unit: 'Chai', costPrice: 7750, stockQuantity: 11, minStock: 10 },
+    { sku: 'TEA PLUS', name: 'Trà ô long Tea Plus', category: 'Đồ uống', unit: 'Chai', costPrice: 7500, stockQuantity: 0, minStock: 10 },
+    { sku: 'TWISTER', name: 'Nước cam ép Twister', category: 'Đồ uống', unit: 'Lon', costPrice: 7708, stockQuantity: 0, minStock: 10 },
+    { sku: 'REVIVE', name: 'Revive', category: 'Đồ uống', unit: 'Chai', costPrice: 7083, stockQuantity: 0, minStock: 10 },
+    { sku: 'ICE', name: 'Nước trái cây ICE', category: 'Đồ uống', unit: 'Chai', costPrice: 6875, stockQuantity: 4, minStock: 10 },
+    { sku: 'REDBULL', name: 'Bò húc', category: 'Đồ uống', unit: 'Lon', costPrice: 10625, stockQuantity: 20, minStock: 10 },
+    { sku: 'COCA COLA', name: 'Coca cola', category: 'Đồ uống', unit: 'Lon', costPrice: 7292, stockQuantity: 10, minStock: 10 },
+    { sku: 'LAVIE', name: 'Nước suối', category: 'Đồ uống', unit: 'Chai', costPrice: 3958, stockQuantity: 201, minStock: 20 },
   ]
 
   // Upsert products
