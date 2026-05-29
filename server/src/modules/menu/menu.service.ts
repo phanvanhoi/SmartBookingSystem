@@ -25,7 +25,8 @@ interface CategoryWithItems {
 
 /**
  * Get full menu grouped by category (only active categories).
- * Items linked to a product with stockQuantity <= 0 are marked unavailable.
+ * Soft-deleted items (isAvailable=false) are hidden.
+ * Items linked to a product with stockQuantity <= 0 stay visible but are marked unavailable.
  */
 export async function getMenu(): Promise<CategoryWithItems[]> {
   const categories = await prisma.menuCategory.findMany({

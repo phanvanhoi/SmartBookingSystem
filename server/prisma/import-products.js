@@ -125,7 +125,7 @@ async function main() {
           price: asNumber(row['Giá bán']),
           categoryId: cat.id,
           productId: product.id,
-          isAvailable: product.stockQuantity > 0,
+          isAvailable: true,
         }
         const existingMenu = await prisma.menuItem.findFirst({
           where: { name, categoryId: cat.id },

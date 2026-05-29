@@ -42,6 +42,12 @@ const STOCK_UPDATES: Record<string, number> = {
 async function main() {
   console.log('Cập nhật tồn kho...\n')
 
+  // Restore menu visibility for items wrongly hidden by older stock sync logic.
+  await prisma.menuItem.updateMany({
+    where: { productId: { not: null } },
+    data: { isAvailable: true },
+  })
+
   let updated = 0
   let notFound = 0
 
@@ -59,16 +65,11 @@ async function main() {
       data: { stockQuantity: quantity },
     })
 
-    const menuItems = await prisma.menuItem.findMany({
+    // Keep menu items visible in order dialog; availability is derived from stock at read time.
+    await prisma.menuItem.updateMany({
       where: { productId: product.id },
+      data: { isAvailable: true },
     })
-
-    for (const item of menuItems) {
-      await prisma.menuItem.update({
-        where: { id: item.id },
-        data: { isAvailable: quantity > 0 },
-      })
-    }
 
     console.log(`  ✓ ${sku.padEnd(12)} ${product.name.padEnd(28)} ${quantity}`)
     updated++

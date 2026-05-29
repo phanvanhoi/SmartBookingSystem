@@ -104,8 +104,6 @@ async function main() {
       where: { name: item.name, categoryId: item.categoryId },
     })
 
-    const isAvailable = product ? product.stockQuantity > 0 : true
-
     if (existing) {
       await prisma.menuItem.update({
         where: { id: existing.id },
@@ -113,7 +111,7 @@ async function main() {
           price: item.price,
           productId: product?.id ?? null,
           sortOrder: item.sortOrder,
-          isAvailable,
+          isAvailable: true,
         },
       })
     } else {
@@ -124,7 +122,7 @@ async function main() {
           categoryId: item.categoryId,
           productId: product?.id ?? null,
           sortOrder: item.sortOrder,
-          isAvailable,
+          isAvailable: true,
         },
       })
     }
