@@ -23,7 +23,7 @@ const STOCK_UPDATES: Record<string, number> = {
   ICE: 4,
   REVIVE: 0, // Riven
   STING: 11,
-  'TEA PLUS': 0, // Olong
+  'TEA PLUS': 24, // Olong
   LAVIE: 201, // Suối
 
   // Snack (tổng 27) — phân bổ theo tỷ lệ hiện tại

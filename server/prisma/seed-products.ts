@@ -23,7 +23,7 @@ async function main() {
     // ── Đồ uống ──
     { sku: 'STRONGBOW', name: 'Nước trái cây Strongbow', category: 'Đồ uống', unit: 'Lon', costPrice: 18000, stockQuantity: 0, minStock: 10 },
     { sku: 'STING', name: 'Sting', category: 'Đồ uống', unit: 'Chai', costPrice: 7750, stockQuantity: 11, minStock: 10 },
-    { sku: 'TEA PLUS', name: 'Trà ô long Tea Plus', category: 'Đồ uống', unit: 'Chai', costPrice: 7500, stockQuantity: 0, minStock: 10 },
+    { sku: 'TEA PLUS', name: 'Trà ô long Tea Plus', category: 'Đồ uống', unit: 'Chai', costPrice: 7500, stockQuantity: 24, minStock: 10 },
     { sku: 'TWISTER', name: 'Nước cam ép Twister', category: 'Đồ uống', unit: 'Lon', costPrice: 7708, stockQuantity: 0, minStock: 10 },
     { sku: 'REVIVE', name: 'Revive', category: 'Đồ uống', unit: 'Chai', costPrice: 7083, stockQuantity: 0, minStock: 10 },
     { sku: 'ICE', name: 'Nước trái cây ICE', category: 'Đồ uống', unit: 'Chai', costPrice: 6875, stockQuantity: 4, minStock: 10 },

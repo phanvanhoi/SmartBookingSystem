@@ -28,7 +28,7 @@ const STOCK_UPDATES = {
   ICE: 4,
   REVIVE: 0, // Riven
   STING: 11,
-  'TEA PLUS': 0, // Olong
+  'TEA PLUS': 24, // Olong
   LAVIE: 201, // Suối
 
   // Snack (tổng 27)
