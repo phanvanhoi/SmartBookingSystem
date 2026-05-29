@@ -7,7 +7,7 @@ import { CategoryInput, MenuItemInput } from './menu.validation'
 interface MenuItemResult {
   id: number
   name: string
-  price: string | number
+  price: number
   image: string | null
   isAvailable: boolean
   productId: number | null
@@ -62,7 +62,7 @@ export async function getMenu(): Promise<CategoryWithItems[]> {
     items: cat.items.map((item) => ({
       id: item.id,
       name: item.name,
-      price: item.price.toString(),
+      price: Number(item.price),
       image: item.image,
       sortOrder: item.sortOrder,
       productId: item.productId,
