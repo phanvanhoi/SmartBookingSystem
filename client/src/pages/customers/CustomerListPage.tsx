@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCustomers, useCreateCustomer } from '@/hooks/useCustomers'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatRelative } from '@/utils/formatTime'
 import type { CustomerTier, CreateCustomerForm } from '@/types/customer'
@@ -42,6 +43,7 @@ const TIER_CLASSES: Record<CustomerTier, string> = {
 const ITEMS_PER_PAGE = 20
 
 export default function CustomerListPage() {
+  const isMobile = useIsMobile()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState<CustomerTier | ''>('')
@@ -96,34 +98,45 @@ export default function CustomerListPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 md:gap-6 p-0 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0">
             <Users className="h-5 w-5" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Khách hàng</h1>
+          <h1 className="text-lg md:text-2xl font-bold text-foreground tracking-tight truncate">
+            Khách hàng
+          </h1>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+        <Button
+          onClick={() => setShowCreateDialog(true)}
+          className="gap-2 shrink-0 min-h-[44px]"
+          size={isMobile ? 'sm' : 'default'}
+        >
           <Plus className="h-4 w-4" />
-          Thêm khách
+          {isMobile ? 'Thêm' : 'Thêm khách'}
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Filters — sticky on mobile */}
+      <div
+        className={cn(
+          'flex flex-col sm:flex-row gap-3',
+          isMobile && 'sticky top-0 z-10 bg-background/95 backdrop-blur-sm py-1 -mx-0',
+        )}
+      >
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Tìm theo tên hoặc số điện thoại..."
+            placeholder="Tìm theo tên hoặc SĐT..."
             value={search}
             onChange={handleSearchChange}
-            className="pl-9"
+            className="pl-9 text-base md:text-sm min-h-[44px] md:min-h-9"
           />
         </div>
         <Select value={tier || 'ALL'} onValueChange={handleTierChange}>
-          <SelectTrigger className="w-full sm:w-44">
+          <SelectTrigger className="w-full sm:w-44 min-h-[44px] md:min-h-9">
             <SelectValue placeholder="Hạng thành viên" />
           </SelectTrigger>
           <SelectContent>
@@ -136,7 +149,59 @@ export default function CustomerListPage() {
         </Select>
       </div>
 
-      {/* Table */}
+      {/* List */}
+      {isMobile ? (
+        <div className="space-y-2">
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-xl" />
+            ))
+          ) : customers.length === 0 ? (
+            <div className="rounded-xl border border-border bg-card py-16 text-center text-muted-foreground">
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>Chưa có khách hàng nào</p>
+            </div>
+          ) : (
+            customers.map((customer) => (
+              <button
+                key={customer.id}
+                type="button"
+                onClick={() => navigate(`/customers/${customer.id}`)}
+                className={cn(
+                  'w-full text-left rounded-xl border border-border bg-card shadow-card p-4 transition-colors min-h-[44px]',
+                  customer.isBlacklisted
+                    ? 'bg-rose-50 border-rose-200 hover:bg-rose-100'
+                    : 'hover:border-primary/30 hover:bg-muted/30',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground truncate">{customer.name}</p>
+                    <p className="text-sm text-muted-foreground tabular-nums">{customer.phone}</p>
+                  </div>
+                  <Badge className={cn('font-semibold shrink-0', TIER_CLASSES[customer.tier])}>
+                    {TIER_LABELS[customer.tier]}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>{customer.visitCount} lượt đến</span>
+                  <span className="text-foreground font-semibold tabular-nums">
+                    {formatCurrency(customer.totalSpent)} VNĐ
+                  </span>
+                  {customer.lastVisit && (
+                    <span>{formatRelative(customer.lastVisit)}</span>
+                  )}
+                </div>
+                {customer.isBlacklisted && (
+                  <Badge className="mt-2 bg-rose-100 text-rose-700 border border-rose-200 text-[10px]">
+                    Blacklist
+                  </Badge>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      ) : (
       <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -211,6 +276,7 @@ export default function CustomerListPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
@@ -244,7 +310,7 @@ export default function CustomerListPage() {
 
       {/* Create Customer Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={handleCloseDialog}>
-        <DialogContent>
+        <DialogContent className={cn(isMobile && 'dialog-mobile-full max-h-[100dvh]')}>
           <DialogHeader>
             <DialogTitle>Thêm khách hàng mới</DialogTitle>
           </DialogHeader>

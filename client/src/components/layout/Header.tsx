@@ -43,7 +43,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const displayName = user?.fullName || user?.username || 'Người dùng'
   const roleLabel = user ? ROLE_LABEL[user.role] : ''
 
-  // Active shift from API — show "—" when no shift open.
   const shift = shiftRes?.data ?? null
   const shiftDisplay = shift
     ? `${formatShiftTime(shift.startTime)} – ${shift.openedByName}`
@@ -55,34 +54,29 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   }
 
   return (
-    <header className="h-14 shrink-0 flex items-center gap-3 px-4 bg-card border-b border-border">
-      {/* Mobile hamburger */}
+    <header className="h-14 shrink-0 flex items-center gap-3 px-4 pt-safe-top bg-card border-b border-border">
       <Button
         variant="ghost"
         size="icon"
-        className="md:hidden"
+        className="md:hidden shrink-0"
         onClick={onMobileMenuToggle}
         aria-label="Mở menu"
       >
         <Menu className="w-5 h-5" />
       </Button>
 
-      {/* Mobile logo */}
-      <span className="md:hidden font-bold text-sm text-foreground tracking-tight">
+      <span className="md:hidden font-bold text-sm text-foreground tracking-tight truncate">
         Music Box
       </span>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      <div className="flex-1 min-w-0" />
 
-      {/* Shift info — from API */}
-      <span className="hidden sm:block text-xs text-muted-foreground">
+      <span className="hidden sm:block text-xs text-muted-foreground truncate max-w-[180px]">
         Ca: <span className="text-foreground font-medium">{shiftDisplay}</span>
       </span>
 
-      {/* Notification bell */}
-      <div className="relative">
-        <Button variant="ghost" size="icon" aria-label="Thông báo">
+      <div className="relative shrink-0">
+        <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" aria-label="Thông báo">
           <Bell className="w-5 h-5" />
         </Button>
         {notificationCount > 0 && (
@@ -92,17 +86,15 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         )}
       </div>
 
-      {/* User dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             aria-label={`Tài khoản: ${displayName}`}
             className={cn(
-              'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+              'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors min-h-[44px]',
+              'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             )}
           >
-            {/* Avatar */}
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary shrink-0">
               <User className="w-3.5 h-3.5 text-primary-foreground" />
             </div>

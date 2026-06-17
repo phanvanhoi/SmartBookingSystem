@@ -93,7 +93,7 @@ export default function MenuGrid({ items, onAddItem, cart, onUpdateQuantity }: M
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs w-full"
+                className="h-9 md:h-7 text-xs w-full min-h-[44px] md:min-h-0"
                 onClick={() => onAddItem(item)}
               >
                 <Plus className="h-3 w-3 mr-1" />

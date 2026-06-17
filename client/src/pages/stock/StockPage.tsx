@@ -38,6 +38,7 @@ import {
   useUpdateProduct,
   useDeleteProduct,
   useSuppliers,
+  useLowStockAlerts,
 } from '@/hooks/useStock'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime } from '@/utils/formatTime'
@@ -45,6 +46,8 @@ import type { Product, StockEntryType } from '@/types/stock'
 import StockEntryForm from './StockEntryForm'
 import InventoryCheckPage from './InventoryCheckPage'
 import SupplierPage from './SupplierPage'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { cn } from '@/utils/cn'
 
 // ─── Product Form Dialog ──────────────────────────────────────────────────────
 
@@ -97,6 +100,7 @@ interface ProductDialogProps {
 }
 
 function ProductDialog({ open, onClose, product }: ProductDialogProps) {
+  const isMobile = useIsMobile()
   const { data: suppliersData } = useSuppliers()
   const suppliers = suppliersData?.data ?? []
 
@@ -142,7 +146,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn('max-w-lg', isMobile && 'dialog-mobile-full max-h-[100dvh]')}>
         <DialogHeader>
           <DialogTitle>{product ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}</DialogTitle>
         </DialogHeader>
@@ -252,6 +256,7 @@ const ENTRY_TYPE_LABELS: Record<StockEntryType, { label: string; color: string }
 const ITEMS_PER_PAGE = 20
 
 export default function StockPage() {
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = useState('inventory')
   const [stockEntryOpen, setStockEntryOpen] = useState(false)
 
@@ -267,6 +272,8 @@ export default function StockPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<Product | null>(null)
 
   const deleteProduct = useDeleteProduct()
+  const { data: lowStockAlerts } = useLowStockAlerts()
+  const lowStockTotal = lowStockAlerts?.data?.length ?? 0
 
   // History tab filters
   const [entryTypeFilter, setEntryTypeFilter] = useState<string>('all')
@@ -315,36 +322,52 @@ export default function StockPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-border shrink-0 gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0">
             <Package className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground tracking-tight">Kho hàng</h1>
-            <p className="text-xs text-muted-foreground">Quản lý tồn kho & nhập xuất</p>
+          <div className="min-w-0">
+            <h1 className="text-lg md:text-xl font-bold text-foreground tracking-tight truncate">Kho hàng</h1>
+            {!isMobile && (
+              <p className="text-xs text-muted-foreground">Quản lý tồn kho & nhập xuất</p>
+            )}
           </div>
         </div>
-        <Button onClick={() => setStockEntryOpen(true)}>
+        <Button onClick={() => setStockEntryOpen(true)} className="shrink-0 min-h-[44px]" size={isMobile ? 'sm' : 'default'}>
           <Plus className="h-4 w-4" />
-          Nhập kho
+          {isMobile ? 'Nhập' : 'Nhập kho'}
         </Button>
       </div>
 
       {/* Tabs */}
       <div className="flex-1 overflow-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <div className="px-6 pt-4 shrink-0">
-            <TabsList>
-              <TabsTrigger value="inventory">Tồn kho</TabsTrigger>
-              <TabsTrigger value="history">Nhập/Xuất kho</TabsTrigger>
-              <TabsTrigger value="check">Kiểm kê</TabsTrigger>
-              <TabsTrigger value="suppliers">Nhà cung cấp</TabsTrigger>
+          <div className="px-4 md:px-6 pt-3 md:pt-4 shrink-0 overflow-x-auto">
+            <TabsList className={cn(isMobile && 'inline-flex w-max min-w-full')}>
+              <TabsTrigger value="inventory" className={cn(isMobile && 'text-xs px-3')}>Tồn kho</TabsTrigger>
+              <TabsTrigger value="history" className={cn(isMobile && 'text-xs px-3')}>N/X kho</TabsTrigger>
+              <TabsTrigger value="check" className={cn(isMobile && 'text-xs px-3')}>Kiểm kê</TabsTrigger>
+              <TabsTrigger value="suppliers" className={cn(isMobile && 'text-xs px-3')}>NCC</TabsTrigger>
             </TabsList>
           </div>
 
           {/* ── Tab: Tồn kho ─────────────────────────────────── */}
-          <TabsContent value="inventory" className="flex-1 overflow-auto px-6 pb-6 mt-4">
+          <TabsContent value="inventory" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
+            {/* Low stock banner */}
+            {lowStockTotal > 0 && !lowStockOnly && (
+              <button
+                type="button"
+                onClick={() => { setLowStockOnly(true); setPage(1) }}
+                className="w-full mb-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 min-h-[44px]"
+              >
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>
+                  <strong>{lowStockTotal}</strong> sản phẩm sắp hết — chạm để lọc
+                </span>
+              </button>
+            )}
+
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <div className="relative flex-1">
@@ -353,11 +376,11 @@ export default function StockPage() {
                   placeholder="Tìm kiếm sản phẩm..."
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                  className="pl-9"
+                  className="pl-9 text-base md:text-sm min-h-[44px] md:min-h-9"
                 />
               </div>
               <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1) }}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className={cn('w-full sm:w-40', isMobile && 'min-h-[44px]')}>
                   <SelectValue placeholder="Tất cả" />
                 </SelectTrigger>
                 <SelectContent>
@@ -381,24 +404,78 @@ export default function StockPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setProductDialogOpen(true)}
-                className="shrink-0"
+                className="shrink-0 min-h-[44px] md:min-h-9"
               >
                 <Plus className="h-4 w-4" />
                 Thêm SP
               </Button>
             </div>
 
-            {/* Table */}
+            {/* List */}
             {productsLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton key={i} className="h-14 w-full" />
+                  <Skeleton key={i} className={cn('w-full', isMobile ? 'h-24 rounded-xl' : 'h-14')} />
                 ))}
               </div>
             ) : products.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Package className="h-12 w-12 text-muted-foreground/30 mb-3" />
                 <p className="text-muted-foreground">Không có sản phẩm nào</p>
+              </div>
+            ) : isMobile ? (
+              <div className="space-y-2">
+                {products.map((product) => (
+                  <div
+                    key={product.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openEditProduct(product)}
+                    onKeyDown={(e) => e.key === 'Enter' && openEditProduct(product)}
+                    className={cn(
+                      'rounded-xl border border-border bg-card p-4 shadow-card transition-colors',
+                      product.isLowStock ? 'border-rose-200 bg-rose-50' : 'hover:border-primary/30',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {product.isLowStock && (
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          )}
+                          <p className="font-semibold text-foreground truncate">{product.name}</p>
+                        </div>
+                        {product.sku && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{product.sku}</p>
+                        )}
+                        {product.category && (
+                          <Badge variant="secondary" className="mt-1.5 text-[10px]">{product.category}</Badge>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={cn('text-xl font-bold tabular-nums', product.isLowStock ? 'text-rose-600' : 'text-foreground')}>
+                          {product.stockQuantity}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{product.unit}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Giá nhập: {formatCurrency(product.costPrice)}</span>
+                      {product.supplier?.name && <span className="truncate ml-2">{product.supplier.name}</span>}
+                    </div>
+                    {product.isLowStock && (
+                      <p className="text-xs text-rose-600 mt-2">Dưới mức tối thiểu: {product.minStock}</p>
+                    )}
+                    <div className="flex items-center gap-1 mt-3 pt-2 border-t border-border/60" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" className="min-h-[44px] flex-1" onClick={() => openEditProduct(product)}>
+                        <Pencil className="h-4 w-4 mr-1" /> Sửa
+                      </Button>
+                      <Button variant="ghost" size="sm" className="min-h-[44px] text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(product)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
@@ -528,11 +605,11 @@ export default function StockPage() {
           </TabsContent>
 
           {/* ── Tab: Nhập/Xuất kho ──────────────────────────── */}
-          <TabsContent value="history" className="flex-1 overflow-auto px-6 pb-6 mt-4">
+          <TabsContent value="history" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mb-4">
               <Select value={entryTypeFilter} onValueChange={(v) => { setEntryTypeFilter(v); setEntryPage(1) }}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className={cn('w-full sm:w-40', isMobile && 'min-h-[44px]')}>
                   <SelectValue placeholder="Tất cả loại" />
                 </SelectTrigger>
                 <SelectContent>
@@ -543,34 +620,67 @@ export default function StockPage() {
                   <SelectItem value="ADJUSTMENT">Điều chỉnh</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => { setDateFrom(e.target.value); setEntryPage(1) }}
-                  className="w-36"
+                  className={cn('flex-1 sm:w-36', isMobile && 'min-h-[44px] text-base')}
                 />
                 <span className="text-muted-foreground text-sm">→</span>
                 <Input
                   type="date"
                   value={dateTo}
                   onChange={(e) => { setDateTo(e.target.value); setEntryPage(1) }}
-                  className="w-36"
+                  className={cn('flex-1 sm:w-36', isMobile && 'min-h-[44px] text-base')}
                 />
               </div>
             </div>
 
-            {/* Table */}
+            {/* List */}
             {entriesLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
+                  <Skeleton key={i} className={cn('w-full', isMobile ? 'h-20 rounded-xl' : 'h-12')} />
                 ))}
               </div>
             ) : entries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <RefreshCw className="h-12 w-12 text-muted-foreground/30 mb-3" />
                 <p className="text-muted-foreground">Chưa có lịch sử nhập/xuất</p>
+              </div>
+            ) : isMobile ? (
+              <div className="space-y-2">
+                {entries.map((entry) => {
+                  const typeInfo = ENTRY_TYPE_LABELS[entry.type]
+                  return (
+                    <div key={entry.id} className="rounded-xl border border-border bg-card p-4 shadow-card">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="font-semibold text-foreground">{entry.product.name}</p>
+                        <span className={cn('flex items-center gap-1 text-xs font-medium shrink-0', typeInfo.color)}>
+                          {entry.type === 'IN' ? (
+                            <ArrowDownCircle className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpCircle className="h-3.5 w-3.5" />
+                          )}
+                          {typeInfo.label}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                        <span className={cn('font-bold tabular-nums', entry.quantity > 0 ? 'text-emerald-700' : 'text-rose-700')}>
+                          {entry.quantity > 0 ? '+' : ''}{entry.quantity}
+                        </span>
+                        {entry.unitCost != null && (
+                          <span className="text-muted-foreground">{formatCurrency(entry.unitCost)}/đv</span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
+                        <span>{formatDateTime(entry.createdAt)}</span>
+                        <span>{entry.createdBy.fullName}</span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">
@@ -664,12 +774,12 @@ export default function StockPage() {
           </TabsContent>
 
           {/* ── Tab: Kiểm kê ────────────────────────────────── */}
-          <TabsContent value="check" className="flex-1 overflow-auto px-6 pb-6 mt-4">
+          <TabsContent value="check" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
             <InventoryCheckPage />
           </TabsContent>
 
           {/* ── Tab: Nhà cung cấp ───────────────────────────── */}
-          <TabsContent value="suppliers" className="flex-1 overflow-auto px-6 pb-6 mt-4">
+          <TabsContent value="suppliers" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
             <SupplierPage />
           </TabsContent>
         </Tabs>

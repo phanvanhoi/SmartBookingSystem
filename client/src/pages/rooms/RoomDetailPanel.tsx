@@ -38,6 +38,7 @@ import { useRoom } from '@/hooks/useRooms'
 import { useUpdateOrderItem } from '@/hooks/useOrders'
 import { getErrorMessage } from '@/utils/error'
 import CountdownTimer from '@/components/CountdownTimer'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import CheckoutDialog from './CheckoutDialog'
 import ExtendDialog from './ExtendDialog'
 import TransferDialog from './TransferDialog'
@@ -58,6 +59,7 @@ const orderStatusLabel: Record<string, { label: string; color: string }> = {
 }
 
 export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPanelProps) {
+  const isMobile = useIsMobile()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isExtendOpen, setIsExtendOpen] = useState(false)
   const [isTransferOpen, setIsTransferOpen] = useState(false)
@@ -107,11 +109,22 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
     <>
       <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
         <SheetContent
-          side="right"
-          className="w-full sm:max-w-md p-0 flex flex-col bg-card border-l border-border"
+          side={isMobile ? 'bottom' : 'right'}
+          className={cn(
+            'p-0 flex flex-col bg-card border-border',
+            isMobile
+              ? 'h-[85vh] max-h-[85vh] rounded-t-2xl border-t [&>button.absolute]:top-3'
+              : 'w-full sm:max-w-md border-l',
+          )}
         >
+          {isMobile && (
+            <div className="flex justify-center pt-2 pb-1 shrink-0" aria-hidden>
+              <div className="h-1 w-10 rounded-full bg-border" />
+            </div>
+          )}
+
           {/* Header */}
-          <SheetHeader className="px-4 py-3 border-b border-border">
+          <SheetHeader className={cn('px-4 py-3 border-b border-border', isMobile && 'pt-1')}>
             <div className="flex items-center justify-between pr-8">
               <div>
                 <SheetTitle className="text-base font-bold tracking-tight">
@@ -308,11 +321,14 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                 {/* Action buttons — compact */}
                 <div>
                   <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Hành động</h4>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className={cn('grid gap-1.5', isMobile ? 'grid-cols-2' : 'grid-cols-2')}>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 gap-1.5 text-xs justify-start"
+                      className={cn(
+                        'gap-1.5 text-xs justify-start',
+                        isMobile ? 'h-11 col-span-1' : 'h-9',
+                      )}
                       onClick={() => setIsOrderOpen(true)}
                     >
                       <ShoppingCart className="w-3.5 h-3.5" />
@@ -321,7 +337,7 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 gap-1.5 text-xs justify-start"
+                      className={cn('h-9 gap-1.5 text-xs justify-start', isMobile && 'h-11')}
                       onClick={() => setIsExtendOpen(true)}
                     >
                       <Clock className="w-3.5 h-3.5" />
@@ -330,7 +346,7 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 gap-1.5 text-xs justify-start"
+                      className={cn('h-9 gap-1.5 text-xs justify-start', isMobile && 'h-11')}
                       onClick={() => setIsTransferOpen(true)}
                     >
                       <ArrowRightLeft className="w-3.5 h-3.5" />
@@ -339,7 +355,7 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 gap-1.5 text-xs justify-start"
+                      className={cn('h-9 gap-1.5 text-xs justify-start', isMobile && 'h-11')}
                       onClick={() => setIsMergeOpen(true)}
                     >
                       <Merge className="w-3.5 h-3.5" />
@@ -353,9 +369,12 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
 
           {/* Checkout button */}
           {session && (
-            <div className="px-3 py-2.5 border-t border-border bg-muted/30">
+            <div className="px-3 py-2.5 border-t border-border bg-muted/30 pb-safe">
               <Button
-                className="w-full h-10 font-bold tracking-wide gap-2"
+                className={cn(
+                  'w-full font-bold tracking-wide gap-2',
+                  isMobile ? 'h-12 text-base' : 'h-10',
+                )}
                 onClick={() => setIsCheckoutOpen(true)}
               >
                 <CreditCard className="w-4 h-4" />

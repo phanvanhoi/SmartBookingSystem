@@ -129,3 +129,4 @@ export function useSessionKeepAlive() {
     const id = window.setInterval(ping, KEEPALIVE_MS)
     return () => window.clearInterval(id)
   }, [token])
+}

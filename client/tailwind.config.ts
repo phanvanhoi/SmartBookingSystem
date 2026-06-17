@@ -72,6 +72,11 @@ const config: Config = {
       animation: {
         'pulse-status': 'pulse-status 2s ease-in-out infinite',
       },
+      padding: {
+        safe: 'env(safe-area-inset-bottom, 0px)',
+        'safe-top': 'env(safe-area-inset-top, 0px)',
+        'mobile-main': 'calc(6rem + 2rem + env(safe-area-inset-bottom, 0px))',
+      },
     },
   },
   plugins: [],

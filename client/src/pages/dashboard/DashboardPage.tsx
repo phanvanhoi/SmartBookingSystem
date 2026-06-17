@@ -20,6 +20,7 @@ import { cn } from '@/utils/cn'
 import RevenueChart from '@/pages/reports/RevenueChart'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ function activityLabel(action: string, entityType: string): string {
 // ── Main Dashboard Page ───────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const isMobile = useIsMobile()
   const { data, isLoading } = useDashboard()
 
   const today = data?.today
@@ -159,22 +161,22 @@ export default function DashboardPage() {
   const revenueChart = data?.revenueChart ?? []
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0">
           <LayoutDashboard className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Tổng quan</h1>
-          <p className="text-sm text-muted-foreground mt-0.5 capitalize">
+          <h1 className="text-lg md:text-2xl font-bold text-foreground tracking-tight">Tổng quan</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-0.5 capitalize">
             {format(new Date(), 'EEEE, dd/MM/yyyy', { locale: vi })}
           </p>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <KpiCard
           icon={<span className="text-lg">💰</span>}
           label="Doanh thu hôm nay"
@@ -209,7 +211,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts + Active Rooms Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 md:gap-4">
         {/* Revenue Chart */}
         <Card className="lg:col-span-3 bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
@@ -219,9 +221,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-64 w-full" />
+              <Skeleton className={cn('w-full', isMobile ? 'h-[200px]' : 'h-64')} />
             ) : (
-              <RevenueChart data={revenueChart} />
+              <RevenueChart data={revenueChart} className={isMobile ? 'h-[200px]' : 'h-64'} />
             )}
           </CardContent>
         </Card>
@@ -264,7 +266,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Warnings + Recent Activity Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
         {/* Warnings */}
         <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">

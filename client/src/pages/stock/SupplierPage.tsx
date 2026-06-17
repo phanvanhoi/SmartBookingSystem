@@ -16,6 +16,8 @@ import {
   useUpdateSupplier,
   useDeleteSupplier,
 } from '@/hooks/useStock'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { cn } from '@/utils/cn'
 import type { Supplier } from '@/types/stock'
 
 interface SupplierFormData {
@@ -28,6 +30,7 @@ interface SupplierFormData {
 const emptyForm: SupplierFormData = { name: '', phone: '', address: '', notes: '' }
 
 export default function SupplierPage() {
+  const isMobile = useIsMobile()
   const { data: suppliersData, isLoading } = useSuppliers()
   const suppliers = suppliersData?.data ?? []
 
@@ -84,26 +87,63 @@ export default function SupplierPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="min-h-[44px]" size={isMobile ? 'sm' : 'default'}>
           <Plus className="h-4 w-4" />
-          Thêm NCC
+          {isMobile ? 'Thêm' : 'Thêm NCC'}
         </Button>
       </div>
 
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full" />
+            <Skeleton key={i} className={cn('w-full', isMobile ? 'h-24 rounded-xl' : 'h-14')} />
           ))}
         </div>
       ) : suppliers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Building2 className="h-12 w-12 text-muted-foreground/30 mb-3" />
           <p className="text-muted-foreground">Chưa có nhà cung cấp nào</p>
-          <Button variant="outline" className="mt-3" onClick={openCreate}>
+          <Button variant="outline" className="mt-3 min-h-[44px]" onClick={openCreate}>
             <Plus className="h-4 w-4" />
             Thêm NCC đầu tiên
           </Button>
+        </div>
+      ) : isMobile ? (
+        <div className="space-y-2">
+          {suppliers.map((supplier) => (
+            <div key={supplier.id} className="rounded-xl border border-border bg-card p-4 shadow-card">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-foreground">{supplier.name}</p>
+                  {supplier.phone && (
+                    <p className="text-sm text-muted-foreground tabular-nums mt-0.5">{supplier.phone}</p>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                  {supplier.productCount ?? 0} SP
+                </span>
+              </div>
+              {supplier.address && (
+                <p className="text-xs text-muted-foreground mb-1">{supplier.address}</p>
+              )}
+              {supplier.notes && (
+                <p className="text-xs text-muted-foreground italic truncate">{supplier.notes}</p>
+              )}
+              <div className="flex items-center gap-1 mt-3 pt-2 border-t border-border/60">
+                <Button variant="ghost" size="sm" className="min-h-[44px] flex-1" onClick={() => openEdit(supplier)}>
+                  <Pencil className="h-4 w-4 mr-1" /> Sửa
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-[44px] text-destructive hover:text-destructive"
+                  onClick={() => setDeleteConfirm(supplier)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
@@ -160,7 +200,7 @@ export default function SupplierPage() {
 
       {/* Create / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={(v) => !v && setDialogOpen(false)}>
-        <DialogContent>
+        <DialogContent className={cn(isMobile && 'dialog-mobile-full max-h-[100dvh]')}>
           <DialogHeader>
             <DialogTitle>{editingSupplier ? 'Sửa nhà cung cấp' : 'Thêm nhà cung cấp'}</DialogTitle>
           </DialogHeader>
@@ -172,6 +212,7 @@ export default function SupplierPage() {
                 placeholder="Tên nhà cung cấp"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="text-base min-h-[44px]"
               />
             </div>
             <div>
@@ -180,6 +221,8 @@ export default function SupplierPage() {
                 placeholder="0901 234 567"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="text-base min-h-[44px]"
+                inputMode="tel"
               />
             </div>
             <div>
@@ -188,6 +231,7 @@ export default function SupplierPage() {
                 placeholder="Địa chỉ..."
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
+                className="text-base min-h-[44px]"
               />
             </div>
             <div>
@@ -196,6 +240,7 @@ export default function SupplierPage() {
                 placeholder="Ghi chú..."
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="text-base min-h-[44px]"
               />
             </div>
           </div>

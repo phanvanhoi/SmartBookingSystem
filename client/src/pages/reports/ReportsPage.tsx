@@ -24,6 +24,8 @@ import { exportCSV } from '@/utils/exportCSV'
 import { TrendingUp, TrendingDown, Minus, Download } from 'lucide-react'
 import RevenueChart from './RevenueChart'
 import RoomUsageChart from './RoomUsageChart'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { cn } from '@/utils/cn'
 
 // ── Period Selector ───────────────────────────────────────────────────────────
 
@@ -93,13 +95,14 @@ function SummaryCard({
 // ── Revenue Tab ───────────────────────────────────────────────────────────────
 
 function RevenueTab({ filters }: { filters: RevenueFilters }) {
+  const isMobile = useIsMobile()
   const { data, isLoading } = useRevenueReport(filters)
   const summary = data?.summary
 
   return (
     <div className="space-y-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <SummaryCard
           icon="💰"
           label="Tổng doanh thu"
@@ -136,15 +139,15 @@ function RevenueTab({ filters }: { filters: RevenueFilters }) {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <Skeleton className="h-64 w-full bg-muted" />
+            <Skeleton className={cn('w-full bg-muted', isMobile ? 'h-[200px]' : 'h-64')} />
           ) : (
-            <RevenueChart data={data?.chart ?? []} />
+            <RevenueChart data={data?.chart ?? []} className={isMobile ? 'h-[200px]' : 'h-64'} />
           )}
         </CardContent>
       </Card>
 
       {/* Additional Stats */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
         <Card className="bg-card border border-border shadow-card">
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground mb-1">Tổng lượt khách</p>
@@ -175,12 +178,13 @@ function RevenueTab({ filters }: { filters: RevenueFilters }) {
 // ── Room Tab ──────────────────────────────────────────────────────────────────
 
 function RoomTab({ filters }: { filters: DateRangeFilters }) {
+  const isMobile = useIsMobile()
   const { data, isLoading } = useRoomReport(filters)
   const rooms = data ?? []
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
         {/* Top phòng chart */}
         <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
@@ -190,14 +194,14 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-52 w-full bg-muted" />
+              <Skeleton className={cn('w-full bg-muted', isMobile ? 'h-[200px]' : 'h-52')} />
             ) : (
-              <RoomUsageChart data={rooms} />
+              <RoomUsageChart data={rooms} className={isMobile ? 'h-[200px]' : 'h-52'} />
             )}
           </CardContent>
         </Card>
 
-        {/* Room Stats Table */}
+        {/* Room Stats */}
         <Card className="bg-card border border-border shadow-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-foreground">
@@ -208,11 +212,42 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full bg-muted" />
+                  <Skeleton key={i} className={cn('w-full bg-muted', isMobile ? 'h-16 rounded-xl' : 'h-10')} />
                 ))}
               </div>
             ) : rooms.length === 0 ? (
               <p className="text-center text-muted-foreground py-6 text-sm">Không có dữ liệu</p>
+            ) : isMobile ? (
+              <div className="space-y-2">
+                {rooms.slice(0, 8).map((room) => (
+                  <div key={room.roomId} className="rounded-xl border border-border p-3 bg-muted/20">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div>
+                        <p className="font-semibold text-foreground">{room.roomName}</p>
+                        <p className="text-xs text-muted-foreground">{room.roomType}</p>
+                      </div>
+                      <span
+                        className={cn(
+                          'text-sm font-bold tabular-nums',
+                          room.occupancyRate >= 60
+                            ? 'text-emerald-700'
+                            : room.occupancyRate >= 30
+                              ? 'text-amber-700'
+                              : 'text-rose-700',
+                        )}
+                      >
+                        {room.occupancyRate}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{room.totalSessions} lượt</span>
+                      <span className="text-foreground font-semibold tabular-nums">
+                        {formatCurrency(room.totalRevenue)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -269,6 +304,7 @@ function RoomTab({ filters }: { filters: DateRangeFilters }) {
 // ── Stock Tab ─────────────────────────────────────────────────────────────────
 
 function StockTab({ filters }: { filters: DateRangeFilters }) {
+  const isMobile = useIsMobile()
   const { data, isLoading } = useStockReport(filters)
   const topSelling = data?.topSelling ?? []
 
@@ -289,6 +325,33 @@ function StockTab({ filters }: { filters: DateRangeFilters }) {
             </div>
           ) : topSelling.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">Không có dữ liệu</p>
+          ) : isMobile ? (
+            <div className="space-y-2">
+              {topSelling.map((item, idx) => (
+                <div key={item.productId} className="rounded-xl border border-border p-3 bg-muted/20">
+                  <div className="flex items-start gap-2 mb-2">
+                    <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">{idx + 1}</span>
+                    <p className="font-semibold text-foreground flex-1">{item.name}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs pl-7">
+                    <div>
+                      <p className="text-muted-foreground">Đã bán</p>
+                      <p className="font-semibold text-foreground tabular-nums">{item.totalSold}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Doanh thu</p>
+                      <p className="font-semibold text-foreground tabular-nums">{formatCurrency(item.revenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Lợi nhuận</p>
+                      <p className={cn('font-semibold tabular-nums', item.profit >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
+                        {formatCurrency(item.profit)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -333,6 +396,7 @@ function StockTab({ filters }: { filters: DateRangeFilters }) {
 // ── Shift Tab ─────────────────────────────────────────────────────────────────
 
 function ShiftTab({ filters }: { filters: DateRangeFilters }) {
+  const isMobile = useIsMobile()
   const { data, isLoading } = useShiftReport(filters)
   const shifts = data?.shifts ?? []
   const summary = data?.summary
@@ -341,7 +405,7 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
     <div className="space-y-4">
       {/* Summary */}
       {!isLoading && summary && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           <Card className="bg-card border border-border shadow-card">
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground mb-1">Tổng số ca</p>
@@ -373,6 +437,41 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
             </div>
           ) : shifts.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">Không có dữ liệu</p>
+          ) : isMobile ? (
+            <div className="space-y-2">
+              {shifts.map((shift) => (
+                <div key={shift.shiftId} className="rounded-xl border border-border p-3 bg-muted/20">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <p className="font-semibold text-foreground">{shift.staffName}</p>
+                      <p className="text-xs text-muted-foreground">{shift.date}</p>
+                    </div>
+                    <p className="font-bold text-foreground tabular-nums text-sm">
+                      {formatCurrency(shift.totalRevenue)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>Thời lượng: {formatDuration(shift.duration)}</span>
+                    <span>Tiền mặt: {formatCurrency(shift.cashRevenue)}</span>
+                    {shift.cashDifference != null && (
+                      <span
+                        className={cn(
+                          'font-semibold',
+                          shift.cashDifference < 0
+                            ? 'text-rose-700'
+                            : shift.cashDifference > 0
+                              ? 'text-emerald-700'
+                              : 'text-muted-foreground',
+                        )}
+                      >
+                        Chênh lệch: {shift.cashDifference > 0 ? '+' : ''}
+                        {formatCurrency(shift.cashDifference)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -436,6 +535,7 @@ function ShiftTab({ filters }: { filters: DateRangeFilters }) {
 // ── Main Reports Page ─────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const isMobile = useIsMobile()
   const [period, setPeriod] = useState<Period>('week')
   const [activeTab, setActiveTab] = useState('revenue')
 
@@ -465,29 +565,31 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0">
           <TrendingUp className="w-5 h-5" />
         </div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Báo cáo</h1>
+        <h1 className="text-lg md:text-2xl font-bold text-foreground tracking-tight">Báo cáo</h1>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* Tab Bar + Filter Row */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-          <TabsList className="h-9 p-1 flex-shrink-0">
-            <TabsTrigger value="revenue" className="text-xs">Doanh thu</TabsTrigger>
-            <TabsTrigger value="rooms" className="text-xs">Phòng</TabsTrigger>
-            <TabsTrigger value="stock" className="text-xs">Kho</TabsTrigger>
-            <TabsTrigger value="shifts" className="text-xs">Ca làm</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className={cn('h-9 p-1 flex-shrink-0', isMobile && 'inline-flex w-max')}>
+              <TabsTrigger value="revenue" className="text-xs">Doanh thu</TabsTrigger>
+              <TabsTrigger value="rooms" className="text-xs">Phòng</TabsTrigger>
+              <TabsTrigger value="stock" className="text-xs">Kho</TabsTrigger>
+              <TabsTrigger value="shifts" className="text-xs">Ca làm</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Filters */}
           <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
             <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-              <SelectTrigger className="h-9 w-36 text-sm">
+              <SelectTrigger className={cn('h-9 w-full sm:w-36 text-sm', isMobile && 'min-h-[44px]')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -499,9 +601,9 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
 
-            <Button variant="outline" size="sm" onClick={handleExport} className="h-9">
+            <Button variant="outline" size="sm" onClick={handleExport} className={cn('h-9', isMobile && 'min-h-[44px] flex-1 sm:flex-none')}>
               <Download className="w-4 h-4 mr-1.5" />
-              Xuất Excel
+              {isMobile ? 'Xuất' : 'Xuất Excel'}
             </Button>
           </div>
         </div>

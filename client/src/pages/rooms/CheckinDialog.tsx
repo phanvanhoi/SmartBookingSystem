@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/utils/cn'
 import { getErrorMessage } from '@/utils/error'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useCheckin } from '@/hooks/useRooms'
 import { roomService } from '@/services/roomService'
 import { customerService } from '@/services/customerService'
@@ -40,6 +41,7 @@ interface CustomerInfo {
 }
 
 export default function CheckinDialog({ room, open, onClose }: CheckinDialogProps) {
+  const isMobile = useIsMobile()
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [guestCount, setGuestCount] = useState('')
@@ -236,9 +238,14 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent
+        className={cn(
+          'max-w-md w-full p-0 gap-0 flex flex-col',
+          isMobile ? 'dialog-mobile-full max-h-[100dvh]' : 'max-h-[90vh] overflow-y-auto',
+        )}
+      >
+        <DialogHeader className="px-4 md:px-6 pt-4 pb-2 shrink-0">
+          <DialogTitle className="text-base md:text-lg">
             Nhận khách — {room?.name}
             {room && (
               <span className="text-sm font-normal text-muted-foreground ml-2">
@@ -248,7 +255,11 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
           </DialogTitle>
         </DialogHeader>
 
-        <div className="px-6 py-4 flex flex-col gap-4">
+        <div
+          className={cn(
+            'px-4 md:px-6 py-4 flex flex-col gap-4 flex-1 overflow-y-auto min-h-0',
+          )}
+        >
           {/* Customer name with autocomplete */}
           <div ref={nameContainerRef} className="relative">
             <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -263,7 +274,7 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
                   if (nameSuggestions.length > 0) setIsNameDropdownOpen(true)
                 }}
                 onKeyDown={handleNameKeyDown}
-                className="bg-muted/50 pr-9"
+                className="bg-muted/50 text-base pr-9"
                 autoComplete="off"
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -335,7 +346,7 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
           </div>
 
           {/* Phone + guest count */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">
                 Số điện thoại
@@ -344,7 +355,7 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
                 placeholder="0901234567"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                className="bg-muted/50"
+                className="bg-muted/50 text-base"
                 type="tel"
               />
             </div>
@@ -354,7 +365,7 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
                 placeholder="5"
                 value={guestCount}
                 onChange={(e) => setGuestCount(e.target.value)}
-                className="bg-muted/50"
+                className="bg-muted/50 text-base"
                 type="number"
                 min="1"
               />
@@ -403,13 +414,13 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
               Thời gian dự kiến{' '}
               <span className="text-muted-foreground font-normal">(tùy chọn)</span>
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {DURATION_PRESETS.map((p) => (
                 <button
                   key={p.value}
                   onClick={() => setSelectedDuration(p.value)}
                   className={cn(
-                    'h-9 rounded-md text-sm font-semibold border transition-all',
+                    'h-10 sm:h-9 rounded-md text-sm font-semibold border transition-all min-h-[44px]',
                     selectedDuration === p.value
                       ? 'bg-primary text-primary-foreground border-primary shadow-card'
                       : 'border-border text-foreground bg-card hover:bg-muted'
@@ -446,12 +457,17 @@ export default function CheckinDialog({ room, open, onClose }: CheckinDialogProp
           </div>
         </div>
 
-        <DialogFooter className="px-6 pb-6 pt-0 gap-2">
-          <Button variant="outline" onClick={onClose} disabled={checkin.isPending}>
+        <DialogFooter
+          className={cn(
+            'px-4 md:px-6 pb-4 md:pb-6 pt-2 gap-2 shrink-0 border-t border-border bg-card',
+            isMobile && 'pb-safe flex-row',
+          )}
+        >
+          <Button variant="outline" onClick={onClose} disabled={checkin.isPending} className="min-h-[48px]">
             Hủy
           </Button>
           <Button
-            className="flex-1"
+            className="flex-1 min-h-[48px] font-bold"
             onClick={handleSubmit}
             disabled={checkin.isPending || !customerName.trim()}
           >

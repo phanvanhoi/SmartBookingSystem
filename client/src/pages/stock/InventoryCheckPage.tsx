@@ -5,9 +5,12 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useProducts, useInventoryCheck } from '@/hooks/useStock'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { cn } from '@/utils/cn'
 import type { InventoryResult } from '@/types/stock'
 
 export default function InventoryCheckPage() {
+  const isMobile = useIsMobile()
   const { data: productsData, isLoading } = useProducts({ limit: 500 })
   const products = (productsData?.data ?? []).filter((p) => p.isActive)
 
@@ -60,7 +63,7 @@ export default function InventoryCheckPage() {
     return (
       <div className="space-y-4">
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-lg border border-border bg-secondary/30 p-4 text-center">
             <div className="text-2xl font-bold text-foreground">{checkMeta?.totalItems}</div>
             <div className="text-sm text-muted-foreground mt-1">Tổng sản phẩm kiểm</div>
@@ -81,6 +84,46 @@ export default function InventoryCheckPage() {
             <CheckCircle className="h-12 w-12 text-emerald-700 mb-3" />
             <p className="text-foreground font-medium">Tất cả sản phẩm khớp hệ thống!</p>
             <p className="text-muted-foreground text-sm mt-1">Không có chênh lệch nào được ghi nhận.</p>
+          </div>
+        ) : isMobile ? (
+          <div className="space-y-2">
+            {results.map((r, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'rounded-xl border border-border p-4',
+                  r.status !== 'MATCH' ? 'border-rose-200 bg-rose-50' : 'bg-card',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="font-semibold text-foreground">{r.product}</p>
+                  {r.status === 'SHORTAGE' && <Badge variant="occupied">Thiếu</Badge>}
+                  {r.status === 'SURPLUS' && <Badge variant="available">Thừa</Badge>}
+                  {r.status === 'MATCH' && <Badge variant="secondary">Khớp</Badge>}
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Hệ thống</p>
+                    <p className="font-semibold tabular-nums">{r.system}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Thực tế</p>
+                    <p className="font-semibold tabular-nums">{r.actual}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Chênh lệch</p>
+                    <p
+                      className={cn(
+                        'font-semibold tabular-nums',
+                        r.diff < 0 ? 'text-rose-700' : r.diff > 0 ? 'text-emerald-700' : 'text-muted-foreground',
+                      )}
+                    >
+                      {r.diff > 0 ? '+' : ''}{r.diff}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-hidden">
@@ -126,19 +169,62 @@ export default function InventoryCheckPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <span>Điền số lượng thực tế vào ô bên dưới. Ô trống sẽ được bỏ qua.</span>
+      <div className={cn('flex gap-2 text-muted-foreground text-sm', isMobile ? 'flex-col' : 'items-center justify-between')}>
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+          <span>Điền số lượng thực tế. Ô trống sẽ được bỏ qua.</span>
         </div>
-        <span className="text-sm text-muted-foreground">{filledCount} / {products.length} đã nhập</span>
+        <span className="shrink-0">{filledCount} / {products.length} đã nhập</span>
       </div>
 
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
+            <Skeleton key={i} className={cn('w-full', isMobile ? 'h-24 rounded-xl' : 'h-12')} />
           ))}
+        </div>
+      ) : isMobile ? (
+        <div className="space-y-2">
+          {products.map((product) => {
+            const diff = getDiff(product.id, product.stockQuantity)
+            return (
+              <div key={product.id} className="rounded-xl border border-border bg-card p-4">
+                <div className="mb-3">
+                  <p className="font-semibold text-foreground">{product.name}</p>
+                  {product.category && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{product.category}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Tồn HT: <span className="text-foreground font-medium tabular-nums">{product.stockQuantity} {product.unit}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    placeholder="Thực tế"
+                    value={actualQuantities[product.id] ?? ''}
+                    onChange={(e) => handleQtyChange(product.id, e.target.value)}
+                    className="flex-1 text-base min-h-[44px] text-right"
+                  />
+                  <div className="w-16 text-right shrink-0">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Lệch</p>
+                    <p
+                      className={cn(
+                        'text-sm font-semibold tabular-nums',
+                        diff === null ? 'text-muted-foreground' :
+                        diff < 0 ? 'text-rose-700' :
+                        diff > 0 ? 'text-emerald-700' : 'text-muted-foreground',
+                      )}
+                    >
+                      {diff === null ? '—' : diff > 0 ? `+${diff}` : String(diff)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
@@ -190,17 +276,17 @@ export default function InventoryCheckPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className={cn('flex gap-3', isMobile ? 'flex-col' : 'items-center')}>
         <Input
           placeholder="Ghi chú kiểm kê..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="max-w-sm"
+          className={cn('text-base min-h-[44px]', isMobile ? 'w-full' : 'max-w-sm')}
         />
         <Button
           onClick={handleSubmit}
           disabled={inventoryCheck.isPending || filledCount === 0}
-          className="flex items-center gap-2"
+          className={cn('flex items-center gap-2 min-h-[44px]', isMobile && 'w-full justify-center')}
         >
           <ClipboardCheck className="h-4 w-4" />
           {inventoryCheck.isPending ? 'Đang xử lý...' : `Xác nhận kiểm kê (${filledCount} SP)`}

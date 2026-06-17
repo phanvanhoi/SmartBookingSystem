@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/utils/cn'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatTime, formatDuration } from '@/utils/formatTime'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useCheckout } from '@/hooks/useRooms'
 import { useProcessCheckout } from '@/hooks/useCheckout'
 import { useRoomStore } from '@/stores/roomStore'
@@ -33,6 +34,7 @@ interface CheckoutDialogProps {
 }
 
 export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDialogProps) {
+  const isMobile = useIsMobile()
   const [billData, setBillData] = useState<CheckoutData | null>(null)
   const [isLoadingBill, setIsLoadingBill] = useState(false)
   const [discountValue, setDiscountValue] = useState('')
@@ -140,7 +142,12 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
         DialogContent itself (not a child) so scroll only kicks in on very
         small screens.
       */}
-      <DialogContent className="max-w-5xl w-full max-h-[95vh] overflow-y-auto !p-0">
+      <DialogContent
+        className={cn(
+          'max-w-5xl w-full overflow-y-auto !p-0',
+          isMobile ? 'dialog-mobile-full' : 'max-h-[95vh]',
+        )}
+      >
         {/* Header */}
         <div className="px-5 py-3 border-b border-border">
           <DialogHeader>
@@ -172,7 +179,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
             <div className="p-4 space-y-3 border-r border-border">
 
               {/* Thông tin khách + thời gian — 4 cột để chiếm 1 dòng */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <InfoCard icon={User} label="Khách" value={billData.customerName} />
                 <InfoCard icon={Clock} label="Thời gian" value={formatDuration(totalMinutes)} />
                 <InfoCard icon={DoorOpen} label="Vào" value={formatTime(billData.checkInTime)} />
@@ -401,9 +408,9 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               </div>
 
               {/* Confirm button */}
-              <div className="pt-1">
+              <div className={cn('pt-1', isMobile && 'pb-safe')}>
                 <Button
-                  className="w-full h-11 font-bold text-sm tracking-wide gap-2"
+                  className="w-full h-12 md:h-11 font-bold text-sm tracking-wide gap-2"
                   onClick={handleConfirmPayment}
                   disabled={!billData || !canConfirm || processCheckout.isPending}
                 >

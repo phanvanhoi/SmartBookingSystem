@@ -50,6 +50,13 @@
   }
 }
 
+@layer utilities {
+  /* Full-screen modal on phones — overrides centered dialog transform */
+  .dialog-mobile-full {
+    @apply fixed inset-0 left-0 top-0 max-h-[100dvh] h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-none;
+  }
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 6px;

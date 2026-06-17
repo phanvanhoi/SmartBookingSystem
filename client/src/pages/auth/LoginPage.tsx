@@ -58,7 +58,7 @@ export default function LoginPage() {
               placeholder="Tên đăng nhập"
               autoComplete="username"
               autoFocus
-              className="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-foreground placeholder:text-muted-foreground bg-muted/50 border border-border outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20"
+              className="w-full pl-10 pr-4 py-3 rounded-xl text-base text-foreground placeholder:text-muted-foreground bg-muted/50 border border-border outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20 min-h-[48px]"
               disabled={loginMutation.isPending}
             />
           </div>
@@ -74,7 +74,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Mật khẩu"
               autoComplete="current-password"
-              className="w-full pl-10 pr-10 py-3 rounded-xl text-sm text-foreground placeholder:text-muted-foreground bg-muted/50 border border-border outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20"
+              className="w-full pl-10 pr-10 py-3 rounded-xl text-base text-foreground placeholder:text-muted-foreground bg-muted/50 border border-border outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20 min-h-[48px]"
               disabled={loginMutation.isPending}
             />
             <button
@@ -100,7 +100,7 @@ export default function LoginPage() {
             type="submit"
             disabled={disabled}
             className={cn(
-              'w-full py-3 rounded-xl text-sm font-bold tracking-wider flex items-center justify-center gap-2 transition-all',
+              'w-full py-3 rounded-xl text-base font-bold tracking-wider flex items-center justify-center gap-2 transition-all min-h-[48px]',
               'bg-primary text-primary-foreground shadow-card',
               'hover:bg-primary/90 hover:shadow-card-hover',
               'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-card'

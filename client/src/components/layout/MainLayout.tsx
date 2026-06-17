@@ -1,35 +1,47 @@
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar, { BottomNav } from './Sidebar'
 import Header from './Header'
 import StatusBar from './StatusBar'
 import GlobalFetchIndicator from '../GlobalFetchIndicator'
+import MobileMenuSheet from './MobileMenuSheet'
+import MoreMenuSheet from './MoreMenuSheet'
 import { useMe, useSessionKeepAlive } from '@/hooks/useAuth'
 
 export default function MainLayout() {
   useMe()
   useSessionKeepAlive()
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+
   return (
     <div className="h-screen flex overflow-hidden bg-background text-foreground">
       <GlobalFetchIndicator />
 
-      {/* Desktop sidebar */}
       <Sidebar />
 
-      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header />
+        <Header onMobileMenuToggle={() => setMenuOpen(true)} />
 
-        {/* Page content */}
-        <main className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">
+        <main className="flex-1 overflow-auto p-4 md:p-6 pb-mobile-main md:pb-6">
           <Outlet />
         </main>
 
-        <StatusBar />
+        {/* Desktop status bar */}
+        <div className="hidden md:block">
+          <StatusBar />
+        </div>
       </div>
 
-      {/* Mobile bottom navigation */}
-      <BottomNav />
+      {/* Mobile footer: status + bottom nav */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border">
+        <StatusBar compact />
+        <BottomNav onMoreClick={() => setMoreOpen(true)} />
+      </div>
+
+      <MobileMenuSheet open={menuOpen} onOpenChange={setMenuOpen} />
+      <MoreMenuSheet open={moreOpen} onOpenChange={setMoreOpen} />
     </div>
   )
 }
