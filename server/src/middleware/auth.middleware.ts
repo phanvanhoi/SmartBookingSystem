@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '../types/index'
-import { signToken } from '../modules/auth/auth.service'
+import { signToken, getJwtRefreshThresholdMs } from '../modules/auth/auth.service'
 import { prisma } from '../lib/prisma'
 import logger from '../utils/logger'
 
@@ -15,9 +15,9 @@ interface JwtTokenPayload {
 }
 
 // Sliding session: re-issue a token (qua header X-New-Token) khi token hiện
-// tại còn dưới REFRESH_THRESHOLD_MS. Half of the 30d default — user còn
-// hoạt động đều thì session không bao giờ hết.
-const REFRESH_THRESHOLD_MS = 15 * 24 * 3600 * 1000
+// tại sắp hết hạn (nửa cuối vòng đời, tối đa 7 ngày). User còn hoạt động thì
+// session được gia hạn liên tục.
+const REFRESH_THRESHOLD_MS = getJwtRefreshThresholdMs()
 
 export async function authenticate(
   req: Request,

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '@/stores/authStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { playWarningSound, playExpiredSound, playOrderSound } from '@/utils/audio'
 import type { Notification } from '@/services/notificationService'
@@ -41,6 +42,7 @@ interface OrderNewEvent {
 
 export function useSocket() {
   const queryClient = useQueryClient()
+  const token = useAuthStore((s) => s.token)
   const addNotification = useNotificationStore((s) => s.addNotification)
   const socketRef = useRef<Socket | null>(null)
 
@@ -51,7 +53,6 @@ export function useSocket() {
   handlersRef.current = { queryClient, addNotification }
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
     if (!token) return
 
     // Create socket connection with JWT auth
@@ -59,7 +60,7 @@ export function useSocket() {
       auth: { token },
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       transports: ['websocket', 'polling'],
     })
 
@@ -131,7 +132,7 @@ export function useSocket() {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [])
+  }, [token])
 
   return socketRef.current
 }

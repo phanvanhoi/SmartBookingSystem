@@ -50,7 +50,7 @@ npm run dev
 
    cat > .env <<EOF
    JWT_SECRET=$JWT
-   JWT_EXPIRES_IN=12h
+   JWT_EXPIRES_IN=30d
    CORS_ORIGINS=https://yourdomain.com
    TRUST_PROXY_HOPS=1
    EOF

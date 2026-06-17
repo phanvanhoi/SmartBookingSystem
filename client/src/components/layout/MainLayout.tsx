@@ -3,8 +3,12 @@ import Sidebar, { BottomNav } from './Sidebar'
 import Header from './Header'
 import StatusBar from './StatusBar'
 import GlobalFetchIndicator from '../GlobalFetchIndicator'
+import { useMe, useSessionKeepAlive } from '@/hooks/useAuth'
 
 export default function MainLayout() {
+  useMe()
+  useSessionKeepAlive()
+
   return (
     <div className="h-screen flex overflow-hidden bg-background text-foreground">
       <GlobalFetchIndicator />

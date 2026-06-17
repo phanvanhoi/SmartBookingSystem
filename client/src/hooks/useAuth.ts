@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
+import axios from 'axios'
 import api from '@/services/api'
 import { useAuthStore, type AuthUser } from '@/stores/authStore'
 
@@ -82,16 +83,49 @@ export function useMe() {
 
   // Handle side effects via useEffect (v5 pattern)
   useEffect(() => {
-    if (query.isSuccess && query.data && token) {
-      login(token, query.data.data)
+    if (query.isSuccess && query.data) {
+      // Dùng token mới nhất từ localStorage (sliding refresh có thể vừa cập nhật).
+      const currentToken = localStorage.getItem('token')
+      if (currentToken) {
+        login(currentToken, query.data.data)
+      }
     }
-  }, [query.isSuccess, query.data, token, login])
+  }, [query.isSuccess, query.data, login])
 
   useEffect(() => {
     if (query.isError) {
-      logout()
+      const status = axios.isAxiosError(query.error)
+        ? query.error.response?.status
+        : undefined
+      // Chỉ logout khi token thật sự hết hạn / bị vô hiệu — không logout vì mạng lỗi.
+      if (status === 401 || status === 403) {
+        logout()
+      }
     }
-  }, [query.isError, logout])
+  }, [query.isError, query.error, logout])
 
   return query
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// useSessionKeepAlive — ping /auth/me định kỳ để sliding refresh token
+// ────────────────────────────────────────────────────────────────────────────
+
+const KEEPALIVE_MS = 30 * 60 * 1000 // 30 phút
+
+export function useSessionKeepAlive() {
+  const token = useAuthStore((s) => s.token)
+
+  useEffect(() => {
+    if (!token) return
+
+    const ping = () => {
+      void api.get('/auth/me').catch(() => {
+        // Lỗi auth được xử lý ở useMe / interceptor.
+      })
+    }
+
+    // Gia hạn định kỳ mỗi 30 phút khi tab còn mở (/auth/me lúc mount do useMe xử lý).
+    const id = window.setInterval(ping, KEEPALIVE_MS)
+    return () => window.clearInterval(id)
+  }, [token])

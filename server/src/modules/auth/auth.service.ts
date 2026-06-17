@@ -29,6 +29,29 @@ export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions)
 }
 
+/** Parse JWT_EXPIRES_IN values like 30d, 12h, 7d into milliseconds. */
+export function parseJwtExpiresInMs(expiresIn = process.env.JWT_EXPIRES_IN ?? '30d'): number {
+  const match = /^(\d+)([smhdw])$/i.exec(expiresIn.trim())
+  if (!match) return 30 * 24 * 3600 * 1000
+
+  const amount = parseInt(match[1], 10)
+  const unit = match[2].toLowerCase()
+  const multipliers: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 3600 * 1000,
+    d: 24 * 3600 * 1000,
+    w: 7 * 24 * 3600 * 1000,
+  }
+  return amount * (multipliers[unit] ?? multipliers.d)
+}
+
+/** Sliding refresh window: second half of token life, capped at 7 days. */
+export function getJwtRefreshThresholdMs(): number {
+  const totalMs = parseJwtExpiresInMs()
+  return Math.min(totalMs / 2, 7 * 24 * 3600 * 1000)
+}
+
 export async function login(username: string, password: string): Promise<LoginResult> {
   const user = await prisma.user.findUnique({
     where: { username },
