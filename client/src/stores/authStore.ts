@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { isJwtExpired, normalizeStoredToken } from '@/utils/jwt'
+import { isJwtExpired, isJwtShape, normalizeStoredToken } from '@/utils/jwt'
 // ────────────────────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: (token, user) => {
     const normalized = normalizeToken(token)
-    if (!normalized) return false
+    if (!normalized || !isJwtShape(normalized)) return false
     localStorage.setItem('token', normalized)
     localStorage.setItem('auth_user', JSON.stringify(user))
     set({ token: normalized, user, isAuthenticated: true })
@@ -87,7 +87,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   setToken: (token) => {
     const normalized = normalizeToken(token)
-    if (!normalized) return false
+    if (!normalized || !isJwtShape(normalized)) return false
     localStorage.setItem('token', normalized)
     set({ token: normalized })
     return true

@@ -23,6 +23,12 @@ export function normalizeStoredToken(raw: string | null | undefined): string | n
   return t.length > 0 ? t : null
 }
 
+/** JWT compact serialization is three base64url segments. */
+export function isJwtShape(token: string): boolean {
+  const parts = token.split('.')
+  return parts.length === 3 && parts.every((p) => p.length > 0)
+}
+
 function decodeJwtPayload(token: string): JwtPayload | null {
   try {
     const part = token.split('.')[1]

@@ -45,6 +45,10 @@ export function useLogin() {
         return
       }
       queryClient.removeQueries({ queryKey: ['me'] })
+      queryClient.setQueryData<MeResponse>(['me'], {
+        success: true,
+        data: data.data.user,
+      })
       navigate('/rooms', { replace: true })
     },
   })
@@ -74,7 +78,7 @@ export function useMe() {
   const token = useAuthStore((s) => s.token)
 
   return useQuery({
-    queryKey: ['me', token],
+    queryKey: ['me'],
     queryFn: async () => {
       const res = await api.get<MeResponse>('/auth/me')
       return res.data
@@ -85,7 +89,8 @@ export function useMe() {
       return failureCount < 1
     },
     staleTime: 5 * 60 * 1000,
-    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 }
 

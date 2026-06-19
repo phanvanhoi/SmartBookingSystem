@@ -1,7 +1,7 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
-import { normalizeStoredToken } from '@/utils/jwt'
+import { normalizeStoredToken, isJwtShape } from '@/utils/jwt'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -59,8 +59,11 @@ api.interceptors.response.use(
     // Sliding session: server cấp lại token khi gần hết hạn. Lưu ngay vào
     // localStorage + authStore để request kế tiếp + UI cùng dùng.
     const newToken = response.headers['x-new-token']
-    if (typeof newToken === 'string' && newToken.trim()) {
-      useAuthStore.getState().setToken(newToken.trim())
+    if (typeof newToken === 'string') {
+      const normalized = normalizeStoredToken(newToken)
+      if (normalized && isJwtShape(normalized)) {
+        useAuthStore.getState().setToken(normalized)
+      }
     }
     return response
   },
@@ -71,8 +74,11 @@ api.interceptors.response.use(
     const errorCode = error.response?.data?.error?.code as string | undefined
 
     if (status === 401) {
-      // Chỉ xóa phiên khi server xác nhận token chết — không xóa khi thiếu header.
-      if (errorCode === 'TOKEN_INVALID' || errorCode === 'TOKEN_EXPIRED') {
+      // /auth/me có thể refetch song song — RequireAuth xử lý logout, tránh race.
+      if (
+        !isMeRequest &&
+        (errorCode === 'TOKEN_INVALID' || errorCode === 'TOKEN_EXPIRED')
+      ) {
         clearAuthSession()
       }
       if (!isMeRequest) {

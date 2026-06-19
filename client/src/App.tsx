@@ -40,9 +40,16 @@ function SessionBootScreen() {
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token)
+  const user = useAuthStore((s) => s.user)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const logout = useAuthStore((s) => s.logout)
   const meQuery = useMe()
+
+  const hasSession = !!user || !!meQuery.data?.data
+  const fatalAuthError =
+    meQuery.isError &&
+    isAuthErrorStatus(getAxiosStatus(meQuery.error)) &&
+    !hasSession
 
   useEffect(() => {
     if (meQuery.isSuccess && meQuery.data) {
@@ -51,21 +58,21 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   }, [meQuery.isSuccess, meQuery.data])
 
   useEffect(() => {
-    if (meQuery.isError && isAuthErrorStatus(getAxiosStatus(meQuery.error))) {
+    if (fatalAuthError) {
       logout()
     }
-  }, [meQuery.isError, meQuery.error, logout])
+  }, [fatalAuthError, logout])
 
   if (!token && !isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 
-  // F5: chờ /auth/me xong rồi mới render app — tránh race 401 + logout oan.
-  if (token && !meQuery.isFetched) {
+  // F5 không có user cache: chờ /auth/me. Sau login đã có user → vào app ngay.
+  if (token && !user && !meQuery.isFetched) {
     return <SessionBootScreen />
   }
 
-  if (meQuery.isError && isAuthErrorStatus(getAxiosStatus(meQuery.error))) {
+  if (fatalAuthError) {
     return <Navigate to="/login" replace />
   }
 
@@ -73,7 +80,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (
     meQuery.isError &&
     !isAuthErrorStatus(getAxiosStatus(meQuery.error)) &&
-    !useAuthStore.getState().user
+    !user
   ) {
     return <SessionBootScreen />
   }
