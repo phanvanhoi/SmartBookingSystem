@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '../types/index'
 import { signToken, getJwtRefreshThresholdMs } from '../modules/auth/auth.service'
+import { getJwtSecret } from '../lib/jwtConfig'
 import { prisma } from '../lib/prisma'
 import logger from '../utils/logger'
 
@@ -37,8 +38,8 @@ export async function authenticate(
     return
   }
 
-  const token = authHeader.slice(7)
-  const secret = process.env.JWT_SECRET
+  const token = authHeader.slice(7).trim()
+  const secret = getJwtSecret()
 
   if (!secret) {
     res.status(500).json({
@@ -54,12 +55,15 @@ export async function authenticate(
   let decoded: JwtTokenPayload
   try {
     decoded = jwt.verify(token, secret) as unknown as JwtTokenPayload
-  } catch {
+  } catch (err) {
+    const isExpired = err instanceof jwt.TokenExpiredError
     res.status(401).json({
       success: false,
       error: {
-        code: 'TOKEN_INVALID',
-        message: 'Token không hợp lệ hoặc đã hết hạn',
+        code: isExpired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID',
+        message: isExpired
+          ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại'
+          : 'Token không hợp lệ hoặc đã hết hạn',
       },
     })
     return

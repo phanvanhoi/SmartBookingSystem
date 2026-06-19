@@ -24,6 +24,12 @@ interface AuthStore {
   logout: () => void
 }
 
+function normalizeToken(token: string | null | undefined): string | null {
+  if (!token) return null
+  const trimmed = token.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Hydration – read persisted session synchronously before first render
 // ────────────────────────────────────────────────────────────────────────────
@@ -33,7 +39,7 @@ function readInitialAuth(): Pick<AuthStore, 'user' | 'token' | 'isAuthenticated'
     return { user: null, token: null, isAuthenticated: false }
   }
 
-  const token = localStorage.getItem('token')
+  const token = normalizeToken(localStorage.getItem('token'))
   const userStr = localStorage.getItem('auth_user')
 
   if (!token) {
@@ -63,14 +69,18 @@ export const useAuthStore = create<AuthStore>((set) => ({
   ...readInitialAuth(),
 
   login: (token, user) => {
-    localStorage.setItem('token', token)
+    const normalized = normalizeToken(token)
+    if (!normalized) return
+    localStorage.setItem('token', normalized)
     localStorage.setItem('auth_user', JSON.stringify(user))
-    set({ token, user, isAuthenticated: true })
+    set({ token: normalized, user, isAuthenticated: true })
   },
 
   setToken: (token) => {
-    localStorage.setItem('token', token)
-    set({ token })
+    const normalized = normalizeToken(token)
+    if (!normalized) return
+    localStorage.setItem('token', normalized)
+    set({ token: normalized })
   },
 
   logout: () => {

@@ -14,7 +14,16 @@ if [ "$(id -u)" = "0" ]; then
     chown -R node:node "/app/$d"
   done
   echo "🔐 Re-executing as node user…"
-  exec su node -s /bin/sh -c 'cd /app && exec ./docker-entrypoint.sh'
+  # -m giữ nguyên env từ Docker (JWT_SECRET, DATABASE_URL, …). Không có -m
+  # busybox su có thể xóa env → ký/verify JWT lệch nhau.
+  exec su -m node -s /bin/sh -c 'cd /app && exec ./docker-entrypoint.sh'
+fi
+
+# Xác nhận env JWT sau khi drop user (chỉ log độ dài, không lộ secret).
+if [ -n "$JWT_SECRET" ]; then
+  echo "✓ JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-30d} (secret length: $(printf %s "$JWT_SECRET" | wc -c | tr -d ' '))"
+else
+  echo "⚠ JWT_SECRET is empty — login will fail"
 fi
 
 # ── Schema sync ──────────────────────────────────────────────────────────────

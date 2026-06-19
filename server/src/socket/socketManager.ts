@@ -2,6 +2,7 @@ import { Server as HttpServer } from 'http'
 import { Server as SocketServer, Socket } from 'socket.io'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '../types/index'
+import { getJwtSecret } from '../lib/jwtConfig'
 import logger from '../utils/logger'
 
 // ── Socket.data augmentation ─────────────────────────────────────────────────
@@ -68,7 +69,7 @@ export function setupSocket(server: HttpServer): SocketServer {
       return next(new Error('UNAUTHORIZED'))
     }
 
-    const secret = process.env.JWT_SECRET
+    const secret = getJwtSecret()
     if (!secret) {
       return next(new Error('INTERNAL_ERROR'))
     }

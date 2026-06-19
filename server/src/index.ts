@@ -10,8 +10,11 @@ import { setupSocket } from './socket/socketManager'
 import { startRoomTimerChecker } from './socket/roomSocket'
 import { prisma } from './lib/prisma'
 import logger from './utils/logger'
+import { assertJwtConfig } from './lib/jwtConfig'
 
 const PORT = process.env.PORT || 3000
+
+assertJwtConfig()
 
 const server = http.createServer(app)
 

@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
 import { AuthUser } from '../../types/index'
 import { SALT_ROUNDS } from '../../utils/constants'
+import { getJwtExpiresIn, getJwtSecret } from '../../lib/jwtConfig'
 
 interface LoginResult {
   token: string
@@ -18,19 +19,18 @@ interface JwtPayload {
 }
 
 export function signToken(payload: JwtPayload): string {
-  const secret = process.env.JWT_SECRET
+  const secret = getJwtSecret()
   if (!secret) {
     throw new AppError(500, 'INTERNAL_ERROR', 'JWT_SECRET chưa được cấu hình')
   }
 
-  // Keep this default in sync with docker-compose.yml and .env.example.
-  const expiresIn = process.env.JWT_EXPIRES_IN ?? '30d'
+  const expiresIn = getJwtExpiresIn()
 
   return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions)
 }
 
 /** Parse JWT_EXPIRES_IN values like 30d, 12h, 7d into milliseconds. */
-export function parseJwtExpiresInMs(expiresIn = process.env.JWT_EXPIRES_IN ?? '30d'): number {
+export function parseJwtExpiresInMs(expiresIn = getJwtExpiresIn()): number {
   const match = /^(\d+)([smhdw])$/i.exec(expiresIn.trim())
   if (!match) return 30 * 24 * 3600 * 1000
 

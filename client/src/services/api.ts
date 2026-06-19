@@ -11,7 +11,7 @@ const api = axios.create({
 
 // Request interceptor: attach JWT token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = localStorage.getItem('token')?.trim()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -51,8 +51,8 @@ api.interceptors.response.use(
     // Sliding session: server cấp lại token khi gần hết hạn. Lưu ngay vào
     // localStorage + authStore để request kế tiếp + UI cùng dùng.
     const newToken = response.headers['x-new-token']
-    if (typeof newToken === 'string' && newToken) {
-      useAuthStore.getState().setToken(newToken)
+    if (typeof newToken === 'string' && newToken.trim()) {
+      useAuthStore.getState().setToken(newToken.trim())
     }
     return response
   },
@@ -60,11 +60,18 @@ api.interceptors.response.use(
     const status = error.response?.status
     const url = String(error.config?.url ?? '')
     const isMeRequest = url.includes('/auth/me')
+    const errorCode = error.response?.data?.error?.code as string | undefined
 
     if (status === 401) {
-      // /auth/me → useMe / keepalive xử lý logout; tránh toast trùng lặp.
+      if (errorCode === 'TOKEN_INVALID' || errorCode === 'TOKEN_EXPIRED') {
+        clearAuthSession()
+      }
       if (!isMeRequest) {
-        toastOnce('Phiên đăng nhập có vấn đề. Đăng nhập lại nếu thao tác không thành công.')
+        toastOnce(
+          errorCode === 'TOKEN_EXPIRED'
+            ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+            : 'Phiên đăng nhập có vấn đề. Đăng nhập lại nếu thao tác không thành công.',
+        )
       }
     } else if (status === 403 && !isMeRequest) {
       toastOnce('Bạn không có quyền thực hiện thao tác này')
