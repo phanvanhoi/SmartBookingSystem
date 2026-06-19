@@ -29,6 +29,19 @@ export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions)
 }
 
+/** Reject misconfigured JWT signing (token TTL unexpectedly short). */
+function assertIssuedTokenTtl(token: string): void {
+  const decoded = jwt.decode(token) as { exp?: number; iat?: number } | null
+  const ttlSec = (decoded?.exp ?? 0) - Math.floor(Date.now() / 1000)
+  if (ttlSec < 3600) {
+    throw new AppError(
+      500,
+      'JWT_CONFIG_ERROR',
+      `Token chỉ sống ${ttlSec}s — TTL mong đợi ${getJwtExpiresIn()}`,
+    )
+  }
+}
+
 /** Parse JWT_EXPIRES_IN values like 30d, 12h, 7d into milliseconds. */
 export function parseJwtExpiresInMs(expiresIn = getJwtExpiresIn()): number {
   const match = /^(\d+)([smhdw])$/i.exec(expiresIn.trim())
@@ -87,6 +100,7 @@ export async function login(username: string, password: string): Promise<LoginRe
   }
 
   const token = signToken(payload)
+  assertIssuedTokenTtl(token)
 
   return {
     token,

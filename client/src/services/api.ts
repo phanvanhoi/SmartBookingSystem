@@ -1,6 +1,7 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
+import { normalizeStoredToken } from '@/utils/jwt'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -9,9 +10,16 @@ const api = axios.create({
   },
 })
 
+/** Single source for Authorization header — store first, then localStorage. */
+export function getAuthToken(): string | null {
+  const fromStore = normalizeStoredToken(useAuthStore.getState().token)
+  if (fromStore) return fromStore
+  return normalizeStoredToken(localStorage.getItem('token'))
+}
+
 // Request interceptor: attach JWT token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')?.trim()
+  const token = getAuthToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { AuthUser } from '../types/index'
 import { signToken, getJwtRefreshThresholdMs } from '../modules/auth/auth.service'
-import { getJwtSecret } from '../lib/jwtConfig'
+import { getJwtSecret, getJwtExpiresIn } from '../lib/jwtConfig'
 import { prisma } from '../lib/prisma'
 import logger from '../utils/logger'
 
@@ -57,6 +57,15 @@ export async function authenticate(
     decoded = jwt.verify(token, secret) as unknown as JwtTokenPayload
   } catch (err) {
     const isExpired = err instanceof jwt.TokenExpiredError
+    if (isExpired) {
+      const payload = jwt.decode(token) as { exp?: number; iat?: number } | null
+      logger.warn('[auth] TOKEN_EXPIRED', {
+        exp: payload?.exp,
+        iat: payload?.iat,
+        serverNow: Math.floor(Date.now() / 1000),
+        jwtExpiresIn: getJwtExpiresIn(),
+      })
+    }
     res.status(401).json({
       success: false,
       error: {

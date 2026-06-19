@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import axios from 'axios'
-import api from '@/services/api'
+import api, { getAuthToken } from '@/services/api'
 import { useAuthStore, type AuthUser } from '@/stores/authStore'
 
 interface LoginPayload {
@@ -30,6 +30,7 @@ interface MeResponse {
 export function useLogin() {
   const login = useAuthStore((s) => s.login)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (payload: LoginPayload) => {
@@ -38,6 +39,7 @@ export function useLogin() {
     },
     onSuccess: (data) => {
       login(data.data.token, data.data.user)
+      queryClient.removeQueries({ queryKey: ['me'] })
       navigate('/rooms', { replace: true })
     },
   })
@@ -50,9 +52,11 @@ export function useLogin() {
 export function useLogout() {
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   return () => {
     logout()
+    queryClient.removeQueries({ queryKey: ['me'] })
     navigate('/login', { replace: true })
   }
 }
@@ -65,24 +69,24 @@ export function useMe() {
   const token = useAuthStore((s) => s.token)
 
   return useQuery({
-    queryKey: ['me'],
+    queryKey: ['me', token],
     queryFn: async () => {
       const res = await api.get<MeResponse>('/auth/me')
       return res.data
     },
     enabled: !!token,
-    // F5 / mạng chập chờn: thử lại 1 lần trước khi coi là mất phiên.
     retry: (failureCount, error) => {
       if (isAuthErrorStatus(getAxiosStatus(error))) return false
       return failureCount < 1
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
   })
 }
 
 /** Gọi sau khi /auth/me thành công — đồng bộ user + token (sliding refresh). */
 export function syncSessionFromMe(me: MeResponse) {
-  const currentToken = localStorage.getItem('token')
+  const currentToken = getAuthToken()
   if (!currentToken) return
   const { id, username, fullName, role } = me.data
   useAuthStore.getState().login(currentToken, { id, username, fullName, role })

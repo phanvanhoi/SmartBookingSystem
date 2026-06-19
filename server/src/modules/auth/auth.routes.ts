@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import rateLimit from 'express-rate-limit'
 import { loginHandler, getMeHandler, changePasswordHandler } from './auth.controller'
 import { authenticate } from '../../middleware/auth.middleware'
@@ -6,6 +6,13 @@ import { validate } from '../../middleware/validate.middleware'
 import { loginSchema, changePasswordSchema } from './auth.validation'
 
 const router = Router()
+
+function noStore(_req: Request, res: Response, next: NextFunction) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+  next()
+}
+
+router.use(noStore)
 
 // Brute-force protection: max 10 login attempts per IP per 15 minutes.
 // Counts ALL attempts (success + fail) — keeps the limiter simple and predictable.

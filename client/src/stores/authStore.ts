@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-
+import { isJwtExpired, normalizeStoredToken } from '@/utils/jwt'
 // ────────────────────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────────────────────
@@ -25,14 +25,16 @@ interface AuthStore {
 }
 
 function normalizeToken(token: string | null | undefined): string | null {
-  if (!token) return null
-  const trimmed = token.trim()
-  return trimmed.length > 0 ? trimmed : null
+  return normalizeStoredToken(token)
 }
-
 // ────────────────────────────────────────────────────────────────────────────
 // Hydration – read persisted session synchronously before first render
 // ────────────────────────────────────────────────────────────────────────────
+
+function clearStoredAuth() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('auth_user')
+}
 
 function readInitialAuth(): Pick<AuthStore, 'user' | 'token' | 'isAuthenticated'> {
   if (typeof window === 'undefined') {
@@ -43,6 +45,12 @@ function readInitialAuth(): Pick<AuthStore, 'user' | 'token' | 'isAuthenticated'
   const userStr = localStorage.getItem('auth_user')
 
   if (!token) {
+    return { user: null, token: null, isAuthenticated: false }
+  }
+
+  // Token hết hạn trong localStorage → xóa sạch, tránh F5 gọi /auth/me → TOKEN_EXPIRED.
+  if (isJwtExpired(token)) {
+    clearStoredAuth()
     return { user: null, token: null, isAuthenticated: false }
   }
 
@@ -70,7 +78,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: (token, user) => {
     const normalized = normalizeToken(token)
-    if (!normalized) return
+    if (!normalized || isJwtExpired(normalized)) return
     localStorage.setItem('token', normalized)
     localStorage.setItem('auth_user', JSON.stringify(user))
     set({ token: normalized, user, isAuthenticated: true })
@@ -78,14 +86,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   setToken: (token) => {
     const normalized = normalizeToken(token)
-    if (!normalized) return
+    if (!normalized || isJwtExpired(normalized)) return
     localStorage.setItem('token', normalized)
     set({ token: normalized })
   },
 
   logout: () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('auth_user')
+    clearStoredAuth()
     set({ token: null, user: null, isAuthenticated: false })
   },
 }))

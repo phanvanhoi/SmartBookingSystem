@@ -100,7 +100,15 @@ app.use('/uploads', express.static(uploadDir))
 // ── Serve React client in production ─────────────────────────────────────────
 const clientPath = path.resolve(process.cwd(), 'public')
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(clientPath))
+  app.use(
+    express.static(clientPath, {
+      setHeaders(res, filePath) {
+        if (filePath.endsWith(`${path.sep}index.html`)) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+        }
+      },
+    }),
+  )
 }
 
 // ── API Routes ────────────────────────────────────────────────────────────────
