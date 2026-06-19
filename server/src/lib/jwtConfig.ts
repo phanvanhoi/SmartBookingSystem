@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 
-const DURATION_RE = /^(\d+)([smhdw])$/i
+/** JWT access token lifetime (jsonwebtoken / ms format). */
+export const JWT_EXPIRES_IN = '30d'
 
 /**
  * Normalize JWT_SECRET from docker / .env (trim, strip wrapping quotes).
@@ -19,38 +20,8 @@ export function getJwtSecret(): string {
   return raw
 }
 
-function stripQuotes(value: string): string {
-  const t = value.trim()
-  if (
-    (t.startsWith('"') && t.endsWith('"')) ||
-    (t.startsWith("'") && t.endsWith("'"))
-  ) {
-    return t.slice(1, -1).trim()
-  }
-  return t
-}
-
-/**
- * Normalize JWT_EXPIRES_IN for jsonwebtoken.
- * Bare "48" without unit → instant expiry in jsonwebtoken — treat as 48h.
- */
 export function getJwtExpiresIn(): string {
-  const raw = stripQuotes(process.env.JWT_EXPIRES_IN ?? '30d')
-
-  if (DURATION_RE.test(raw)) {
-    return raw
-  }
-
-  const bare = /^(\d+)$/.exec(raw)
-  if (bare) {
-    console.warn(
-      `[auth] JWT_EXPIRES_IN="${raw}" has no unit — using ${bare[1]}h (prefer e.g. 48h or 30d).`,
-    )
-    return `${bare[1]}h`
-  }
-
-  console.warn(`[auth] Invalid JWT_EXPIRES_IN="${raw}", using 30d`)
-  return '30d'
+  return JWT_EXPIRES_IN
 }
 
 export function assertJwtConfig(): void {
@@ -70,12 +41,10 @@ export function assertJwtConfig(): void {
   const ttlSec = (decoded.exp ?? 0) - Math.floor(Date.now() / 1000)
 
   if (ttlSec < 3600) {
-    throw new Error(
-      `[auth] JWT TTL is only ${ttlSec}s — check JWT_EXPIRES_IN (resolved: "${expiresIn}")`,
-    )
+    throw new Error(`[auth] JWT TTL is only ${ttlSec}s (expected ${JWT_EXPIRES_IN})`)
   }
 
   console.log(
-    `[auth] JWT_EXPIRES_IN=${expiresIn} (~${Math.round(ttlSec / 3600)}h TTL) JWT_SECRET length=${secret.length}`,
+    `[auth] JWT TTL=${JWT_EXPIRES_IN} (~${Math.round(ttlSec / 3600)}h) JWT_SECRET length=${secret.length}`,
   )
 }
