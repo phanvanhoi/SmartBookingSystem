@@ -49,11 +49,8 @@ COPY --from=server-build /app/server/dist ./dist
 # Copy built client → serve as static files
 COPY --from=client-build /app/client/dist ./public
 
-# Install su-exec so the entrypoint can fix volume ownership as root and then
-# drop to the unprivileged `node` user before exec-ing node.
-RUN apk add --no-cache su-exec
-
-# Copy entrypoint
+# Drop to node user via busybox su (no extra apk — avoids build failures when
+# VPS DNS cannot reach dl-cdn.alpinelinux.org for su-exec).
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
@@ -63,7 +60,7 @@ RUN chown -R node:node /app
 
 # Note: we intentionally stay as root here so the entrypoint can chown the
 # mounted volumes (which may have been created root-owned by an older image),
-# then drop to `node` via su-exec. Process never serves traffic as root.
+# then drop to `node` via busybox su. Process never serves traffic as root.
 
 # Expose port
 EXPOSE 3000

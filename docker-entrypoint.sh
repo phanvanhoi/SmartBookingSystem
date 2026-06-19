@@ -7,14 +7,14 @@ echo "🎵 Music Box Manager - Starting..."
 # Named volumes mounted on /app/{data,uploads,logs} may be owned by root
 # (eg. created by a previous root-running image). The unprivileged `node`
 # user can't write to them as-is. Run as root briefly to chown, then drop
-# privileges via su-exec for the rest of the script.
+# privileges via busybox su (built into Alpine — no su-exec package needed).
 if [ "$(id -u)" = "0" ]; then
   for d in data uploads logs uploads/qr uploads/products; do
     mkdir -p "/app/$d"
     chown -R node:node "/app/$d"
   done
   echo "🔐 Re-executing as node user…"
-  exec su-exec node:node "$0" "$@"
+  exec su node -s /bin/sh -c 'cd /app && exec ./docker-entrypoint.sh'
 fi
 
 # ── Schema sync ──────────────────────────────────────────────────────────────
