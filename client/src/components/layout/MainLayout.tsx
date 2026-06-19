@@ -6,11 +6,12 @@ import StatusBar from './StatusBar'
 import GlobalFetchIndicator from '../GlobalFetchIndicator'
 import MobileMenuSheet from './MobileMenuSheet'
 import MoreMenuSheet from './MoreMenuSheet'
-import { useMe, useSessionKeepAlive } from '@/hooks/useAuth'
+import { useSessionKeepAlive } from '@/hooks/useAuth'
+import { useSocket } from '@/hooks/useSocket'
 
 export default function MainLayout() {
-  useMe()
   useSessionKeepAlive()
+  useSocket()
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)

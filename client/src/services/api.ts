@@ -58,9 +58,15 @@ api.interceptors.response.use(
   },
   (error) => {
     const status = error.response?.status
+    const url = String(error.config?.url ?? '')
+    const isMeRequest = url.includes('/auth/me')
+
     if (status === 401) {
-      toastOnce('Phiên đăng nhập có vấn đề. Đăng nhập lại nếu thao tác không thành công.')
-    } else if (status === 403) {
+      // /auth/me → useMe / keepalive xử lý logout; tránh toast trùng lặp.
+      if (!isMeRequest) {
+        toastOnce('Phiên đăng nhập có vấn đề. Đăng nhập lại nếu thao tác không thành công.')
+      }
+    } else if (status === 403 && !isMeRequest) {
       toastOnce('Bạn không có quyền thực hiện thao tác này')
     }
     return Promise.reject(error)

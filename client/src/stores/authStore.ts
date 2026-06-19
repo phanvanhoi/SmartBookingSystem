@@ -36,17 +36,22 @@ function readInitialAuth(): Pick<AuthStore, 'user' | 'token' | 'isAuthenticated'
   const token = localStorage.getItem('token')
   const userStr = localStorage.getItem('auth_user')
 
-  if (!token || !userStr) {
+  if (!token) {
     return { user: null, token: null, isAuthenticated: false }
+  }
+
+  // Còn token nhưng thiếu/hỏng auth_user → vẫn coi là đã đăng nhập,
+  // RequireAuth sẽ gọi /auth/me để khôi phục user (tránh F5 đá về login oan).
+  if (!userStr) {
+    return { user: null, token, isAuthenticated: true }
   }
 
   try {
     const user = JSON.parse(userStr) as AuthUser
     return { user, token, isAuthenticated: true }
   } catch {
-    localStorage.removeItem('token')
     localStorage.removeItem('auth_user')
-    return { user: null, token: null, isAuthenticated: false }
+    return { user: null, token, isAuthenticated: true }
   }
 }
 

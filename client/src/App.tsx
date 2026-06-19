@@ -13,16 +13,70 @@ import InvoicesPage from './pages/invoices/InvoicesPage'
 import LoginPage from './pages/auth/LoginPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import FacebookInboxPage from './pages/facebook/FacebookInboxPage'
+import { useEffect } from 'react'
 import { useAuthStore, type UserRole } from './stores/authStore'
-import { useSocket } from './hooks/useSocket'
-import { ShieldAlert } from 'lucide-react'
+import {
+  getAxiosStatus,
+  isAuthErrorStatus,
+  syncSessionFromMe,
+  useMe,
+} from './hooks/useAuth'
+import { ShieldAlert, Loader2 } from 'lucide-react'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Auth Guard
 // ────────────────────────────────────────────────────────────────────────────
 
+function SessionBootScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm">Đang khôi phục phiên...</p>
+      </div>
+    </div>
+  )
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
+  const token = useAuthStore((s) => s.token)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const logout = useAuthStore((s) => s.logout)
+  const meQuery = useMe()
+
+  useEffect(() => {
+    if (meQuery.isSuccess && meQuery.data) {
+      syncSessionFromMe(meQuery.data)
+    }
+  }, [meQuery.isSuccess, meQuery.data])
+
+  useEffect(() => {
+    if (meQuery.isError && isAuthErrorStatus(getAxiosStatus(meQuery.error))) {
+      logout()
+    }
+  }, [meQuery.isError, meQuery.error, logout])
+
+  if (!token && !isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  // F5: chờ /auth/me xong rồi mới render app — tránh race 401 + logout oan.
+  if (token && !meQuery.isFetched) {
+    return <SessionBootScreen />
+  }
+
+  if (meQuery.isError && isAuthErrorStatus(getAxiosStatus(meQuery.error))) {
+    return <Navigate to="/login" replace />
+  }
+
+  // Mạng lỗi khi F5 nhưng còn user cache → vẫn vào app (không đá login).
+  if (
+    meQuery.isError &&
+    !isAuthErrorStatus(getAxiosStatus(meQuery.error)) &&
+    !useAuthStore.getState().user
+  ) {
+    return <SessionBootScreen />
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
@@ -67,28 +121,15 @@ function defaultLandingPath(role?: UserRole) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Socket initializer – runs only when authenticated
-// ────────────────────────────────────────────────────────────────────────────
-
-function SocketInitializer() {
-  useSocket()
-  return null
-}
-
-// ────────────────────────────────────────────────────────────────────────────
 // App
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const role = useAuthStore((s) => s.user?.role)
   const landing = defaultLandingPath(role)
 
   return (
     <>
-      {/* Connect socket only when authenticated */}
-      {isAuthenticated && <SocketInitializer />}
-
       <Routes>
         {/* Public route */}
         <Route path="/login" element={<LoginPage />} />
