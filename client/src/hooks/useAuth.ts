@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import axios from 'axios'
+import toast from 'react-hot-toast'
 import api, { getAuthToken } from '@/services/api'
 import { useAuthStore, type AuthUser } from '@/stores/authStore'
 
@@ -38,7 +39,11 @@ export function useLogin() {
       return res.data
     },
     onSuccess: (data) => {
-      login(data.data.token, data.data.user)
+      const saved = login(data.data.token, data.data.user)
+      if (!saved) {
+        toast.error('Không lưu được phiên đăng nhập. Thử đăng nhập lại.')
+        return
+      }
       queryClient.removeQueries({ queryKey: ['me'] })
       navigate('/rooms', { replace: true })
     },

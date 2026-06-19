@@ -57,12 +57,18 @@ export async function authenticate(
     decoded = jwt.verify(token, secret) as unknown as JwtTokenPayload
   } catch (err) {
     const isExpired = err instanceof jwt.TokenExpiredError
+    const payload = jwt.decode(token) as { exp?: number; iat?: number } | null
     if (isExpired) {
-      const payload = jwt.decode(token) as { exp?: number; iat?: number } | null
       logger.warn('[auth] TOKEN_EXPIRED', {
         exp: payload?.exp,
         iat: payload?.iat,
         serverNow: Math.floor(Date.now() / 1000),
+        jwtExpiresIn: getJwtExpiresIn(),
+      })
+    } else {
+      logger.warn('[auth] TOKEN_INVALID', {
+        err: err instanceof Error ? err.message : String(err),
+        secretLen: secret.length,
         jwtExpiresIn: getJwtExpiresIn(),
       })
     }

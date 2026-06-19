@@ -26,6 +26,14 @@ else
   echo "⚠ JWT_SECRET is empty — login will fail"
 fi
 
+# Node phải thấy cùng env — nếu không, mọi API sau login sẽ 401.
+node -e "
+const len = (process.env.JWT_SECRET || '').trim().length;
+const exp = (process.env.JWT_EXPIRES_IN || '30d').trim();
+if (!len) { console.error('FATAL: JWT_SECRET empty inside node process'); process.exit(1); }
+console.log('✓ node JWT_SECRET length=' + len + ' JWT_EXPIRES_IN=' + exp);
+"
+
 # ── Schema sync ──────────────────────────────────────────────────────────────
 # `prisma db push` (without --accept-data-loss) will refuse to make destructive
 # changes — it only adds new tables/columns. If the schema diverges in a way

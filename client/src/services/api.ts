@@ -71,6 +71,7 @@ api.interceptors.response.use(
     const errorCode = error.response?.data?.error?.code as string | undefined
 
     if (status === 401) {
+      // Chỉ xóa phiên khi server xác nhận token chết — không xóa khi thiếu header.
       if (errorCode === 'TOKEN_INVALID' || errorCode === 'TOKEN_EXPIRED') {
         clearAuthSession()
       }

@@ -18,9 +18,9 @@ interface AuthStore {
   token: string | null
   isAuthenticated: boolean
 
-  login: (token: string, user: AuthUser) => void
+  login: (token: string, user: AuthUser) => boolean
   /** Cập nhật chỉ token (sliding refresh) — không đụng auth_user. */
-  setToken: (token: string) => void
+  setToken: (token: string) => boolean
   logout: () => void
 }
 
@@ -78,17 +78,19 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: (token, user) => {
     const normalized = normalizeToken(token)
-    if (!normalized || isJwtExpired(normalized)) return
+    if (!normalized) return false
     localStorage.setItem('token', normalized)
     localStorage.setItem('auth_user', JSON.stringify(user))
     set({ token: normalized, user, isAuthenticated: true })
+    return true
   },
 
   setToken: (token) => {
     const normalized = normalizeToken(token)
-    if (!normalized || isJwtExpired(normalized)) return
+    if (!normalized) return false
     localStorage.setItem('token', normalized)
     set({ token: normalized })
+    return true
   },
 
   logout: () => {
