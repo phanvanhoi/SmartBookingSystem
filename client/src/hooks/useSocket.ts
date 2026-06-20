@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { io, Socket } from 'socket.io-client'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { io, Socket } from 'socket.io-client'
+import { getAuthToken } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useNotificationStore } from '@/stores/notificationStore'
 import { playWarningSound, playExpiredSound, playOrderSound } from '@/utils/audio'
@@ -57,11 +58,16 @@ export function useSocket() {
 
     // Create socket connection with JWT auth
     const socket = io(SOCKET_URL, {
-      auth: { token },
+      auth: { token: getAuthToken() ?? '' },
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: Infinity,
       transports: ['websocket', 'polling'],
+    })
+
+    // Reconnect must use latest JWT (sliding refresh updates localStorage).
+    socket.io.on('reconnect_attempt', () => {
+      socket.auth = { token: getAuthToken() ?? '' }
     })
 
     socketRef.current = socket

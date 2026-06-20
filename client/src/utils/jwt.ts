@@ -40,10 +40,10 @@ function decodeJwtPayload(token: string): JwtPayload | null {
     return null
   }
 }
-/** True when JWT exp is in the past (30s clock skew). */
+/** True when JWT exp is in the past (30s clock skew). Missing exp → treat as dead. */
 export function isJwtExpired(token: string, skewSeconds = 30): boolean {
   const payload = decodeJwtPayload(token)
-  if (!payload?.exp) return false
+  if (!payload?.exp) return true
   return payload.exp * 1000 <= Date.now() + skewSeconds * 1000
 }
 

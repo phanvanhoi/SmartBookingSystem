@@ -59,10 +59,10 @@ export function parseJwtExpiresInMs(expiresIn = getJwtExpiresIn()): number {
   return amount * (multipliers[unit] ?? multipliers.d)
 }
 
-/** Sliding refresh window: second half of token life, capped at 7 days. */
+/** Sliding refresh window: second half of token life, capped at 14 days. */
 export function getJwtRefreshThresholdMs(): number {
   const totalMs = parseJwtExpiresInMs()
-  return Math.min(totalMs / 2, 7 * 24 * 3600 * 1000)
+  return Math.min(totalMs / 2, 14 * 24 * 3600 * 1000)
 }
 
 export async function login(username: string, password: string): Promise<LoginResult> {

@@ -16,7 +16,7 @@ interface JwtTokenPayload {
 }
 
 // Sliding session: re-issue a token (qua header X-New-Token) khi token hiện
-// tại sắp hết hạn (nửa cuối vòng đời, tối đa 7 ngày). User còn hoạt động thì
+// tại sắp hết hạn (nửa cuối vòng đời, tối đa 14 ngày). User còn hoạt động thì
 // session được gia hạn liên tục.
 const REFRESH_THRESHOLD_MS = getJwtRefreshThresholdMs()
 

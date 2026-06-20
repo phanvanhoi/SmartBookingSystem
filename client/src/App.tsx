@@ -15,9 +15,8 @@ import SettingsPage from './pages/settings/SettingsPage'
 import FacebookInboxPage from './pages/facebook/FacebookInboxPage'
 import { useEffect } from 'react'
 import { useAuthStore, type UserRole } from './stores/authStore'
+import { isSessionDeadError } from './services/api'
 import {
-  getAxiosStatus,
-  isAuthErrorStatus,
   syncSessionFromMe,
   useMe,
 } from './hooks/useAuth'
@@ -45,11 +44,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const logout = useAuthStore((s) => s.logout)
   const meQuery = useMe()
 
-  const hasSession = !!user || !!meQuery.data?.data
-  const fatalAuthError =
+  const fatalAuthError = meQuery.isError && isSessionDeadError(meQuery.error)
+  const networkBootPending =
     meQuery.isError &&
-    isAuthErrorStatus(getAxiosStatus(meQuery.error)) &&
-    !hasSession
+    !isSessionDeadError(meQuery.error) &&
+    !user
 
   useEffect(() => {
     if (meQuery.isSuccess && meQuery.data) {
@@ -76,12 +75,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />
   }
 
-  // Mạng lỗi khi F5 nhưng còn user cache → vẫn vào app (không đá login).
-  if (
-    meQuery.isError &&
-    !isAuthErrorStatus(getAxiosStatus(meQuery.error)) &&
-    !user
-  ) {
+  // Mạng lỗi khi F5 nhưng chưa có user cache → chờ retry.
+  if (networkBootPending) {
     return <SessionBootScreen />
   }
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
-import api, { getAuthToken } from '@/services/api'
+import api, { getAuthToken, isSessionDeadError } from '@/services/api'
 import { useAuthStore, type AuthUser } from '@/stores/authStore'
 
 interface LoginPayload {
@@ -85,12 +85,12 @@ export function useMe() {
     },
     enabled: !!token,
     retry: (failureCount, error) => {
-      if (isAuthErrorStatus(getAxiosStatus(error))) return false
+      if (isSessionDeadError(error)) return false
       return failureCount < 1
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
   })
 }
 
@@ -126,13 +126,14 @@ export function useSessionKeepAlive() {
 
     const ping = () => {
       void api.get('/auth/me').catch((error) => {
-        if (isAuthErrorStatus(getAxiosStatus(error))) {
+        if (isSessionDeadError(error)) {
           logout()
           navigate('/login', { replace: true })
         }
       })
     }
 
+    ping()
     const id = window.setInterval(ping, KEEPALIVE_MS)
     return () => window.clearInterval(id)
   }, [token, logout, navigate])
