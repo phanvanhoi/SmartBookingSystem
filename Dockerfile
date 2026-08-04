@@ -1,20 +1,27 @@
+# syntax=docker/dockerfile:1
 # ══════════════════════════════════════════
 # Stage 1: Build client
 # ══════════════════════════════════════════
 FROM node:20-alpine AS client-build
 
+# Override on VPS if npmjs is slow, e.g.:
+#   docker compose build --build-arg NPM_REGISTRY=https://registry.npmmirror.com
+ARG NPM_REGISTRY=https://registry.npmjs.org
+
 WORKDIR /app/client
 
-# Faster / more resilient npm on flaky VPS networks
-RUN npm config set fetch-retries 5 \
+RUN npm config set registry "$NPM_REGISTRY" \
+ && npm config set fetch-retries 5 \
  && npm config set fetch-retry-mintimeout 20000 \
  && npm config set fetch-retry-maxtimeout 120000 \
- && npm config set fetch-timeout 300000 \
- && npm config set maxsockets 3
+ && npm config set fetch-timeout 600000 \
+ && npm config set maxsockets 2 \
+ && npm config set fund false \
+ && npm config set audit false
 
 COPY client/package.json client/package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm \
-    if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Prefer lockfile; fall back to install. No BuildKit cache mount (hangs on some VPS).
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
 
 COPY client/ ./
 RUN npm run build
@@ -24,33 +31,32 @@ RUN npm run build
 # ══════════════════════════════════════════
 FROM node:20-alpine AS server-build
 
+ARG NPM_REGISTRY=https://registry.npmjs.org
+
 WORKDIR /app/server
 
-RUN npm config set fetch-retries 5 \
+RUN npm config set registry "$NPM_REGISTRY" \
+ && npm config set fetch-retries 5 \
  && npm config set fetch-retry-mintimeout 20000 \
  && npm config set fetch-retry-maxtimeout 120000 \
- && npm config set fetch-timeout 300000 \
- && npm config set maxsockets 3
+ && npm config set fetch-timeout 600000 \
+ && npm config set maxsockets 2 \
+ && npm config set fund false \
+ && npm config set audit false
 
 COPY server/package.json server/package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm \
-    if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
 
 COPY server/ ./
 
-# Generate Prisma client
 RUN npx prisma generate --schema=prisma/schema.prisma
-
-# Build TypeScript
 RUN npx tsc
 
-# Production node_modules: drop build-only deps, keep prisma CLI for entrypoint `db push`
-RUN npm prune --omit=dev \
- && npm install prisma@6.4.1 --omit=dev --no-audit --no-fund \
- && npx prisma generate --schema=prisma/schema.prisma
+# Drop build-only deps; prisma stays in dependencies for entrypoint `db push`
+RUN npm prune --omit=dev
 
 # ══════════════════════════════════════════
-# Stage 3: Production (no third npm install — avoids long hangs on VPS)
+# Stage 3: Production (copy artifacts — no npm network)
 # ══════════════════════════════════════════
 FROM node:20-alpine AS production
 

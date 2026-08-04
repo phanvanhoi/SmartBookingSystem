@@ -1,10 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Copy, Check, Loader2, PartyPopper, ChevronDown } from 'lucide-react'
+import { Copy, Check, Loader2, PartyPopper, ChevronDown, Users, DoorOpen } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
-import { publicService, type PublicBookingResult } from '@/services/publicService'
+import {
+  publicService,
+  type PublicAvailabilityRoom,
+  type PublicBookingResult,
+  type PublicRoom,
+} from '@/services/publicService'
 import { getErrorMessage } from '@/utils/error'
 import { cn } from '@/utils/cn'
 
@@ -16,22 +21,61 @@ function todayISO() {
   return `${y}-${m}-${day}`
 }
 
-const TIME_OPTIONS = Array.from({ length: 28 }, (_, i) => {
-  const total = 12 * 60 + i * 30
-  const h = Math.floor(total / 60) % 24
-  const m = total % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-})
-
 const DURATIONS = [1, 1.5, 2, 2.5, 3, 4]
+
+type RoomTier = {
+  roomTypeId: number
+  name: string
+  capacityMin: number
+  capacityMax: number
+  rooms: PublicRoom[]
+  accent: 'small' | 'large'
+}
+
+function buildTiers(rooms: PublicRoom[]): RoomTier[] {
+  const map = new Map<number, RoomTier>()
+  for (const r of rooms) {
+    let tier = map.get(r.roomTypeId)
+    if (!tier) {
+      const isSmall = /bé|nho|nhỏ|small/i.test(r.roomTypeName) || r.capacityMax <= 3
+      tier = {
+        roomTypeId: r.roomTypeId,
+        name: r.roomTypeName,
+        capacityMin: r.capacityMin,
+        capacityMax: r.capacityMax,
+        rooms: [],
+        accent: isSmall ? 'small' : 'large',
+      }
+      map.set(r.roomTypeId, tier)
+    }
+    tier.rooms.push(r)
+    tier.capacityMin = Math.min(tier.capacityMin, r.capacityMin)
+    tier.capacityMax = Math.max(tier.capacityMax, r.capacityMax)
+  }
+  return Array.from(map.values()).sort((a, b) => a.capacityMax - b.capacityMax)
+}
+
+function roomStatusLabel(av: PublicAvailabilityRoom | undefined) {
+  if (!av) return null
+  if (av.isSinging) return { text: 'Đang hát', tone: 'busy' as const }
+  if (av.busySlots.some((s) => s.reason === 'booking') && !av.hasAvailability) {
+    return { text: 'Hết chỗ ngày này', tone: 'busy' as const }
+  }
+  if (av.busySlots.some((s) => s.reason === 'booking')) {
+    return { text: 'Còn khung trống', tone: 'partial' as const }
+  }
+  if (av.hasAvailability) return { text: 'Trống', tone: 'free' as const }
+  return { text: 'Không còn giờ', tone: 'busy' as const }
+}
 
 export default function PublicBookingPage() {
   const navigate = useNavigate()
+  const [roomTypeId, setRoomTypeId] = useState<number | ''>('')
   const [roomId, setRoomId] = useState<number | ''>('')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [bookingDate, setBookingDate] = useState(todayISO())
-  const [bookingTime, setBookingTime] = useState('19:00')
+  const [bookingTime, setBookingTime] = useState('')
   const [durationHours, setDurationHours] = useState(2)
   const [guestCount, setGuestCount] = useState('')
   const [notes, setNotes] = useState('')
@@ -44,8 +88,55 @@ export default function PublicBookingPage() {
     queryFn: () => publicService.getRooms(),
   })
 
+  const availabilityQuery = useQuery({
+    queryKey: ['public', 'availability', bookingDate, durationHours],
+    queryFn: () =>
+      publicService.getAvailability({ date: bookingDate, durationHours }),
+    enabled: /^\d{4}-\d{2}-\d{2}$/.test(bookingDate),
+    refetchInterval: 60_000,
+  })
+
   const rooms = roomsQuery.data ?? []
+  const availability = availabilityQuery.data
+  const availabilityByRoom = useMemo(() => {
+    const map = new Map<number, PublicAvailabilityRoom>()
+    for (const r of availability?.rooms ?? []) map.set(r.id, r)
+    return map
+  }, [availability])
+
+  const tiers = useMemo(() => buildTiers(rooms), [rooms])
+  const selectedTier = useMemo(
+    () => tiers.find((t) => t.roomTypeId === roomTypeId) ?? null,
+    [tiers, roomTypeId],
+  )
   const selectedRoom = useMemo(() => rooms.find((r) => r.id === roomId), [rooms, roomId])
+  const selectedAvailability = roomId ? availabilityByRoom.get(Number(roomId)) : undefined
+
+  const timeOptions = useMemo(() => {
+    if (selectedAvailability) return selectedAvailability.availableSlots
+    return availability?.timeSlots ?? []
+  }, [selectedAvailability, availability])
+
+  // Keep bookingTime valid when availability / room changes
+  useEffect(() => {
+    if (timeOptions.length === 0) {
+      setBookingTime('')
+      return
+    }
+    if (!timeOptions.includes(bookingTime)) {
+      setBookingTime(timeOptions[0] ?? '')
+    }
+  }, [timeOptions, bookingTime])
+
+  // If selected room loses all slots, clear room pick within tier
+  useEffect(() => {
+    if (!roomId) return
+    const av = availabilityByRoom.get(Number(roomId))
+    if (av && !av.hasAvailability) {
+      const fallback = selectedTier?.rooms.find((r) => availabilityByRoom.get(r.id)?.hasAvailability)
+      setRoomId(fallback?.id ?? '')
+    }
+  }, [availabilityByRoom, roomId, selectedTier])
 
   const bookMutation = useMutation({
     mutationFn: publicService.createBooking,
@@ -58,11 +149,24 @@ export default function PublicBookingPage() {
   })
 
   const canSubmit =
-    !!roomId && customerName.trim().length >= 2 && customerPhone.trim().length >= 9 && !bookMutation.isPending
+    !!roomId &&
+    !!bookingTime &&
+    customerName.trim().length >= 2 &&
+    customerPhone.trim().length >= 9 &&
+    !bookMutation.isPending &&
+    !!selectedAvailability?.availableSlots.includes(bookingTime)
+
+  function selectTier(tier: RoomTier) {
+    setRoomTypeId(tier.roomTypeId)
+    setGuestCount('')
+    const firstFree =
+      tier.rooms.find((r) => availabilityByRoom.get(r.id)?.hasAvailability) ?? tier.rooms[0]
+    setRoomId(firstFree ? firstFree.id : '')
+  }
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!canSubmit || !roomId) return
+    if (!canSubmit || !roomId || !bookingTime) return
     bookMutation.mutate({
       roomId: Number(roomId),
       customerName: customerName.trim(),
@@ -127,7 +231,6 @@ export default function PublicBookingPage() {
             </p>
           </div>
 
-          {/* Mã quay — khối nổi bật nhất */}
           <div className="rounded-2xl border-2 border-[var(--promo-gold)] bg-[rgba(232,184,109,0.14)] px-4 py-6 space-y-3 shadow-[0_0_40px_rgba(232,184,109,0.18)]">
             <p className="text-[11px] uppercase tracking-[0.22em] font-semibold text-[var(--promo-gold)]">
               Mã quay thưởng của bạn
@@ -170,6 +273,8 @@ export default function PublicBookingPage() {
               setNotes('')
               setGuestCount('')
               setNotesOpen(false)
+              setRoomTypeId('')
+              setRoomId('')
             }}
           >
             Đặt lịch khác
@@ -215,6 +320,203 @@ export default function PublicBookingPage() {
           onSubmit={handleSubmit}
           className="fade-up-delay panel rounded-2xl p-4 space-y-4 w-full min-w-0 shadow-[0_16px_48px_rgba(0,0,0,0.3)]"
         >
+          {/* Ngày + thời lượng trước để tính availability */}
+          <div className="field-grid">
+            <div className="space-y-1.5 min-w-0">
+              <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-date">
+                Ngày
+              </label>
+              <input
+                id="bk-date"
+                type="date"
+                className="field"
+                min={todayISO()}
+                value={bookingDate}
+                onChange={(e) => setBookingDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5 min-w-0">
+              <label className="text-sm text-[var(--promo-muted)]">Thời lượng</label>
+              <div className="h-scroll">
+                {DURATIONS.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    className="chip shrink-0 touch-manipulation"
+                    data-active={durationHours === h}
+                    onClick={() => setDurationHours(h)}
+                  >
+                    {h}h
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {availability && (
+            <p className="text-xs text-[var(--promo-muted)]">
+              Giờ mở cửa {availability.operatingHours.open}–{availability.operatingHours.close}
+              {' · '}Chỉ hiện khung trống (sau giờ hiện tại ≥{availability.minLeadMinutes} phút)
+              {availabilityQuery.isFetching ? ' · đang cập nhật…' : ''}
+            </p>
+          )}
+          {availabilityQuery.isError && (
+            <p className="text-sm text-rose-300">Không tải được lịch trống. Thử lại sau.</p>
+          )}
+
+          <div className="space-y-2.5 min-w-0">
+            <label className="text-sm text-[var(--promo-muted)]">Chọn hạng phòng</label>
+            {roomsQuery.isLoading ? (
+              <p className="text-sm text-[var(--promo-muted)] py-2">Đang tải phòng...</p>
+            ) : roomsQuery.isError ? (
+              <p className="text-sm text-rose-300 py-2">Không tải được danh sách phòng</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {tiers.map((tier) => {
+                  const active = roomTypeId === tier.roomTypeId
+                  const isSmall = tier.accent === 'small'
+                  const freeCount = tier.rooms.filter(
+                    (r) => availabilityByRoom.get(r.id)?.hasAvailability,
+                  ).length
+                  return (
+                    <button
+                      key={tier.roomTypeId}
+                      type="button"
+                      onClick={() => selectTier(tier)}
+                      className={cn(
+                        'relative text-left rounded-2xl p-4 touch-manipulation transition-all border-2 min-w-0',
+                        active
+                          ? 'border-[var(--promo-gold)] bg-[rgba(232,184,109,0.16)] shadow-[0_0_28px_rgba(232,184,109,0.2)]'
+                          : 'border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] hover:border-[rgba(232,184,109,0.35)]',
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            'w-11 h-11 rounded-xl flex items-center justify-center shrink-0',
+                            isSmall
+                              ? 'bg-[rgba(14,165,233,0.18)] text-sky-300'
+                              : 'bg-[rgba(232,184,109,0.2)] text-[var(--promo-gold)]',
+                          )}
+                        >
+                          {isSmall ? (
+                            <DoorOpen className="w-5 h-5" />
+                          ) : (
+                            <Users className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="display text-xl leading-none text-[var(--promo-ink)]">
+                            {tier.name}
+                          </p>
+                          <p className="mt-1.5 text-sm text-[var(--promo-muted)]">
+                            {tier.capacityMin}–{tier.capacityMax} khách
+                          </p>
+                          <p className="mt-1 text-[11px] text-[var(--promo-gold)]/90 leading-snug">
+                            {isSmall
+                              ? 'Combo KM: giảm 25–50% giờ hát · đồ uống'
+                              : 'Combo KM: giảm 10–25% giờ hát · combo lớn'}
+                          </p>
+                          <p className="mt-2 text-[11px] text-[var(--promo-muted)] leading-snug">
+                            {availability
+                              ? `${freeCount}/${tier.rooms.length} phòng còn khung trống`
+                              : `${tier.rooms.length} phòng`}
+                          </p>
+                        </div>
+                      </div>
+                      {active && (
+                        <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--promo-gold)]">
+                          Đã chọn
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {selectedTier && (
+            <div className="space-y-2 min-w-0">
+              <label className="text-sm text-[var(--promo-muted)]">
+                Chọn phòng ({selectedTier.name})
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {selectedTier.rooms.map((r) => {
+                  const av = availabilityByRoom.get(r.id)
+                  const status = roomStatusLabel(av)
+                  const disabled = !!av && !av.hasAvailability
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      disabled={disabled}
+                      className={cn(
+                        'rounded-xl px-3 py-3 text-sm font-medium touch-manipulation border transition-colors text-left min-w-0',
+                        roomId === r.id
+                          ? 'border-[var(--promo-gold)] bg-[rgba(232,184,109,0.2)] text-[var(--promo-gold)]'
+                          : 'border-[rgba(255,255,255,0.1)] text-[var(--promo-ink)] bg-[rgba(0,0,0,0.2)]',
+                        disabled && 'opacity-45 cursor-not-allowed',
+                      )}
+                      onClick={() => !disabled && setRoomId(r.id)}
+                    >
+                      <span className="block">{r.name}</span>
+                      {status && (
+                        <span
+                          className={cn(
+                            'block text-[10px] mt-1 font-medium',
+                            status.tone === 'free' && 'text-emerald-400',
+                            status.tone === 'partial' && 'text-amber-300',
+                            status.tone === 'busy' && 'text-rose-300',
+                          )}
+                        >
+                          {status.text}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {selectedAvailability?.isSinging && (
+                <p className="text-xs text-amber-300/90">
+                  Phòng đang hát
+                  {selectedAvailability.sessionEndsAt
+                    ? ` · dự kiến đến ${new Date(selectedAvailability.sessionEndsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                  . Chỉ chọn giờ sau khi kết thúc.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1.5 min-w-0">
+            <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-time">
+              Giờ bắt đầu
+            </label>
+            {!roomId ? (
+              <p className="text-sm text-[var(--promo-muted)] py-2">Chọn phòng để xem giờ trống</p>
+            ) : timeOptions.length === 0 ? (
+              <p className="text-sm text-rose-300 py-2">
+                Không còn khung giờ phù hợp cho phòng này. Đổi ngày, thời lượng hoặc phòng khác.
+              </p>
+            ) : (
+              <select
+                id="bk-time"
+                className="field"
+                value={bookingTime}
+                onChange={(e) => setBookingTime(e.target.value)}
+                required
+              >
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           <div className="space-y-1.5 min-w-0">
             <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-name">
               Họ và tên
@@ -248,92 +550,6 @@ export default function PublicBookingPage() {
             />
           </div>
 
-          <div className="space-y-2 min-w-0">
-            <label className="text-sm text-[var(--promo-muted)]">Phòng</label>
-            {roomsQuery.isLoading ? (
-              <p className="text-sm text-[var(--promo-muted)] py-2">Đang tải phòng...</p>
-            ) : roomsQuery.isError ? (
-              <p className="text-sm text-rose-300 py-2">Không tải được danh sách phòng</p>
-            ) : (
-              <div className="h-scroll">
-                {rooms.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={cn('chip shrink-0 touch-manipulation text-left')}
-                    data-active={roomId === r.id}
-                    onClick={() => setRoomId(r.id)}
-                  >
-                    <span className="block text-[var(--promo-ink)]">{r.name}</span>
-                    <span className="block text-[10px] font-medium opacity-80 mt-0.5">
-                      {r.roomTypeName} · {r.capacityMin}–{r.capacityMax} khách
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedRoom ? (
-              <p className="text-xs text-[var(--promo-muted)]">
-                {selectedRoom.roomTypeName}: {selectedRoom.capacityMin}–{selectedRoom.capacityMax}{' '}
-                người · mỗi loại phòng có combo quay thưởng riêng
-              </p>
-            ) : rooms.length > 0 ? (
-              <p className="text-xs text-amber-300/90">Vuốt ngang và chọn một phòng</p>
-            ) : null}
-          </div>
-
-          <div className="field-grid">
-            <div className="space-y-1.5 min-w-0">
-              <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-date">
-                Ngày
-              </label>
-              <input
-                id="bk-date"
-                type="date"
-                className="field"
-                min={todayISO()}
-                value={bookingDate}
-                onChange={(e) => setBookingDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5 min-w-0">
-              <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-time">
-                Giờ
-              </label>
-              <select
-                id="bk-time"
-                className="field"
-                value={bookingTime}
-                onChange={(e) => setBookingTime(e.target.value)}
-                required
-              >
-                {TIME_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-2 min-w-0">
-            <label className="text-sm text-[var(--promo-muted)]">Thời lượng</label>
-            <div className="h-scroll">
-              {DURATIONS.map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  className="chip shrink-0 touch-manipulation"
-                  data-active={durationHours === h}
-                  onClick={() => setDurationHours(h)}
-                >
-                  {h}h
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="space-y-1.5 min-w-0">
             <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-guests">
               Số khách <span className="opacity-60">(tuỳ chọn)</span>
@@ -341,14 +557,14 @@ export default function PublicBookingPage() {
             <input
               id="bk-guests"
               type="number"
-              min={selectedRoom?.capacityMin ?? 1}
-              max={selectedRoom?.capacityMax ?? 50}
+              min={selectedRoom?.capacityMin ?? selectedTier?.capacityMin ?? 1}
+              max={selectedRoom?.capacityMax ?? selectedTier?.capacityMax ?? 50}
               className="field"
               value={guestCount}
               onChange={(e) => setGuestCount(e.target.value)}
               placeholder={
-                selectedRoom
-                  ? `${selectedRoom.capacityMin}–${selectedRoom.capacityMax}`
+                selectedTier
+                  ? `${selectedTier.capacityMin}–${selectedTier.capacityMax}`
                   : 'VD: 3'
               }
               inputMode="numeric"
@@ -379,12 +595,12 @@ export default function PublicBookingPage() {
           </div>
 
           <p className="text-center text-xs text-[var(--promo-muted)] pb-1">
-            Đã có mã?{' '}
+            Xem phần thưởng?{' '}
             <Link
               to="/quay-thuong"
               className="text-[var(--promo-gold)] underline underline-offset-2"
             >
-              Vào quay thưởng
+              Vòng quay khuyến mãi
             </Link>
           </p>
         </form>

@@ -14,6 +14,39 @@ export type PublicRoom = {
   roomTypeName: string
   capacityMin: number
   capacityMax: number
+  status?: string
+}
+
+export type PublicBusySlot = {
+  start: string
+  end: string
+  reason: 'booking' | 'singing'
+  label: string
+}
+
+export type PublicAvailabilityRoom = {
+  id: number
+  name: string
+  status: string
+  roomTypeId: number
+  roomTypeName: string
+  capacityMin: number
+  capacityMax: number
+  isSinging: boolean
+  sessionEndsAt: string | null
+  busySlots: PublicBusySlot[]
+  availableSlots: string[]
+  hasAvailability: boolean
+}
+
+export type PublicAvailability = {
+  date: string
+  durationHours: number
+  operatingHours: { open: string; close: string }
+  minLeadMinutes: number
+  timeSlots: string[]
+  serverNow: string
+  rooms: PublicAvailabilityRoom[]
 }
 
 export type PublicBookingPayload = {
@@ -139,6 +172,14 @@ export type RecentSpin = {
 export const publicService = {
   async getRooms() {
     const res = await publicApi.get<{ success: boolean; data: PublicRoom[] }>('/rooms')
+    return res.data.data
+  },
+
+  async getAvailability(params: { date: string; durationHours: number; roomId?: number }) {
+    const res = await publicApi.get<{ success: boolean; data: PublicAvailability }>(
+      '/availability',
+      { params },
+    )
     return res.data.data
   },
 

@@ -5,11 +5,82 @@ import type { PublicBookingInput, UpdateSpinPrizeInput } from './public.validati
 
 const HOUR_MS = 3_600_000
 const TOKEN_TTL_DAYS = 7
+const MIN_LEAD_MS = 15 * 60_000
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const DEFAULT_OPEN = '12:00'
+const DEFAULT_CLOSE = '05:00'
 
 function effectiveEnd(start: Date, durationHours: number | null | undefined): Date {
   const hours = durationHours && Number(durationHours) > 0 ? Number(durationHours) : 1
   return new Date(start.getTime() + hours * HOUR_MS)
+}
+
+function parseHm(hm: string): { h: number; m: number; mins: number } {
+  const [h, m] = hm.split(':').map(Number)
+  return { h: h ?? 0, m: m ?? 0, mins: (h ?? 0) * 60 + (m ?? 0) }
+}
+
+function formatHm(mins: number): string {
+  const normalized = ((mins % (24 * 60)) + 24 * 60) % (24 * 60)
+  const h = Math.floor(normalized / 60)
+  const m = normalized % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/** Read store open/close — supports open_time/close_time or operating_hours JSON. */
+async function getPublicOperatingHours(): Promise<{ open: string; close: string }> {
+  const rows = await prisma.setting.findMany({
+    where: { key: { in: ['open_time', 'close_time', 'operating_hours'] } },
+  })
+  const map = new Map(rows.map((r) => [r.key, r.value]))
+
+  const asTime = (v: unknown): string | null => {
+    if (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v)) return v
+    return null
+  }
+
+  let open = asTime(map.get('open_time')) ?? DEFAULT_OPEN
+  let close = asTime(map.get('close_time')) ?? DEFAULT_CLOSE
+
+  const oh = map.get('operating_hours')
+  if (oh && typeof oh === 'object' && oh !== null) {
+    const obj = oh as Record<string, unknown>
+    open = asTime(obj.open) ?? open
+    close = asTime(obj.close) ?? close
+  }
+
+  return { open, close }
+}
+
+/**
+ * Combine calendar booking date + HH:mm.
+ * Slots before open (vd 01:00 khi mở cửa 12:00) = sau nửa đêm → ngày lịch +1.
+ */
+function combineBookingDateTime(dateStr: string, timeHm: string, openHm: string): Date {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const { h, m, mins } = parseHm(timeHm)
+  const openMins = parseHm(openHm).mins
+  const dt = new Date(y!, (mo ?? 1) - 1, d ?? 1, h, m, 0, 0)
+  if (mins < openMins) {
+    dt.setDate(dt.getDate() + 1)
+  }
+  return dt
+}
+
+/** Generate HH:mm slots from open→close (cross-midnight ok), step 30m. */
+function generateOperatingSlots(openHm: string, closeHm: string): string[] {
+  const open = parseHm(openHm).mins
+  let close = parseHm(closeHm).mins
+  if (close <= open) close += 24 * 60
+  const slots: string[] = []
+  for (let t = open; t < close; t += 30) {
+    slots.push(formatHm(t))
+  }
+  return slots
+}
+
+function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
+  return aStart < bEnd && bStart < aEnd
 }
 
 async function findConflictingBooking(args: {
@@ -18,10 +89,16 @@ async function findConflictingBooking(args: {
   newStart: Date
   newEnd: Date
 }) {
+  // Also load adjacent calendar day (overnight slots may land on +1 day)
+  const dayBefore = new Date(args.bookingDate)
+  dayBefore.setDate(dayBefore.getDate() - 1)
+  const dayAfter = new Date(args.bookingDate)
+  dayAfter.setDate(dayAfter.getDate() + 1)
+
   const candidates = await prisma.booking.findMany({
     where: {
       roomId: args.roomId,
-      bookingDate: args.bookingDate,
+      bookingDate: { in: [dayBefore, args.bookingDate, dayAfter] },
       status: { in: ['PENDING', 'CONFIRMED'] },
     },
     select: { id: true, bookingTime: true, durationHours: true },
@@ -29,8 +106,35 @@ async function findConflictingBooking(args: {
 
   return candidates.find((c) => {
     const cEnd = effectiveEnd(c.bookingTime, c.durationHours ? Number(c.durationHours) : null)
-    return c.bookingTime < args.newEnd && args.newStart < cEnd
+    return intervalsOverlap(c.bookingTime, cEnd, args.newStart, args.newEnd)
   })
+}
+
+async function findConflictingSession(args: {
+  roomId: number
+  newStart: Date
+  newEnd: Date
+}) {
+  const sessions = await prisma.session.findMany({
+    where: { roomId: args.roomId, status: 'ACTIVE' },
+    select: {
+      id: true,
+      checkInTime: true,
+      estimatedEnd: true,
+      customerName: true,
+    },
+  })
+
+  return sessions.find((s) => {
+    const sEnd =
+      s.estimatedEnd ??
+      new Date(Math.max(Date.now(), s.checkInTime.getTime()) + 3 * HOUR_MS)
+    return intervalsOverlap(s.checkInTime, sEnd, args.newStart, args.newEnd)
+  })
+}
+
+function hmLabel(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 function generateTokenCode(): string {
@@ -110,6 +214,7 @@ export async function listPublicRooms() {
     select: {
       id: true,
       name: true,
+      status: true,
       roomType: {
         select: {
           id: true,
@@ -124,11 +229,169 @@ export async function listPublicRooms() {
   return rooms.map((r) => ({
     id: r.id,
     name: r.name,
+    status: r.status,
     roomTypeId: r.roomType.id,
     roomTypeName: r.roomType.name,
     capacityMin: r.roomType.capacityMin,
     capacityMax: r.roomType.capacityMax,
   }))
+}
+
+export async function getPublicAvailability(args: {
+  date: string
+  durationHours: number
+  roomId?: number
+}) {
+  const hours = await getPublicOperatingHours()
+  const allSlots = generateOperatingSlots(hours.open, hours.close)
+  const durationHours = args.durationHours
+  const now = new Date()
+  const earliest = new Date(now.getTime() + MIN_LEAD_MS)
+
+  const rooms = await prisma.room.findMany({
+    where: {
+      isActive: true,
+      status: { not: 'MAINTENANCE' },
+      ...(args.roomId ? { id: args.roomId } : {}),
+    },
+    orderBy: { sortOrder: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      roomType: {
+        select: { id: true, name: true, capacityMin: true, capacityMax: true },
+      },
+      sessions: {
+        where: { status: 'ACTIVE' },
+        select: { checkInTime: true, estimatedEnd: true, customerName: true },
+        take: 1,
+        orderBy: { checkInTime: 'desc' },
+      },
+    },
+  })
+
+  const bookingDate = new Date(args.date)
+  bookingDate.setHours(0, 0, 0, 0)
+  const dayBefore = new Date(bookingDate)
+  dayBefore.setDate(dayBefore.getDate() - 1)
+  const dayAfter = new Date(bookingDate)
+  dayAfter.setDate(dayAfter.getDate() + 1)
+
+  const roomIds = rooms.map((r) => r.id)
+  const bookings = await prisma.booking.findMany({
+    where: {
+      roomId: { in: roomIds },
+      bookingDate: { in: [dayBefore, bookingDate, dayAfter] },
+      status: { in: ['PENDING', 'CONFIRMED'] },
+    },
+    select: {
+      roomId: true,
+      bookingTime: true,
+      durationHours: true,
+      customerName: true,
+      status: true,
+    },
+  })
+
+  const bookingsByRoom = new Map<number, typeof bookings>()
+  for (const b of bookings) {
+    const list = bookingsByRoom.get(b.roomId) ?? []
+    list.push(b)
+    bookingsByRoom.set(b.roomId, list)
+  }
+
+  const roomPayload = rooms.map((room) => {
+    const active = room.sessions[0] ?? null
+    const sessionEnd = active
+      ? (active.estimatedEnd ??
+        new Date(Math.max(Date.now(), active.checkInTime.getTime()) + 3 * HOUR_MS))
+      : null
+
+    const busySlots: Array<{
+      start: string
+      end: string
+      reason: 'booking' | 'singing'
+      label: string
+    }> = []
+
+    if (active && sessionEnd) {
+      busySlots.push({
+        start: hmLabel(active.checkInTime),
+        end: hmLabel(sessionEnd),
+        reason: 'singing',
+        label: `Đang hát · ${active.customerName}`,
+      })
+    }
+
+    for (const b of bookingsByRoom.get(room.id) ?? []) {
+      const end = effectiveEnd(b.bookingTime, b.durationHours ? Number(b.durationHours) : null)
+      busySlots.push({
+        start: hmLabel(b.bookingTime),
+        end: hmLabel(end),
+        reason: 'booking',
+        label: b.status === 'CONFIRMED' ? 'Đã xác nhận' : 'Đã có lịch',
+      })
+    }
+
+    const availableSlots = allSlots.filter((slot) => {
+      const start = combineBookingDateTime(args.date, slot, hours.open)
+      const end = effectiveEnd(start, durationHours)
+      if (start < earliest) return false
+
+      // Slot must finish before close (approximate using operating window)
+      const closeDt = combineBookingDateTime(
+        args.date,
+        hours.close,
+        hours.open,
+      )
+      // close on same business evening: if close < open, close is next calendar day
+      let closeAt = closeDt
+      if (parseHm(hours.close).mins >= parseHm(hours.open).mins) {
+        // same-day close (rare) — combine already correct
+      } else {
+        // close is next morning — combine with open pushes early times +1 day;
+        // for close time itself (< open), combine already +1 day from booking date ✓
+      }
+      if (end > closeAt) return false
+
+      for (const b of bookingsByRoom.get(room.id) ?? []) {
+        const bEnd = effectiveEnd(b.bookingTime, b.durationHours ? Number(b.durationHours) : null)
+        if (intervalsOverlap(b.bookingTime, bEnd, start, end)) return false
+      }
+      if (active && sessionEnd && intervalsOverlap(active.checkInTime, sessionEnd, start, end)) {
+        return false
+      }
+      return true
+    })
+
+    const isSinging = room.status === 'OCCUPIED' || room.status === 'ENDING_SOON' || !!active
+
+    return {
+      id: room.id,
+      name: room.name,
+      status: room.status,
+      roomTypeId: room.roomType.id,
+      roomTypeName: room.roomType.name,
+      capacityMin: room.roomType.capacityMin,
+      capacityMax: room.roomType.capacityMax,
+      isSinging,
+      sessionEndsAt: sessionEnd?.toISOString() ?? null,
+      busySlots,
+      availableSlots,
+      hasAvailability: availableSlots.length > 0,
+    }
+  })
+
+  return {
+    date: args.date,
+    durationHours,
+    operatingHours: hours,
+    minLeadMinutes: MIN_LEAD_MS / 60_000,
+    timeSlots: allSlots,
+    serverNow: now.toISOString(),
+    rooms: roomPayload,
+  }
 }
 
 // ─── Public booking + spin token ─────────────────────────────────────────────
@@ -157,6 +420,16 @@ export async function createPublicBooking(data: PublicBookingInput) {
     }
   }
 
+  const hours = await getPublicOperatingHours()
+  const allowedSlots = generateOperatingSlots(hours.open, hours.close)
+  if (!allowedSlots.includes(data.bookingTime)) {
+    throw new AppError(
+      400,
+      'OUTSIDE_HOURS',
+      `Giờ đặt phải trong khung mở cửa ${hours.open}–${hours.close}`,
+    )
+  }
+
   const bookingDate = new Date(data.bookingDate)
   bookingDate.setHours(0, 0, 0, 0)
 
@@ -166,16 +439,28 @@ export async function createPublicBooking(data: PublicBookingInput) {
     throw new AppError(400, 'DATE_IN_PAST', 'Không thể đặt lịch trong quá khứ')
   }
 
-  const [hour, min] = data.bookingTime.split(':').map(Number)
-  const bookingTime = new Date(bookingDate)
-  bookingTime.setHours(hour!, min!, 0, 0)
-
-  if (bookingDate.getTime() === today.getTime() && bookingTime.getTime() < Date.now()) {
-    throw new AppError(400, 'TIME_IN_PAST', 'Giờ đặt phải sau thời điểm hiện tại')
+  const bookingTime = combineBookingDateTime(data.bookingDate, data.bookingTime, hours.open)
+  const earliest = new Date(Date.now() + MIN_LEAD_MS)
+  if (bookingTime < earliest) {
+    throw new AppError(
+      400,
+      'TIME_IN_PAST',
+      'Giờ đặt phải sau thời điểm hiện tại ít nhất 15 phút',
+    )
   }
 
   const durationHours = data.durationHours ?? 2
   const newEnd = effectiveEnd(bookingTime, durationHours)
+
+  const closeAt = combineBookingDateTime(data.bookingDate, hours.close, hours.open)
+  if (newEnd > closeAt) {
+    throw new AppError(
+      400,
+      'EXCEEDS_CLOSING',
+      `Thời lượng ${durationHours}h sẽ vượt giờ đóng cửa (${hours.close}). Chọn giờ sớm hơn hoặc giảm thời lượng.`,
+    )
+  }
+
   const conflict = await findConflictingBooking({
     roomId: data.roomId,
     bookingDate,
@@ -184,6 +469,22 @@ export async function createPublicBooking(data: PublicBookingInput) {
   })
   if (conflict) {
     throw new AppError(409, 'BOOKING_OVERLAP', 'Khung giờ này đã có người đặt. Vui lòng chọn giờ khác.')
+  }
+
+  const sessionConflict = await findConflictingSession({
+    roomId: data.roomId,
+    newStart: bookingTime,
+    newEnd,
+  })
+  if (sessionConflict) {
+    const until = sessionConflict.estimatedEnd
+      ? hmLabel(sessionConflict.estimatedEnd)
+      : 'chưa rõ'
+    throw new AppError(
+      409,
+      'ROOM_SINGING',
+      `Phòng đang có khách hát (dự kiến đến ~${until}). Vui lòng chọn giờ khác hoặc phòng khác.`,
+    )
   }
 
   const campaign = await getActiveCampaign(room.roomType.id)

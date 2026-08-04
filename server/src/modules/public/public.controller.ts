@@ -16,6 +16,37 @@ export async function listRoomsHandler(
   }
 }
 
+export async function getAvailabilityHandler(
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) {
+  try {
+    const date = typeof req.query.date === 'string' ? req.query.date : ''
+    const durationHours = Number(req.query.durationHours ?? 2)
+    const roomIdRaw = req.query.roomId
+    const roomId =
+      typeof roomIdRaw === 'string' && roomIdRaw.trim() ? Number(roomIdRaw) : undefined
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_DATE', message: 'Ngày phải có định dạng YYYY-MM-DD' },
+      })
+      return
+    }
+
+    const data = await publicService.getPublicAvailability({
+      date,
+      durationHours: Number.isFinite(durationHours) && durationHours > 0 ? durationHours : 2,
+      roomId: roomId && Number.isFinite(roomId) ? roomId : undefined,
+    })
+    res.json({ success: true, data })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function createBookingHandler(
   req: Request,
   res: Response<ApiResponse>,

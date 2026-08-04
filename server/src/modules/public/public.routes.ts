@@ -10,6 +10,7 @@ import {
 } from './public.validation'
 import {
   listRoomsHandler,
+  getAvailabilityHandler,
   createBookingHandler,
   getCampaignHandler,
   getTokenHandler,
@@ -66,6 +67,7 @@ const spinLimiter = rateLimit({
 // ── Public (no auth) ─────────────────────────────────────────────────────────
 
 router.get('/rooms', publicLimiter, listRoomsHandler)
+router.get('/availability', publicLimiter, getAvailabilityHandler)
 router.post(
   '/bookings',
   publicLimiter,

@@ -47,6 +47,15 @@ export const updateSpinPrizeSchema = z.object({
   prizeValue: z.string().trim().max(80).nullable().optional(),
 })
 
+export const publicAvailabilityQuerySchema = z.object({
+  date: z
+    .string({ required_error: 'Vui lòng chọn ngày' })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải có định dạng YYYY-MM-DD'),
+  durationHours: z.coerce.number().positive().max(12).default(2),
+  roomId: z.coerce.number().int().positive().optional(),
+})
+
 export type PublicBookingInput = z.infer<typeof publicBookingSchema>
 export type PublicSpinInput = z.infer<typeof publicSpinSchema>
 export type UpdateSpinPrizeInput = z.infer<typeof updateSpinPrizeSchema>
+export type PublicAvailabilityQuery = z.infer<typeof publicAvailabilityQuerySchema>
