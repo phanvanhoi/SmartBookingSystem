@@ -48,55 +48,150 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const p = new PrismaClient();
 
-async function seed() {
-  const count = await p.user.count();
-  if (count > 0) {
-    console.log('  → Database has data, skipping seed.');
+const smallPrizes = [
+  { label: 'Giảm 25% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 30, color: '#22c55e', sortOrder: 1 },
+  { label: 'Giảm 50% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 10, color: '#ef4444', sortOrder: 2 },
+  { label: '1 khô gà/bò + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 20, color: '#eab308', sortOrder: 3 },
+  { label: '2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 20, color: '#f97316', sortOrder: 4 },
+  { label: '1 coca + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 20, color: '#0ea5e9', sortOrder: 5 },
+];
+const largePrizes = [
+  { label: 'Giảm 10% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '10', weight: 30, color: '#22c55e', sortOrder: 1 },
+  { label: 'Giảm 25% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 10, color: '#ef4444', sortOrder: 2 },
+  { label: '2 khô gà/bò + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò + 1 nước suối', weight: 20, color: '#eab308', sortOrder: 3 },
+  { label: '1 khô gà/bò + 2 coca', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 2 coca', weight: 20, color: '#f97316', sortOrder: 4 },
+  { label: '2 coca + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '2 coca + 1 nước suối', weight: 20, color: '#0ea5e9', sortOrder: 5 },
+];
+
+async function syncCampaign(roomTypeId, name, prizes) {
+  const campaign = await p.spinCampaign.upsert({
+    where: { roomTypeId },
+    update: { name, isActive: true },
+    create: { name, roomTypeId, isActive: true },
+  });
+  await p.spinPrize.deleteMany({ where: { campaignId: campaign.id } });
+  for (const prize of prizes) {
+    await p.spinPrize.create({ data: { campaignId: campaign.id, ...prize } });
+  }
+}
+
+async function ensureSpinCampaigns() {
+  const types = await p.roomType.findMany({ orderBy: { id: 'asc' } });
+  if (types.length < 2) {
+    console.log('  → No room types yet, skip spin campaigns.');
     return;
   }
-  console.log('  → Seeding database...');
+  const small = types[0];
+  const large = types[1];
+  await p.roomType.update({ where: { id: small.id }, data: { name: 'Phòng bé', capacityMin: 1, capacityMax: 3 } });
+  await p.roomType.update({ where: { id: large.id }, data: { name: 'Phòng lớn', capacityMin: 4, capacityMax: 7 } });
+  await syncCampaign(small.id, 'KM Phòng bé (1–7)', smallPrizes);
+  await syncCampaign(large.id, 'KM Phòng lớn (8–10)', largePrizes);
+  console.log('  → Spin campaigns ready.');
+}
 
-  const small = await p.roomType.create({ data: { name: 'Phòng nhỏ', capacityMin: 4, capacityMax: 8 } });
-  const large = await p.roomType.create({ data: { name: 'Phòng lớn', capacityMin: 10, capacityMax: 20 } });
+async function ensurePromoProducts() {
+  const ensureCat = async (name, sortOrder) => {
+    const existing = await p.menuCategory.findUnique({ where: { name } });
+    if (existing) return existing;
+    return p.menuCategory.create({ data: { name, sortOrder } });
+  };
+  const snackCat = await ensureCat('Đồ ăn nhẹ', 3);
+  const drinkCat = await ensureCat('Nước ngọt', 4);
 
-  for (let i = 1; i <= 7; i++) await p.room.create({ data: { name: 'Phòng ' + i, roomTypeId: small.id, sortOrder: i } });
-  for (let i = 8; i <= 10; i++) await p.room.create({ data: { name: 'Phòng ' + i, roomTypeId: large.id, sortOrder: i } });
-
-  const hash = await bcrypt.hash('admin123', 12);
-  await p.user.create({ data: { username: 'admin', password: hash, fullName: 'Chủ quán', role: 'OWNER' } });
-
-  const cats = ['Đồ ăn', 'Đồ uống'];
-  for (let i = 0; i < cats.length; i++) await p.menuCategory.create({ data: { name: cats[i], sortOrder: i + 1 } });
-
-  // Pricing: small 40k off-peak / 60k peak; large 50k off-peak / 80k peak.
-  // Peak ends at 12:00 next day (NOT 05:00) so 05:00–12:00 isn't a 0đ gap.
-  const rules = [
-    { roomTypeId: small.id, name: 'Off-peak nhỏ', timeStart: '12:00', timeEnd: '17:00', pricePerHour: 40000 },
-    { roomTypeId: small.id, name: 'Peak nhỏ', timeStart: '17:00', timeEnd: '12:00', pricePerHour: 60000 },
-    { roomTypeId: large.id, name: 'Off-peak lớn', timeStart: '12:00', timeEnd: '17:00', pricePerHour: 50000 },
-    { roomTypeId: large.id, name: 'Peak lớn', timeStart: '17:00', timeEnd: '12:00', pricePerHour: 80000 },
+  const promoProducts = [
+    { sku: 'PROMO-COCA', name: 'Coca', category: 'Nước ngọt', unit: 'lon', costPrice: 8000, sellPrice: 20000, stock: 200, menuCategoryId: drinkCat.id },
+    { sku: 'PROMO-SUOI', name: 'Nước suối', category: 'Nước ngọt', unit: 'chai', costPrice: 3000, sellPrice: 10000, stock: 300, menuCategoryId: drinkCat.id },
+    { sku: 'PROMO-KHO', name: 'Khô gà/bò', category: 'Đồ ăn nhẹ', unit: 'gói', costPrice: 15000, sellPrice: 35000, stock: 150, menuCategoryId: snackCat.id },
   ];
-  for (const r of rules) await p.pricingRule.create({ data: { ...r, dayOfWeek: '[]' } });
 
-  const settings = [
-    { key: 'store_name', value: 'Music Box' },
-    { key: 'operating_hours', value: JSON.stringify({ open: '12:00', close: '05:00' }) },
-    { key: 'qr_code_1', value: JSON.stringify({ path: '', label: 'QR 1' }) },
-    { key: 'qr_code_2', value: JSON.stringify({ path: '', label: 'QR 2' }) },
-    { key: 'min_duration_minutes', value: 0 },
-    { key: 'billing_round_minutes', value: 5 },
-    { key: 'bill_round_amount', value: 1000 },
-    { key: 'business_day_start_hour', value: 12 },
-    { key: 'business_day_end_hour', value: 5 },
-    { key: 'warning_before_minutes', value: 15 },
-    { key: 'currency', value: 'VNĐ' },
-    { key: 'timezone', value: 'Asia/Ho_Chi_Minh' },
-    { key: 'points_per_amount', value: JSON.stringify({ amount: 100000, points: 1 }) },
-    { key: 'max_discount_percent_cashier', value: 10 },
-  ];
-  for (const s of settings) await p.setting.create({ data: { key: s.key, value: s.value } });
+  for (const item of promoProducts) {
+    const product = await p.product.upsert({
+      where: { sku: item.sku },
+      update: { name: item.name, stockQuantity: item.stock, isActive: true },
+      create: {
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        unit: item.unit,
+        costPrice: item.costPrice,
+        stockQuantity: item.stock,
+        minStock: 20,
+        isActive: true,
+      },
+    });
+    const existingMenu = await p.menuItem.findFirst({ where: { productId: product.id } });
+    if (existingMenu) {
+      await p.menuItem.update({
+        where: { id: existingMenu.id },
+        data: { name: item.name, price: item.sellPrice, isAvailable: true, categoryId: item.menuCategoryId },
+      });
+    } else {
+      await p.menuItem.create({
+        data: {
+          name: item.name,
+          price: item.sellPrice,
+          categoryId: item.menuCategoryId,
+          productId: product.id,
+          isAvailable: true,
+          sortOrder: 1,
+        },
+      });
+    }
+  }
+  console.log('  → Promo products ready (PROMO-COCA, PROMO-SUOI, PROMO-KHO).');
+}
 
-  console.log('  ✅ Seed complete!');
+async function seed() {
+  const count = await p.user.count();
+  if (count === 0) {
+    console.log('  → Seeding database...');
+
+    const small = await p.roomType.create({ data: { name: 'Phòng bé', capacityMin: 1, capacityMax: 3 } });
+    const large = await p.roomType.create({ data: { name: 'Phòng lớn', capacityMin: 4, capacityMax: 7 } });
+
+    for (let i = 1; i <= 7; i++) await p.room.create({ data: { name: 'Phòng ' + i, roomTypeId: small.id, sortOrder: i } });
+    for (let i = 8; i <= 10; i++) await p.room.create({ data: { name: 'Phòng ' + i, roomTypeId: large.id, sortOrder: i } });
+
+    const hash = await bcrypt.hash('admin123', 12);
+    await p.user.create({ data: { username: 'admin', password: hash, fullName: 'Chủ quán', role: 'OWNER' } });
+
+    const cats = ['Đồ ăn', 'Đồ uống', 'Đồ ăn nhẹ', 'Nước ngọt'];
+    for (let i = 0; i < cats.length; i++) await p.menuCategory.create({ data: { name: cats[i], sortOrder: i + 1 } });
+
+    const rules = [
+      { roomTypeId: small.id, name: 'Off-peak nhỏ', timeStart: '12:00', timeEnd: '17:00', pricePerHour: 40000 },
+      { roomTypeId: small.id, name: 'Peak nhỏ', timeStart: '17:00', timeEnd: '12:00', pricePerHour: 60000 },
+      { roomTypeId: large.id, name: 'Off-peak lớn', timeStart: '12:00', timeEnd: '17:00', pricePerHour: 50000 },
+      { roomTypeId: large.id, name: 'Peak lớn', timeStart: '17:00', timeEnd: '12:00', pricePerHour: 80000 },
+    ];
+    for (const r of rules) await p.pricingRule.create({ data: { ...r, dayOfWeek: '[]' } });
+
+    const settings = [
+      { key: 'store_name', value: 'Music Box' },
+      { key: 'operating_hours', value: JSON.stringify({ open: '12:00', close: '05:00' }) },
+      { key: 'qr_code_1', value: JSON.stringify({ path: '', label: 'QR 1' }) },
+      { key: 'qr_code_2', value: JSON.stringify({ path: '', label: 'QR 2' }) },
+      { key: 'min_duration_minutes', value: 0 },
+      { key: 'billing_round_minutes', value: 5 },
+      { key: 'bill_round_amount', value: 1000 },
+      { key: 'business_day_start_hour', value: 12 },
+      { key: 'business_day_end_hour', value: 5 },
+      { key: 'warning_before_minutes', value: 15 },
+      { key: 'currency', value: 'VNĐ' },
+      { key: 'timezone', value: 'Asia/Ho_Chi_Minh' },
+      { key: 'points_per_amount', value: JSON.stringify({ amount: 100000, points: 1 }) },
+      { key: 'max_discount_percent_cashier', value: 10 },
+    ];
+    for (const s of settings) await p.setting.create({ data: { key: s.key, value: s.value } });
+
+    console.log('  ✅ Base seed complete!');
+  } else {
+    console.log('  → Database has data, skipping base seed.');
+  }
+
+  await ensureSpinCampaigns();
+  await ensurePromoProducts();
 }
 
 seed().catch(e => { console.error('Seed error:', e); process.exit(1); }).finally(() => p.\$disconnect());

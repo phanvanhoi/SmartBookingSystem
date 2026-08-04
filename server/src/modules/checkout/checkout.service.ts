@@ -127,12 +127,62 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   // 5. Apply discounts
   let voucherDiscountAmount = 0
   let appliedVoucherCode: string | undefined
+  let autoSpinLabel: string | undefined
 
-  // 5a. Voucher discount
-  if (voucherCode) {
-    const result = await applyVoucher(voucherCode, subtotal)
-    voucherDiscountAmount = result.discountAmount
-    appliedVoucherCode = voucherCode
+  // Auto-apply / resolve spin voucher (giảm % giờ hát)
+  let effectiveVoucherCode = voucherCode
+  let spinFallback: {
+    label: string
+    discountType: 'PERCENTAGE' | 'FIXED_AMOUNT'
+    discountValue: number
+    maxDiscount: number | null
+  } | null = null
+
+  {
+    const { findSpinVoucherForSession } = await import('../public/spin-reward.service')
+    const spinVoucher = await findSpinVoucherForSession(sessionId)
+    if (spinVoucher) {
+      if (!effectiveVoucherCode) {
+        effectiveVoucherCode = spinVoucher.rewardCode
+      }
+      autoSpinLabel = spinVoucher.label
+      spinFallback = {
+        label: spinVoucher.label,
+        discountType: spinVoucher.discountType,
+        discountValue: spinVoucher.discountValue,
+        maxDiscount: spinVoucher.maxDiscount,
+      }
+    }
+  }
+
+  // 5a. Voucher — mã WIN-* (KM giờ hát) tính trên tiền phòng; mã khác trên tổng bill
+  if (effectiveVoucherCode) {
+    const voucherBase = effectiveVoucherCode.startsWith('WIN-') ? roomCharge : subtotal
+    try {
+      const result = await applyVoucher(effectiveVoucherCode, Math.max(0, voucherBase))
+      voucherDiscountAmount = result.discountAmount
+      appliedVoucherCode = effectiveVoucherCode
+    } catch (err) {
+      // Voucher row missing / expired — still apply % from spin prize so bill is correct
+      if (spinFallback && effectiveVoucherCode.startsWith('WIN-')) {
+        const { computeVoucherDiscountAmount } = await import('./voucher.service')
+        voucherDiscountAmount = computeVoucherDiscountAmount({
+          discountType: spinFallback.discountType,
+          discountValue: spinFallback.discountValue,
+          maxDiscount: spinFallback.maxDiscount,
+          baseAmount: Math.max(0, voucherBase),
+        })
+        appliedVoucherCode = effectiveVoucherCode
+        autoSpinLabel = spinFallback.label
+        logger.warn('[checkout] spin voucher apply failed, used prize fallback', {
+          code: effectiveVoucherCode,
+          err,
+          discountAmount: voucherDiscountAmount,
+        })
+      } else {
+        throw err
+      }
+    }
   }
 
   // 5b. Manual discount: validate max_discount_percent for CASHIER role
@@ -168,7 +218,11 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   // Combined discount reason
   const discountReasons: string[] = []
   if (voucherDiscountAmount > 0 && appliedVoucherCode) {
-    discountReasons.push(`Voucher ${appliedVoucherCode}`)
+    discountReasons.push(
+      autoSpinLabel
+        ? `KM vòng quay: ${autoSpinLabel} (${appliedVoucherCode})`
+        : `Voucher ${appliedVoucherCode}`,
+    )
   }
   if (validatedManualDiscount > 0 && discountReason) {
     discountReasons.push(discountReason)

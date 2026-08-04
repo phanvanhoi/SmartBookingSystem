@@ -305,9 +305,14 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                                 )}
                                 <span className="text-muted-foreground truncate flex-1">
                                   {item.name}
+                                  {item.notes?.startsWith('KM ') || order.notes?.includes('Khuyến mãi vòng quay') ? (
+                                    <span className="ml-1 text-[10px] text-emerald-600 font-medium">KM</span>
+                                  ) : null}
                                 </span>
                                 <span className="text-foreground tabular-nums">
-                                  {formatCurrency(item.subtotal)}
+                                  {Number(item.subtotal) === 0 && Number(item.unitPrice) === 0
+                                    ? 'Miễn phí'
+                                    : formatCurrency(item.subtotal)}
                                 </span>
                               </div>
                             ))}

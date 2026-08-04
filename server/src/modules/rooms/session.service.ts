@@ -141,7 +141,8 @@ export async function checkout(sessionId: number, _userId: number) {
 
   // Sum order totals
   const orderTotal = session.orders.reduce((sum, o) => sum + Number(o.totalAmount), 0)
-  const subtotal = priceBreakdown.total + orderTotal
+  const roomChargeTotal = priceBreakdown.total
+  const subtotal = roomChargeTotal + orderTotal
 
   // Get deposit from booking if any
   const booking = await prisma.booking.findFirst({
@@ -154,7 +155,52 @@ export async function checkout(sessionId: number, _userId: number) {
   })
   const depositAvailable = booking ? Number(booking.depositAmount) : 0
 
-  const rawGrandTotal = Math.max(0, subtotal - depositAvailable)
+  // KM vòng quay % / cố định giờ hát — hiển thị & trừ trên preview (khớp processCheckout)
+  let spinPromo: {
+    code: string
+    label: string
+    prizeType: string
+    discountAmount: number
+    discountType: 'PERCENTAGE' | 'FIXED_AMOUNT'
+    discountValue: number
+  } | null = null
+
+  try {
+    const { findSpinVoucherForSession } = await import('../public/spin-reward.service')
+    const { computeVoucherDiscountAmount, previewVoucherDiscount } = await import(
+      '../checkout/voucher.service'
+    )
+    const spin = await findSpinVoucherForSession(sessionId)
+    if (spin) {
+      let discountAmount = 0
+      try {
+        const preview = await previewVoucherDiscount(spin.rewardCode, roomChargeTotal)
+        discountAmount = preview.discountAmount
+      } catch {
+        discountAmount = computeVoucherDiscountAmount({
+          discountType: spin.discountType,
+          discountValue: spin.discountValue,
+          maxDiscount: spin.maxDiscount,
+          baseAmount: roomChargeTotal,
+        })
+      }
+      if (discountAmount > 0) {
+        spinPromo = {
+          code: spin.rewardCode,
+          label: spin.label,
+          prizeType: spin.prizeType,
+          discountAmount,
+          discountType: spin.discountType,
+          discountValue: spin.discountValue,
+        }
+      }
+    }
+  } catch {
+    // Preview must not fail if spin lookup errors
+  }
+
+  const spinDiscount = spinPromo?.discountAmount ?? 0
+  const rawGrandTotal = Math.max(0, subtotal - spinDiscount - depositAvailable)
 
   // Apply ceiling round (e.g. 45,333 → 46,000) so the preview matches the
   // invoice that processCheckout will save. Owner configures via Settings.
@@ -174,18 +220,24 @@ export async function checkout(sessionId: number, _userId: number) {
     roomCharge: priceBreakdown,
     orders: session.orders.map((o) => ({
       id: o.id,
+      notes: o.notes,
       items: o.items.map((i) => ({
         id: i.id,
         name: i.menuItem.name,
         quantity: i.quantity,
         unitPrice: Number(i.unitPrice),
         subtotal: Number(i.subtotal),
+        notes: i.notes,
       })),
       total: Number(o.totalAmount),
     })),
     orderTotal,
     subtotal,
-    applicableDiscounts: {},
+    spinPromo,
+    spinDiscountAmount: spinDiscount,
+    applicableDiscounts: spinPromo
+      ? { voucherCode: spinPromo.code, voucherDiscount: spinDiscount, label: spinPromo.label }
+      : {},
     depositAvailable,
     grandTotal,
   }
@@ -295,7 +347,7 @@ export async function transferSession(sessionId: number, data: TransferInput, us
     })
 
     // Create new session in target room (continue from same check-in time)
-    await tx.session.create({
+    const newSession = await tx.session.create({
       data: {
         roomId: targetRoom.id,
         customerId: session.customerId,
@@ -309,6 +361,27 @@ export async function transferSession(sessionId: number, data: TransferInput, us
         status: 'ACTIVE',
         transferredFromId: sessionId,
       },
+    })
+
+    // Keep WIN-* / FREE_ITEM spin link on the live session after transfer
+    const { rebindSpinTokenToSession } = await import('../public/spin-reward.service')
+    await rebindSpinTokenToSession({
+      fromSessionId: sessionId,
+      toSessionId: newSession.id,
+      tx,
+    })
+
+    // Move confirmed booking to the new room so public/booking lookups stay aligned
+    const bookingWhere = {
+      roomId: session.roomId,
+      status: 'CONFIRMED' as const,
+      ...(session.customerPhone
+        ? { customerPhone: session.customerPhone }
+        : { customerName: session.customerName }),
+    }
+    await tx.booking.updateMany({
+      where: bookingWhere,
+      data: { roomId: targetRoom.id },
     })
 
     // Free the source room
@@ -359,6 +432,14 @@ export async function mergeSessions(data: MergeInput, userId: number) {
     await tx.order.updateMany({
       where: { sessionId: data.secondarySessionId },
       data: { sessionId: data.primarySessionId },
+    })
+
+    // Keep spin KM voucher bound to the surviving session
+    const { rebindSpinTokenToSession } = await import('../public/spin-reward.service')
+    await rebindSpinTokenToSession({
+      fromSessionId: data.secondarySessionId,
+      toSessionId: data.primarySessionId,
+      tx,
     })
 
     // Mark secondary as MERGED

@@ -13,6 +13,8 @@ import InvoicesPage from './pages/invoices/InvoicesPage'
 import LoginPage from './pages/auth/LoginPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import FacebookInboxPage from './pages/facebook/FacebookInboxPage'
+import PublicBookingPage from './pages/public/PublicBookingPage'
+import SpinWheelPage from './pages/public/SpinWheelPage'
 import { useEffect } from 'react'
 import { useAuthStore, type UserRole } from './stores/authStore'
 import { isSessionDeadError } from './services/api'
@@ -133,8 +135,10 @@ export default function App() {
   return (
     <>
       <Routes>
-        {/* Public route */}
+        {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/dat-lich" element={<PublicBookingPage />} />
+        <Route path="/quay-thuong" element={<SpinWheelPage />} />
 
         {/* Protected routes with MainLayout */}
         <Route

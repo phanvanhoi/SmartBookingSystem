@@ -244,7 +244,9 @@ export async function confirmBooking(
     res.json({
       success: true,
       data: result,
-      message: 'Xác nhận booking và check-in thành công',
+      message: result.spinReward && !result.spinReward.alreadyApplied
+        ? 'Check-in thành công — đã gắn khuyến mãi vòng quay vào order'
+        : 'Xác nhận booking và check-in thành công',
     })
   } catch (err) {
     next(err)

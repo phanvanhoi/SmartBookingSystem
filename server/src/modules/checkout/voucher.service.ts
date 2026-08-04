@@ -30,6 +30,43 @@ export async function validateVoucher(code: string) {
   return voucher
 }
 
+/** Pure discount math — does not consume voucher uses (safe for bill preview). */
+export function computeVoucherDiscountAmount(args: {
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT' | string
+  discountValue: number
+  maxDiscount?: number | null
+  baseAmount: number
+}): number {
+  const base = Math.max(0, args.baseAmount)
+  let discountAmount: number
+
+  if (args.discountType === 'PERCENTAGE') {
+    discountAmount = Math.round(base * (Number(args.discountValue) / 100))
+    if (args.maxDiscount != null) {
+      discountAmount = Math.min(discountAmount, Number(args.maxDiscount))
+    }
+  } else {
+    discountAmount = Number(args.discountValue)
+  }
+
+  return Math.min(Math.max(0, discountAmount), base)
+}
+
+/** Preview helper: validate + compute discount without incrementing usedCount. */
+export async function previewVoucherDiscount(
+  code: string,
+  baseAmount: number,
+): Promise<{ discountAmount: number; voucher: Awaited<ReturnType<typeof validateVoucher>> }> {
+  const voucher = await validateVoucher(code)
+  const discountAmount = computeVoucherDiscountAmount({
+    discountType: voucher.discountType,
+    discountValue: Number(voucher.discountValue),
+    maxDiscount: voucher.maxDiscount !== null ? Number(voucher.maxDiscount) : null,
+    baseAmount,
+  })
+  return { discountAmount, voucher }
+}
+
 // ─── applyVoucher ─────────────────────────────────────────────────────────────
 
 export async function applyVoucher(
@@ -38,23 +75,12 @@ export async function applyVoucher(
 ): Promise<{ discountAmount: number; voucher: Awaited<ReturnType<typeof validateVoucher>> }> {
   const voucher = await validateVoucher(code)
 
-  let discountAmount: number
-
-  if (voucher.discountType === 'PERCENTAGE') {
-    const pct = Number(voucher.discountValue) // e.g. 20 = 20%
-    discountAmount = Math.round(subtotal * (pct / 100))
-
-    // Respect maxDiscount cap
-    if (voucher.maxDiscount !== null) {
-      discountAmount = Math.min(discountAmount, Number(voucher.maxDiscount))
-    }
-  } else {
-    // FIXED_AMOUNT
-    discountAmount = Number(voucher.discountValue)
-  }
-
-  // Discount can never exceed subtotal
-  discountAmount = Math.min(discountAmount, subtotal)
+  const discountAmount = computeVoucherDiscountAmount({
+    discountType: voucher.discountType,
+    discountValue: Number(voucher.discountValue),
+    maxDiscount: voucher.maxDiscount !== null ? Number(voucher.maxDiscount) : null,
+    baseAmount: subtotal,
+  })
 
   // Atomic increment with maxUses guard. Two concurrent checkouts cannot both
   // win the last use: updateMany returns count=0 when usedCount already hit the

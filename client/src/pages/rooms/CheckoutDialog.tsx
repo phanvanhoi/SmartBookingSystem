@@ -75,6 +75,8 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
       payments,
       // Freeze giá tại thời điểm preview — server validate + cap 10 phút.
       checkOutTime: billData.checkOutTime,
+      // Gửi mã WIN-* để server chắc chắn trừ % giờ hát
+      ...(billData.spinPromo?.code ? { voucherCode: billData.spinPromo.code } : {}),
       ...(discountAmount > 0
         ? {
             discountAmount,
@@ -237,10 +239,21 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                       {billData.orders.flatMap((order) =>
                         order.items.map((item, i) => (
                           <tr key={`${order.id}-${i}`} className="border-t border-border/30">
-                            <td className="py-1">{item.name}</td>
+                            <td className="py-1">
+                              {item.name}
+                              {item.notes?.startsWith('KM ') ? (
+                                <span className="ml-1 text-[10px] text-emerald-600">KM</span>
+                              ) : null}
+                            </td>
                             <td className="py-1 text-center text-muted-foreground">{item.quantity}</td>
-                            <td className="py-1 text-right text-muted-foreground">{formatCurrency(item.unitPrice)}</td>
-                            <td className="py-1 text-right font-medium">{formatCurrency(item.subtotal)}</td>
+                            <td className="py-1 text-right text-muted-foreground">
+                              {item.unitPrice === 0 ? '—' : formatCurrency(item.unitPrice)}
+                            </td>
+                            <td className="py-1 text-right font-medium">
+                              {item.subtotal === 0 && item.unitPrice === 0
+                                ? 'Miễn phí'
+                                : formatCurrency(item.subtotal)}
+                            </td>
                           </tr>
                         ))
                       )}
@@ -258,8 +271,25 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               {/* Tổng hợp */}
               <div className="bg-muted/40 rounded-lg p-3 space-y-1">
                 <SummaryRow label="Tạm tính" value={formatCurrency(billData.subtotal)} />
+                {billData.spinPromo && billData.spinPromo.discountAmount > 0 && (
+                  <SummaryRow
+                    label={
+                      billData.spinPromo.discountType === 'PERCENTAGE'
+                        ? `KM giờ hát −${billData.spinPromo.discountValue}%`
+                        : 'KM giờ hát'
+                    }
+                    value={`-${formatCurrency(billData.spinPromo.discountAmount)}`}
+                    className="text-emerald-600"
+                  />
+                )}
+                {billData.spinPromo?.label && (
+                  <p className="text-[11px] text-emerald-700/80 pl-0.5 -mt-0.5">
+                    {billData.spinPromo.label}
+                    {billData.spinPromo.code ? ` · ${billData.spinPromo.code}` : ''}
+                  </p>
+                )}
                 {discountAmount > 0 && (
-                  <SummaryRow label="Giảm giá" value={`-${formatCurrency(discountAmount)}`} className="text-emerald-600" />
+                  <SummaryRow label="Giảm giá thủ công" value={`-${formatCurrency(discountAmount)}`} className="text-emerald-600" />
                 )}
                 {billData.roomCharge.surcharge > 0 && (
                   <SummaryRow label="Phụ thu" value={`+${formatCurrency(billData.roomCharge.surcharge)}`} className="text-amber-600" />

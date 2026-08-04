@@ -1,22 +1,16 @@
-version: '3.8'
-
 services:
   app:
     build: .
     container_name: musicbox-app
     restart: unless-stopped
-    # Use host network instead of bridge — on this VPS the bridge driver
-    # produces "connection reset by peer" on the published port (suspected
-    # iptables / docker-proxy interaction with the host firewall). Host net
-    # bypasses docker-proxy entirely and lets the app bind directly to the
-    # host's port. Override PORT to expose 8081 directly.
-    network_mode: host
+    # Docker Desktop (Windows/Mac): bridge + publish ports.
+    # (network_mode: host chỉ dùng được trên Linux VPS)
+    ports:
+      - "${APP_PORT:-8081}:3000"
     environment:
       - NODE_ENV=production
-      - PORT=${APP_PORT:-8081}
-      # Absolute path — Prisma resolves SQLite relative paths from the schema
-      # file location, not cwd. Using an absolute path puts the DB inside the
-      # mounted volume (/app/data) so it survives container rebuilds.
+      - PORT=3000
+      # Absolute path — Prisma resolves SQLite relative to schema location.
       - DATABASE_URL=file:/app/data/musicbox.db
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-30d}
@@ -26,10 +20,15 @@ services:
       - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN:-}
       - TZ=Asia/Ho_Chi_Minh
     volumes:
-      # Persist database + uploads outside container
       - musicbox-data:/app/data
       - musicbox-uploads:/app/uploads
       - musicbox-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
 volumes:
   musicbox-data:

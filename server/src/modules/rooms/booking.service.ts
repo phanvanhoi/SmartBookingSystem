@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma'
 import { BookingInput, BookingQueryInput } from './room.validation'
+import { attachSpinRewardToSession } from '../public/spin-reward.service'
 
 const HOUR_MS = 3_600_000
 
@@ -259,16 +260,25 @@ export async function confirmBooking(bookingId: number, userId: number) {
       data: { status: 'CONFIRMED' },
     })
 
-    return session
+    // Gắn khuyến mãi vòng quay (FREE_ITEM → order giá 0; % → ghi chú + voucher checkout)
+    const spinAttach = await attachSpinRewardToSession({
+      bookingId,
+      sessionId: session.id,
+      userId,
+      tx,
+    })
+
+    return { session, spinAttach }
   })
 
   return {
     bookingId,
-    sessionId: result.id,
+    sessionId: result.session.id,
     roomId: booking.roomId,
     customerName: booking.customerName,
     checkInTime,
     estimatedEnd,
+    spinReward: result.spinAttach,
   }
 }
 
@@ -284,11 +294,19 @@ export async function cancelBooking(bookingId: number, reason?: string) {
     throw createError('Không thể hủy booking đã được xác nhận', 400, 'BOOKING_CONFIRMED')
   }
 
-  return prisma.booking.update({
+  const updated = await prisma.booking.update({
     where: { id: bookingId },
     data: {
       status: 'CANCELLED',
       notes: reason ? `${booking.notes ?? ''} [HỦY: ${reason}]`.trim() : booking.notes,
     },
   })
+
+  // Public spin tokens become invalid when the booking is cancelled.
+  await prisma.spinToken.updateMany({
+    where: { bookingId, status: 'UNUSED' },
+    data: { status: 'EXPIRED' },
+  })
+
+  return updated
 }

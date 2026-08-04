@@ -39,6 +39,7 @@ export interface SessionOrder {
   status: string
   totalAmount: number
   createdAt: string
+  notes?: string | null
   items: OrderItem[]
 }
 
@@ -48,6 +49,7 @@ export interface OrderItem {
   quantity: number
   unitPrice: number
   subtotal: number
+  notes?: string | null
 }
 
 export interface PriceSegment {
@@ -66,6 +68,15 @@ export interface PriceBreakdown {
   total: number
 }
 
+export interface CheckoutSpinPromo {
+  code: string
+  label: string
+  prizeType: string
+  discountAmount: number
+  discountType: 'PERCENTAGE' | 'FIXED_AMOUNT'
+  discountValue: number
+}
+
 export interface CheckoutData {
   sessionId: number
   roomName: string
@@ -77,8 +88,11 @@ export interface CheckoutData {
   orders: SessionOrder[]
   orderTotal: number
   subtotal: number
+  spinPromo?: CheckoutSpinPromo | null
+  spinDiscountAmount?: number
+  depositAvailable?: number
   grandTotal: number
-  qrCode: { type: string; label: string; imageUrl: string }
+  qrCode?: { type: string; label: string; imageUrl: string }
 }
 
 export interface CheckinForm {

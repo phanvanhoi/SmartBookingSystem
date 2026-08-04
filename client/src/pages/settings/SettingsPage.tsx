@@ -13,6 +13,8 @@ import {
   Loader2,
   Check,
   X,
+  Dices,
+  ExternalLink,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -50,9 +52,10 @@ import {
   useUpdateVoucher,
   useDeleteVoucher,
 } from '@/hooks/useSettings'
+import { useAdminSpinCampaign, useUpdateSpinPrize, useRecentSpins } from '@/hooks/useSpin'
 import { useRooms } from '@/hooks/useRooms'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { formatDate } from '@/utils/formatTime'
+import { formatDate, formatDateTime } from '@/utils/formatTime'
 import { getErrorMessage } from '@/utils/error'
 import type {
   PricingRuleItem,
@@ -1571,6 +1574,171 @@ function RoomsTab() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Tab Vòng quay
+// ────────────────────────────────────────────────────────────────────────────
+
+function SpinTab() {
+  const { data: campaigns, isLoading } = useAdminSpinCampaign()
+  const { data: recent } = useRecentSpins()
+  const updatePrize = useUpdateSpinPrize()
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
+  }
+
+  if (!campaigns?.length) {
+    return (
+      <div className="text-center py-10 text-muted-foreground">
+        Chưa có chiến dịch vòng quay. Chạy seed để tạo mặc định.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        Link khách:{' '}
+        <a
+          href="/dat-lich"
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary inline-flex items-center gap-1 underline underline-offset-2"
+        >
+          /dat-lich <ExternalLink className="w-3 h-3" />
+        </a>
+        {' · '}
+        Combo theo loại phòng (bé 1–7 / lớn 8–10).
+      </p>
+
+      {campaigns.map((campaign) => (
+        <div key={campaign.id} className="space-y-3">
+          <div>
+            <h3 className="font-medium text-foreground">{campaign.name}</h3>
+            <p className="text-sm text-muted-foreground">
+              {campaign.roomTypeName ?? '—'}
+              {campaign.capacityMin != null && campaign.capacityMax != null
+                ? ` · ${campaign.capacityMin}–${campaign.capacityMax} người`
+                : ''}
+              {' · '}
+              {campaign.isActive ? 'Đang mở' : 'Tạm dừng'}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Giải thưởng</th>
+                  <th className="text-left px-3 py-2 font-medium">Loại</th>
+                  <th className="text-left px-3 py-2 font-medium">Weight</th>
+                  <th className="text-left px-3 py-2 font-medium">Đã trúng</th>
+                  <th className="text-left px-3 py-2 font-medium">Bật</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaign.prizes.map((p) => (
+                  <tr key={p.id} className="border-t border-border">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ background: p.color }}
+                        />
+                        {p.label}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{p.prizeType}</td>
+                    <td className="px-3 py-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        className="h-8 w-20"
+                        defaultValue={p.weight}
+                        onBlur={(e) => {
+                          const weight = Number(e.target.value)
+                          if (Number.isFinite(weight) && weight !== p.weight) {
+                            updatePrize.mutate(
+                              { id: p.id, data: { weight } },
+                              {
+                                onSuccess: () => toast.success('Đã cập nhật tỉ lệ'),
+                                onError: (err) => toast.error(getErrorMessage(err)),
+                              },
+                            )
+                          }
+                        }}
+                      />
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">{p.wonCount}</td>
+                    <td className="px-3 py-2">
+                      <Button
+                        size="sm"
+                        variant={p.isActive ? 'default' : 'outline'}
+                        className="h-7 text-xs"
+                        onClick={() =>
+                          updatePrize.mutate(
+                            { id: p.id, data: { isActive: !p.isActive } },
+                            {
+                              onSuccess: () => toast.success('Đã cập nhật'),
+                              onError: (err) => toast.error(getErrorMessage(err)),
+                            },
+                          )
+                        }
+                      >
+                        {p.isActive ? 'Bật' : 'Tắt'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+
+      <div>
+        <h4 className="font-medium mb-3">Lượt quay gần đây</h4>
+        {!recent?.length ? (
+          <p className="text-sm text-muted-foreground">Chưa có lượt quay nào</p>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2">Thời gian</th>
+                  <th className="text-left px-3 py-2">Khách</th>
+                  <th className="text-left px-3 py-2">Kết quả</th>
+                  <th className="text-left px-3 py-2">Mã đổi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((s) => (
+                  <tr key={s.id} className="border-t border-border">
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {s.spunAt ? formatDateTime(s.spunAt) : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {s.customerName}
+                      <span className="block text-xs text-muted-foreground">{s.roomName}</span>
+                    </td>
+                    <td className="px-3 py-2">{s.resultLabel ?? '—'}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{s.rewardCode ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Main SettingsPage
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -1590,7 +1758,7 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid grid-cols-6 w-full max-w-2xl">
+        <TabsList className="flex flex-wrap h-auto gap-1 w-full max-w-4xl justify-start">
           <TabsTrigger value="general" className="flex items-center gap-1.5 text-xs">
             <Settings className="w-3.5 h-3.5" />
             Chung
@@ -1610,6 +1778,10 @@ export default function SettingsPage() {
           <TabsTrigger value="vouchers" className="flex items-center gap-1.5 text-xs">
             <Ticket className="w-3.5 h-3.5" />
             Voucher
+          </TabsTrigger>
+          <TabsTrigger value="spin" className="flex items-center gap-1.5 text-xs">
+            <Dices className="w-3.5 h-3.5" />
+            Vòng quay
           </TabsTrigger>
           <TabsTrigger value="rooms" className="flex items-center gap-1.5 text-xs">
             <Building2 className="w-3.5 h-3.5" />
@@ -1635,6 +1807,10 @@ export default function SettingsPage() {
 
         <TabsContent value="vouchers">
           <VouchersTab />
+        </TabsContent>
+
+        <TabsContent value="spin">
+          <SpinTab />
         </TabsContent>
 
         <TabsContent value="rooms">

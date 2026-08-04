@@ -22,6 +22,7 @@ import reportRoutes from './modules/reports/report.routes'
 import settingRoutes from './modules/settings/setting.routes'
 import notificationRoutes from './modules/notifications/notification.routes'
 import facebookRoutes from './modules/facebook/facebook.routes'
+import publicRoutes from './modules/public/public.routes'
 
 const app = express()
 
@@ -128,6 +129,7 @@ app.use('/api/v1/reports', reportRoutes)
 app.use('/api/v1/settings', settingRoutes)
 app.use('/api/v1/notifications', notificationRoutes)
 app.use('/api/v1/facebook', facebookRoutes)
+app.use('/api/v1/public', publicRoutes)
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

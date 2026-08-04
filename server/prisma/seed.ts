@@ -10,23 +10,31 @@ async function main() {
   console.log('Seeding room types...')
   const roomTypeSmall = await prisma.roomType.upsert({
     where: { name: 'Phòng nhỏ' },
-    update: {},
+    update: {
+      capacityMin: 1,
+      capacityMax: 3,
+      description: 'Phòng bé (1–7): 1–3 người',
+    },
     create: {
       name: 'Phòng nhỏ',
-      capacityMin: 4,
-      capacityMax: 8,
-      description: 'Phòng dành cho nhóm nhỏ 4-8 người',
+      capacityMin: 1,
+      capacityMax: 3,
+      description: 'Phòng bé (1–7): 1–3 người',
     },
   })
 
   const roomTypeLarge = await prisma.roomType.upsert({
     where: { name: 'Phòng lớn' },
-    update: {},
+    update: {
+      capacityMin: 4,
+      capacityMax: 7,
+      description: 'Phòng lớn (8–10): 4–7 người',
+    },
     create: {
       name: 'Phòng lớn',
-      capacityMin: 10,
-      capacityMax: 20,
-      description: 'Phòng dành cho nhóm lớn 10-20 người',
+      capacityMin: 4,
+      capacityMax: 7,
+      description: 'Phòng lớn (8–10): 4–7 người',
     },
   })
 
@@ -235,6 +243,222 @@ async function main() {
       update: {},
       create: setting,
     })
+  }
+
+  // ── Spin campaigns theo loại phòng ──
+  console.log('Seeding spin campaigns...')
+
+  // Tắt campaign cũ (không gắn loại phòng)
+  await prisma.spinCampaign.updateMany({
+    where: { roomTypeId: null, isActive: true },
+    data: { isActive: false },
+  })
+
+  const smallPrizes = [
+    {
+      label: 'Giảm 25% giờ hát',
+      prizeType: 'PERCENT_OFF' as const,
+      prizeValue: '25',
+      weight: 30,
+      color: '#22c55e',
+      sortOrder: 1,
+    },
+    {
+      label: 'Giảm 50% giờ hát',
+      prizeType: 'PERCENT_OFF' as const,
+      prizeValue: '50',
+      weight: 10,
+      color: '#ef4444',
+      sortOrder: 2,
+    },
+    {
+      label: '1 khô gà/bò + 1 nước suối',
+      prizeType: 'FREE_ITEM' as const,
+      prizeValue: '1 khô gà/bò + 1 nước suối',
+      weight: 20,
+      color: '#eab308',
+      sortOrder: 3,
+    },
+    {
+      label: '2 khô gà/bò',
+      prizeType: 'FREE_ITEM' as const,
+      prizeValue: '2 khô gà/bò',
+      weight: 20,
+      color: '#f97316',
+      sortOrder: 4,
+    },
+    {
+      label: '1 coca + 1 nước suối',
+      prizeType: 'FREE_ITEM' as const,
+      prizeValue: '1 coca + 1 nước suối',
+      weight: 20,
+      color: '#0ea5e9',
+      sortOrder: 5,
+    },
+  ]
+
+  const largePrizes = [
+    {
+      label: 'Giảm 10% giờ hát',
+      prizeType: 'PERCENT_OFF' as const,
+      prizeValue: '10',
+      weight: 30,
+      color: '#22c55e',
+      sortOrder: 1,
+    },
+    {
+      label: 'Giảm 25% giờ hát',
+      prizeType: 'PERCENT_OFF' as const,
+      prizeValue: '25',
+      weight: 10,
+      color: '#ef4444',
+      sortOrder: 2,
+    },
+    {
+      label: '2 khô gà/bò + 1 nước suối',
+      prizeType: 'FREE_ITEM' as const,
+      prizeValue: '2 khô gà/bò + 1 nước suối',
+      weight: 20,
+      color: '#eab308',
+      sortOrder: 3,
+    },
+    {
+      label: '1 khô gà/bò + 2 coca',
+      prizeType: 'FREE_ITEM' as const,
+      prizeValue: '1 khô gà/bò + 2 coca',
+      weight: 20,
+      color: '#f97316',
+      sortOrder: 4,
+    },
+    {
+      label: '2 coca + 1 nước suối',
+      prizeType: 'FREE_ITEM' as const,
+      prizeValue: '2 coca + 1 nước suối',
+      weight: 20,
+      color: '#0ea5e9',
+      sortOrder: 5,
+    },
+  ]
+
+  async function syncCampaign(args: {
+    name: string
+    roomTypeId: number
+    prizes: typeof smallPrizes
+  }) {
+    const campaign = await prisma.spinCampaign.upsert({
+      where: { roomTypeId: args.roomTypeId },
+      update: { name: args.name, isActive: true },
+      create: {
+        name: args.name,
+        roomTypeId: args.roomTypeId,
+        isActive: true,
+      },
+    })
+
+    await prisma.spinPrize.deleteMany({ where: { campaignId: campaign.id } })
+    for (const prize of args.prizes) {
+      await prisma.spinPrize.create({
+        data: { campaignId: campaign.id, ...prize },
+      })
+    }
+    return campaign
+  }
+
+  await syncCampaign({
+    name: 'KM Phòng bé (1–7)',
+    roomTypeId: roomTypeSmall.id,
+    prizes: smallPrizes,
+  })
+  await syncCampaign({
+    name: 'KM Phòng lớn (8–10)',
+    roomTypeId: roomTypeLarge.id,
+    prizes: largePrizes,
+  })
+
+  // ── Menu + kho cho quà vòng quay (trừ tồn khi checkout) ──
+  console.log('Seeding promo menu items...')
+  const snackCat = await prisma.menuCategory.findUnique({ where: { name: 'Đồ ăn nhẹ' } })
+  const drinkCat = await prisma.menuCategory.findUnique({ where: { name: 'Nước ngọt' } })
+  if (snackCat && drinkCat) {
+    const promoProducts = [
+      {
+        sku: 'PROMO-COCA',
+        name: 'Coca',
+        category: 'Nước ngọt',
+        unit: 'lon',
+        costPrice: 8000,
+        sellPrice: 20000,
+        stock: 200,
+        menuCategoryId: drinkCat.id,
+      },
+      {
+        sku: 'PROMO-SUOI',
+        name: 'Nước suối',
+        category: 'Nước ngọt',
+        unit: 'chai',
+        costPrice: 3000,
+        sellPrice: 10000,
+        stock: 300,
+        menuCategoryId: drinkCat.id,
+      },
+      {
+        sku: 'PROMO-KHO',
+        name: 'Khô gà/bò',
+        category: 'Đồ ăn nhẹ',
+        unit: 'gói',
+        costPrice: 15000,
+        sellPrice: 35000,
+        stock: 150,
+        menuCategoryId: snackCat.id,
+      },
+    ]
+
+    for (const item of promoProducts) {
+      const product = await prisma.product.upsert({
+        where: { sku: item.sku },
+        update: {
+          name: item.name,
+          stockQuantity: item.stock,
+          isActive: true,
+        },
+        create: {
+          name: item.name,
+          sku: item.sku,
+          category: item.category,
+          unit: item.unit,
+          costPrice: item.costPrice,
+          stockQuantity: item.stock,
+          minStock: 20,
+          isActive: true,
+        },
+      })
+
+      const existingMenu = await prisma.menuItem.findFirst({
+        where: { productId: product.id },
+      })
+      if (existingMenu) {
+        await prisma.menuItem.update({
+          where: { id: existingMenu.id },
+          data: {
+            name: item.name,
+            price: item.sellPrice,
+            isAvailable: true,
+            categoryId: item.menuCategoryId,
+          },
+        })
+      } else {
+        await prisma.menuItem.create({
+          data: {
+            name: item.name,
+            price: item.sellPrice,
+            categoryId: item.menuCategoryId,
+            productId: product.id,
+            isAvailable: true,
+            sortOrder: 1,
+          },
+        })
+      }
+    }
   }
 
   console.log('Seed completed successfully!')

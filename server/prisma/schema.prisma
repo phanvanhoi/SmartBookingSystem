@@ -69,6 +69,7 @@ model RoomType {
   rooms         Room[]
   pricingRules  PricingRule[]
   waitingQueue  WaitingQueue[]
+  spinCampaigns SpinCampaign[]
 
   @@map("room_types")
 }
@@ -180,6 +181,7 @@ model Booking {
 
   // Inbox messages whose auto_booking_id points here.
   fbMessages FacebookMessage[] @relation("AutoBookingFromFB")
+  spinToken  SpinToken?
 
   // Optimised for the most frequent query: "all bookings for a room/date,
   // filtered by status, ordered by time" — covers overlap detection and
@@ -726,4 +728,83 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ════════════════════════════════════════════
+// SPIN / LUCKY DRAW (Vòng quay khuyến mãi)
+// ════════════════════════════════════════════
+
+enum SpinPrizeType {
+  NO_PRIZE      // Chúc may mắn lần sau
+  PERCENT_OFF   // Giảm % tiền phòng → tạo voucher
+  FIXED_OFF     // Giảm số tiền cố định → tạo voucher
+  FREE_MINUTES  // Tặng phút hát (đổi tại quầy)
+  FREE_ITEM     // Tặng đồ uống/ăn (đổi tại quầy)
+}
+
+enum SpinTokenStatus {
+  UNUSED
+  USED
+  EXPIRED
+}
+
+model SpinCampaign {
+  id         Int       @id @default(autoincrement())
+  name       String
+  roomTypeId Int?      @unique @map("room_type_id")
+  isActive   Boolean   @default(true) @map("is_active")
+  startsAt   DateTime? @map("starts_at")
+  endsAt     DateTime? @map("ends_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  roomType RoomType?   @relation(fields: [roomTypeId], references: [id], onDelete: SetNull)
+  prizes   SpinPrize[]
+  tokens   SpinToken[]
+
+  @@map("spin_campaigns")
+}
+
+model SpinPrize {
+  id          Int           @id @default(autoincrement())
+  campaignId  Int           @map("campaign_id")
+  label       String
+  prizeType   SpinPrizeType @map("prize_type")
+  prizeValue  String?       @map("prize_value") // "10", "50000", "30", "Nước ngọt"
+  weight      Int           @default(1)
+  color       String        @default("#f97316")
+  sortOrder   Int           @default(0) @map("sort_order")
+  isActive    Boolean       @default(true) @map("is_active")
+  stockLimit  Int?          @map("stock_limit")
+  wonCount    Int           @default(0) @map("won_count")
+
+  campaign SpinCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tokens   SpinToken[]
+
+  @@index([campaignId, isActive])
+  @@map("spin_prizes")
+}
+
+model SpinToken {
+  id               Int             @id @default(autoincrement())
+  code             String          @unique
+  bookingId        Int             @unique @map("booking_id")
+  campaignId       Int             @map("campaign_id")
+  status           SpinTokenStatus @default(UNUSED)
+  prizeId          Int?            @map("prize_id")
+  resultLabel      String?         @map("result_label")
+  rewardCode       String?         @map("reward_code") // mã voucher / đổi quà
+  spunAt           DateTime?       @map("spun_at")
+  appliedSessionId Int?            @map("applied_session_id")
+  appliedOrderId   Int?            @map("applied_order_id")
+  appliedAt        DateTime?       @map("applied_at")
+  expiresAt        DateTime        @map("expires_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  booking  Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  campaign SpinCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  prize    SpinPrize?   @relation(fields: [prizeId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([status])
+  @@map("spin_tokens")
 }
