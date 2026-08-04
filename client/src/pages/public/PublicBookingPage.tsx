@@ -113,34 +113,52 @@ export default function PublicBookingPage() {
           </div>
         }
       >
-        <section className="fade-up w-full min-w-0 panel rounded-2xl p-5 space-y-5 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(34,197,94,0.15)] text-emerald-400 mx-auto">
-            <PartyPopper className="w-6 h-6" />
-          </div>
-          <div>
+        <section className="fade-up w-full min-w-0 space-y-4 text-center">
+          <div className="panel rounded-2xl p-5 space-y-3">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(34,197,94,0.15)] text-emerald-400 mx-auto">
+              <PartyPopper className="w-6 h-6" />
+            </div>
             <h1 className="display text-3xl text-[var(--promo-gold)]">Đặt lịch thành công</h1>
-            <p className="mt-2 text-sm text-[var(--promo-muted)] leading-relaxed">
+            <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
               {result.booking.roomName}
               <br />
-              {result.booking.bookingDate} · {result.booking.bookingTime} · {result.booking.durationHours}h
+              {result.booking.bookingDate} · {result.booking.bookingTime} ·{' '}
+              {result.booking.durationHours}h
             </p>
           </div>
 
-          <div className="rounded-2xl border border-dashed border-[rgba(232,184,109,0.45)] bg-[rgba(232,184,109,0.08)] px-3 py-5 space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--promo-muted)]">
-              Mã quay thưởng
+          {/* Mã quay — khối nổi bật nhất */}
+          <div className="rounded-2xl border-2 border-[var(--promo-gold)] bg-[rgba(232,184,109,0.14)] px-4 py-6 space-y-3 shadow-[0_0_40px_rgba(232,184,109,0.18)]">
+            <p className="text-[11px] uppercase tracking-[0.22em] font-semibold text-[var(--promo-gold)]">
+              Mã quay thưởng của bạn
             </p>
-            <p className="display text-[clamp(1.75rem,8vw,2.75rem)] text-[var(--promo-ink)] tracking-[0.08em] break-all">
+            <p
+              className="display text-[clamp(2rem,10vw,3rem)] text-[var(--promo-ink)] tracking-[0.12em] break-all leading-none select-all"
+              aria-label={`Mã quay thưởng ${result.spinToken.code}`}
+            >
               {result.spinToken.code}
             </p>
-            <p className="text-xs text-[var(--promo-muted)]">
-              Hạn đến {new Date(result.spinToken.expiresAt).toLocaleString('vi-VN')}
+            <p className="text-xs text-[var(--promo-muted)] leading-relaxed">
+              Chụp màn hình hoặc sao chép mã · Hạn{' '}
+              {new Date(result.spinToken.expiresAt).toLocaleString('vi-VN')}
             </p>
+            {result.campaignName ? (
+              <p className="text-xs text-[var(--promo-gold)]/90">{result.campaignName}</p>
+            ) : null}
+            <ol className="text-left text-xs text-[var(--promo-muted)] space-y-1.5 pt-2 border-t border-[rgba(232,184,109,0.25)]">
+              <li>
+                <span className="text-[var(--promo-gold)] font-semibold">1.</span> Giữ mã này
+              </li>
+              <li>
+                <span className="text-[var(--promo-gold)] font-semibold">2.</span> Bấm “Quay thưởng
+                ngay” bên dưới
+              </li>
+              <li>
+                <span className="text-[var(--promo-gold)] font-semibold">3.</span> Nhân viên xác nhận
+                lịch khi bạn đến quán
+              </li>
+            </ol>
           </div>
-
-          <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
-            Nhân viên sẽ xác nhận lịch. Giữ mã này để quay thưởng.
-          </p>
 
           <button
             type="button"

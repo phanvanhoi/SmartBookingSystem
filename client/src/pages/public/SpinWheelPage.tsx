@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Copy, Check, Loader2, Sparkles, Trophy } from 'lucide-react'
+import { Copy, Check, Loader2, Sparkles, Trophy, CalendarPlus, Gift } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
 import { publicService, type SpinResult } from '@/services/publicService'
@@ -10,38 +10,32 @@ import { cn } from '@/utils/cn'
 
 const SPIN_DURATION_MS = 4200
 
-/** Short labels for cramped wheel segments on small screens */
 function shortLabel(label: string) {
-  if (label.length <= 16) return label
   return label
     .replace('Giảm ', '-')
     .replace(' giờ hát', '')
     .replace('khô gà/bò', 'khô')
     .replace('nước suối', 'suối')
+    .replace(' + ', '+')
     .trim()
 }
 
 export default function SpinWheelPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [tokenInput, setTokenInput] = useState(searchParams.get('token')?.toUpperCase() ?? '')
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const tokenFromUrl = (searchParams.get('token') ?? '').trim().toUpperCase()
+
   const [rotation, setRotation] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<SpinResult | null>(null)
   const [copiedReward, setCopiedReward] = useState(false)
 
-  const campaignQuery = useQuery({
-    queryKey: ['public', 'spin-campaign', tokenInput || 'default'],
-    queryFn: () =>
-      publicService.getCampaign(
-        tokenInput.length >= 6 ? { token: tokenInput } : undefined,
-      ),
-  })
+  const hasToken = tokenFromUrl.length >= 6
 
-  const tokenQuery = useQuery({
-    queryKey: ['public', 'spin-token', tokenInput],
-    queryFn: () => publicService.getToken(tokenInput),
-    enabled: tokenInput.length >= 6,
-    retry: false,
+  const campaignQuery = useQuery({
+    queryKey: ['public', 'spin-campaign', hasToken ? tokenFromUrl : 'default'],
+    queryFn: () =>
+      publicService.getCampaign(hasToken ? { token: tokenFromUrl } : undefined),
   })
 
   const prizes = campaignQuery.data?.prizes ?? []
@@ -70,8 +64,6 @@ export default function SpinWheelPage() {
       window.setTimeout(() => {
         setSpinning(false)
         setResult(data)
-        void tokenQuery.refetch()
-        // Keep result visible above sticky footer on mobile
         window.setTimeout(() => {
           document.getElementById('spin-result')?.scrollIntoView({
             behavior: 'smooth',
@@ -84,22 +76,18 @@ export default function SpinWheelPage() {
   })
 
   useEffect(() => {
-    const q = searchParams.get('token')
-    if (q) setTokenInput(q.toUpperCase())
-  }, [searchParams])
-
-  function handleApplyToken(e: React.FormEvent) {
-    e.preventDefault()
-    const next = tokenInput.trim().toUpperCase()
-    setTokenInput(next)
     setResult(null)
-    setSearchParams(next ? { token: next } : {})
-  }
+    setRotation(0)
+  }, [tokenFromUrl])
 
   function handleSpin() {
-    if (!tokenInput || spinning || spinMutation.isPending) return
+    if (!hasToken || spinning || spinMutation.isPending) return
+    if (prizes.length === 0) {
+      toast.error('Vòng quay chưa sẵn sàng')
+      return
+    }
     setResult(null)
-    spinMutation.mutate(tokenInput.trim().toUpperCase())
+    spinMutation.mutate(tokenFromUrl)
   }
 
   async function copyReward() {
@@ -114,30 +102,27 @@ export default function SpinWheelPage() {
     }
   }
 
-  const tokenStatus = tokenQuery.data
-  const canSpin =
-    !!tokenStatus &&
-    tokenStatus.status === 'UNUSED' &&
-    !spinning &&
-    !spinMutation.isPending &&
-    prizes.length > 0
-
-  const showStickySpin = !!tokenStatus && tokenStatus.status === 'UNUSED'
+  const busy = spinning || spinMutation.isPending
+  const canSpin = hasToken && !busy && prizes.length > 0 && !result
 
   return (
     <PublicShell
       active="spin"
       footer={
-        showStickySpin ? (
+        hasToken ? (
           <button
             type="button"
             className="cta w-full py-3.5 inline-flex items-center justify-center gap-2 text-base touch-manipulation"
             disabled={!canSpin}
             onClick={handleSpin}
           >
-            {spinning || spinMutation.isPending ? (
+            {busy ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" /> Đang quay...
+              </>
+            ) : result ? (
+              <>
+                <Trophy className="w-4 h-4" /> Đã quay xong
               </>
             ) : (
               <>
@@ -145,13 +130,53 @@ export default function SpinWheelPage() {
               </>
             )}
           </button>
-        ) : undefined
+        ) : (
+          <button
+            type="button"
+            className="cta w-full py-3.5 inline-flex items-center justify-center gap-2 text-base touch-manipulation"
+            onClick={() => navigate('/dat-lich')}
+          >
+            <CalendarPlus className="w-4 h-4" /> Đặt phòng để quay thưởng
+          </button>
+        )
       }
     >
       <section className="flex flex-col gap-5 w-full min-w-0">
-        {/* Wheel first on mobile — visual anchor */}
+        {/* Hero copy */}
+        <div className="fade-up space-y-1.5 min-w-0 text-center sm:text-left">
+          <p className="text-[var(--promo-gold)] text-xs font-semibold tracking-wide uppercase">
+            {campaignQuery.data?.name ?? 'Vòng quay khuyến mãi'}
+          </p>
+          <h1 className="display text-[2.1rem] leading-[0.95]">
+            {hasToken ? (
+              <>
+                Sẵn sàng quay,
+                <br />
+                <span className="text-[var(--promo-gold)]">chúc bạn may mắn</span>
+              </>
+            ) : (
+              <>
+                Quay thưởng khi
+                <br />
+                <span className="text-[var(--promo-gold)]">đặt phòng hát</span>
+              </>
+            )}
+          </h1>
+          {!hasToken && (
+            <p className="text-sm text-[var(--promo-muted)] leading-relaxed pt-1">
+              Đặt lịch online → nhận mã quay → quay trúng giảm giờ hát hoặc combo đồ uống.
+            </p>
+          )}
+          {hasToken && (
+            <p className="text-sm text-[var(--promo-muted)] pt-1 font-mono tracking-wider text-[var(--promo-gold)]">
+              Mã: {tokenFromUrl}
+            </p>
+          )}
+        </div>
+
+        {/* Wheel */}
         <div className="fade-up order-1 flex flex-col items-center w-full min-w-0">
-          <div className="relative w-[min(78vw,300px)] aspect-square overflow-visible">
+          <div className="relative w-[min(86vw,320px)] aspect-square overflow-visible">
             <div
               className="absolute left-1/2 -translate-x-1/2 -top-0.5 z-20 w-0 h-0"
               style={{
@@ -178,10 +203,13 @@ export default function SpinWheelPage() {
                 return (
                   <div
                     key={p.id}
-                    className="absolute inset-0 flex items-start justify-center pt-[12%] sm:pt-[14%]"
+                    className="absolute inset-0 flex items-start justify-center pt-[11%] sm:pt-[13%]"
                     style={{ transform: `rotate(${angle}deg)` }}
                   >
-                    <span className="hidden sm:block text-[10px] sm:text-[11px] font-semibold text-white text-center max-w-[68px] leading-tight drop-shadow">
+                    <span
+                      className="block text-[9px] sm:text-[11px] font-bold text-white text-center max-w-[4.6rem] sm:max-w-[72px] leading-[1.15] px-0.5"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+                    >
                       {shortLabel(p.label)}
                     </span>
                   </div>
@@ -189,30 +217,10 @@ export default function SpinWheelPage() {
               })}
             </div>
 
-            <div className="absolute inset-[32%] sm:inset-[34%] rounded-full bg-[#0b1220] border border-[rgba(232,184,109,0.4)] flex items-center justify-center z-10 pointer-events-none">
+            <div className="absolute inset-[30%] sm:inset-[32%] rounded-full bg-[#0b1220] border border-[rgba(232,184,109,0.4)] flex items-center justify-center z-10 pointer-events-none">
               <span className="display text-xl sm:text-2xl text-[var(--promo-gold)]">SPIN</span>
             </div>
           </div>
-
-          {/* Mobile-readable prize legend */}
-          {prizes.length > 0 && (
-            <div className="mt-4 w-full max-w-sm min-w-0 sm:hidden px-1">
-              <div className="h-scroll">
-                {prizes.map((p) => (
-                  <span
-                    key={p.id}
-                    className="chip shrink-0 inline-flex items-center gap-1.5 !py-1.5 !px-2.5 text-[11px]"
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ background: p.color }}
-                    />
-                    {shortLabel(p.label)}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {campaignQuery.isLoading && (
             <p className="mt-3 text-sm text-[var(--promo-muted)] inline-flex items-center gap-2">
@@ -226,143 +234,104 @@ export default function SpinWheelPage() {
           )}
         </div>
 
-        <div className="fade-up-delay order-2 space-y-4 w-full min-w-0">
-          <div className="space-y-1.5 min-w-0">
-            <p className="text-[var(--promo-gold)] text-xs font-semibold tracking-wide uppercase">
-              {campaignQuery.data?.name ?? 'Vòng quay khuyến mãi'}
-            </p>
-            <h1 className="display text-[2.1rem] leading-[0.95]">
-              Quay một vòng,
-              <br />
-              <span className="text-[var(--promo-gold)]">rinh quà liền tay</span>
-            </h1>
-          </div>
-
-          <form
-            onSubmit={handleApplyToken}
-            className="panel rounded-2xl p-3 flex flex-col gap-2.5 w-full min-w-0"
-          >
-            <label className="text-sm text-[var(--promo-muted)]" htmlFor="spin-token">
-              Mã quay thưởng
-            </label>
-            <div className="flex flex-col gap-2.5 w-full min-w-0">
-              <input
-                id="spin-token"
-                className="field uppercase tracking-[0.14em] text-center"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                placeholder="MB-XXXXXX"
-                maxLength={32}
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-                enterKeyHint="go"
-              />
-              <button type="submit" className="cta px-5 py-3 touch-manipulation">
-                Kiểm tra
-              </button>
+        {/* Prize highlights */}
+        {prizes.length > 0 && (
+          <div className="fade-up-delay space-y-3 w-full min-w-0">
+            <div className="flex items-center gap-2 text-[var(--promo-gold)]">
+              <Gift className="w-4 h-4 shrink-0" />
+              <h2 className="text-sm font-semibold tracking-wide uppercase">Phần thưởng</h2>
             </div>
-          </form>
-
-          {tokenQuery.isFetching && (
-            <p className="text-sm text-[var(--promo-muted)] inline-flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Đang kiểm tra mã...
-            </p>
-          )}
-
-          {tokenQuery.isError && tokenInput.length >= 6 && !tokenQuery.isFetching && (
-            <p className="text-sm text-rose-300">Mã không hợp lệ hoặc không tồn tại.</p>
-          )}
-
-          {tokenStatus && (
-            <div className="panel rounded-2xl p-4 space-y-2.5 text-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[var(--promo-muted)] text-xs">Khách</p>
-                  <p className="font-semibold truncate">{tokenStatus.booking.customerName}</p>
-                </div>
-                <StatusBadge status={tokenStatus.status} />
-              </div>
-              <p className="text-[var(--promo-muted)]">
-                {tokenStatus.booking.roomName} ·{' '}
-                {new Date(tokenStatus.booking.bookingDate).toLocaleDateString('vi-VN')}
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {prizes.map((p) => (
+                <li
+                  key={p.id}
+                  className="panel rounded-xl px-3.5 py-3 flex items-center gap-3 min-w-0"
+                >
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/10"
+                    style={{ background: p.color }}
+                    aria-hidden
+                  />
+                  <span className="text-sm font-medium text-[var(--promo-ink)] leading-snug">
+                    {p.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {campaignQuery.data?.roomTypeName && (
+              <p className="text-xs text-[var(--promo-muted)] text-center sm:text-left">
+                Combo theo {campaignQuery.data.roomTypeName}
+                {campaignQuery.data.capacityMin != null && campaignQuery.data.capacityMax != null
+                  ? ` (${campaignQuery.data.capacityMin}–${campaignQuery.data.capacityMax} khách)`
+                  : ''}
               </p>
-              {tokenStatus.status === 'USED' && tokenStatus.resultLabel && (
-                <p className="text-[var(--promo-gold)] leading-snug">
-                  Đã trúng: {tokenStatus.resultLabel}
-                  {tokenStatus.rewardCode ? (
-                    <>
-                      <br />
-                      <span className="font-mono tracking-wider">Mã đổi: {tokenStatus.rewardCode}</span>
-                    </>
-                  ) : null}
-                </p>
-              )}
-              {tokenStatus.status === 'EXPIRED' && (
-                <p className="text-rose-300 text-xs">Mã đã hết hạn hoặc lịch đã hủy.</p>
-              )}
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {!tokenStatus && !tokenQuery.isFetching && (
-            <p className="text-sm text-[var(--promo-muted)]">
-              Chưa có mã?{' '}
-              <Link to="/dat-lich" className="text-[var(--promo-gold)] underline underline-offset-2">
-                Đặt lịch để nhận mã
-              </Link>
+        {/* CTA card when no token */}
+        {!hasToken && (
+          <div className="fade-up panel rounded-2xl p-4 space-y-3 border-[rgba(232,184,109,0.35)]">
+            <p className="display text-xl text-[var(--promo-gold)] leading-none">
+              Đặt phòng → nhận lượt quay
             </p>
-          )}
-
-          {result && !spinning && (
-            <div
-              id="spin-result"
-              className="fade-up panel rounded-2xl p-4 sm:p-5 border-[rgba(232,184,109,0.35)] space-y-3"
+            <ol className="text-sm text-[var(--promo-muted)] space-y-2 text-left">
+              <li className="flex gap-2">
+                <span className={cn('text-[var(--promo-gold)] font-semibold shrink-0')}>1.</span>
+                Chọn phòng & giờ hát trên trang đặt lịch
+              </li>
+              <li className="flex gap-2">
+                <span className="text-[var(--promo-gold)] font-semibold shrink-0">2.</span>
+                Nhận mã quay ngay sau khi đặt thành công
+              </li>
+              <li className="flex gap-2">
+                <span className="text-[var(--promo-gold)] font-semibold shrink-0">3.</span>
+                Quay thưởng — giảm giờ hát hoặc combo miễn phí
+              </li>
+            </ol>
+            <Link
+              to="/dat-lich"
+              className="cta w-full py-3.5 inline-flex items-center justify-center gap-2 text-base touch-manipulation !no-underline"
             >
-              <div className="flex items-center gap-2 text-[var(--promo-gold)]">
-                <Trophy className="w-5 h-5 shrink-0" />
-                <span className="font-semibold">
-                  {result.prize.prizeType === 'NO_PRIZE' ? 'Kết quả' : 'Chúc mừng!'}
-                </span>
-              </div>
-              <p className="display text-2xl sm:text-3xl leading-none">{result.prize.label}</p>
-              {result.rewardCode && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm">
-                    Mã đổi:{' '}
-                    <span className="font-mono tracking-wider text-[var(--promo-gold)]">
-                      {result.rewardCode}
-                    </span>
-                  </p>
-                  <button
-                    type="button"
-                    className="cta-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1 touch-manipulation !min-h-0"
-                    onClick={copyReward}
-                  >
-                    {copiedReward ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    Sao chép
-                  </button>
-                </div>
-              )}
-              <p className="text-sm text-[var(--promo-muted)] leading-relaxed">{result.redeemHint}</p>
+              <CalendarPlus className="w-4 h-4" /> Đặt phòng hát ngay
+            </Link>
+          </div>
+        )}
+
+        {result && !spinning && (
+          <div
+            id="spin-result"
+            className="fade-up panel rounded-2xl p-4 sm:p-5 border-[rgba(232,184,109,0.35)] space-y-3"
+          >
+            <div className="flex items-center gap-2 text-[var(--promo-gold)]">
+              <Trophy className="w-5 h-5 shrink-0" />
+              <span className="font-semibold">
+                {result.prize.prizeType === 'NO_PRIZE' ? 'Kết quả' : 'Chúc mừng!'}
+              </span>
             </div>
-          )}
-        </div>
+            <p className="display text-2xl sm:text-3xl leading-none">{result.prize.label}</p>
+            {result.rewardCode && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm">
+                  Mã đổi:{' '}
+                  <span className="font-mono tracking-wider text-[var(--promo-gold)]">
+                    {result.rewardCode}
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  className="cta-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1 touch-manipulation !min-h-0"
+                  onClick={copyReward}
+                >
+                  {copiedReward ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  Sao chép
+                </button>
+              </div>
+            )}
+            <p className="text-sm text-[var(--promo-muted)] leading-relaxed">{result.redeemHint}</p>
+          </div>
+        )}
       </section>
     </PublicShell>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold',
-        status === 'UNUSED' && 'bg-emerald-500/20 text-emerald-300',
-        status === 'USED' && 'bg-sky-500/20 text-sky-300',
-        status === 'EXPIRED' && 'bg-rose-500/20 text-rose-300',
-      )}
-    >
-      {status === 'UNUSED' ? 'Chưa quay' : status === 'USED' ? 'Đã quay' : 'Hết hạn'}
-    </span>
   )
 }
