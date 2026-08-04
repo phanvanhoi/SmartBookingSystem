@@ -1,0 +1,44 @@
+# Linux VPS: host network (tránh Docker bridge/iptables hỏng).
+# Usage:
+#   docker build --network=host --build-arg NPM_REGISTRY=https://registry.npmmirror.com -t smartbookingsystem-app:latest .
+#   docker compose -f docker-compose.prod.yml up -d --force-recreate
+#
+# Giữ volume — KHÔNG dùng down -v.
+services:
+  app:
+    image: smartbookingsystem-app:latest
+    build:
+      context: .
+      network: host
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: musicbox-app
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - NODE_ENV=production
+      # Host network: listen on public port directly (prod historically used 8081).
+      - PORT=${PORT:-8081}
+      - DATABASE_URL=file:/app/data/musicbox.db
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in .env}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-30d}
+      - CORS_ORIGINS=${CORS_ORIGINS:?CORS_ORIGINS must be set (comma-separated origins)}
+      - TRUST_PROXY_HOPS=${TRUST_PROXY_HOPS:-1}
+      - FB_APP_SECRET=${FB_APP_SECRET:-}
+      - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN:-}
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - musicbox-data:/app/data
+      - musicbox-uploads:/app/uploads
+      - musicbox-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+volumes:
+  musicbox-data:
+  musicbox-uploads:
+  musicbox-logs:
