@@ -39,41 +39,27 @@ npm run dev
 
 ## Deploy lên VPS với Docker
 
-1. Clone repo + tạo `.env`:
+**Hướng dẫn đầy đủ (sự cố đã gặp + lệnh nhanh):** [`docs/DEPLOY-VPS.md`](docs/DEPLOY-VPS.md)
 
-   ```bash
-   git clone https://github.com/phanvanhoi/SmartBookingSystem.git
-   cd SmartBookingSystem
+Tóm tắt production hiện tại (`/opt/SmartBookingSystem`):
 
-   # Generate JWT_SECRET
-   JWT=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+- Dùng **`docker-compose.prod.yml`** (`network_mode: host`, port **8081**)
+- Build bằng `docker build --network=host` + mirror npm (Compose trên VPS không nhận `--network`)
+- **Không** `down -v`; **không** dùng `docker-compose.yml` bridge nếu iptables Docker hỏng
 
-   cat > .env <<EOF
-   JWT_SECRET=$JWT
-   JWT_EXPIRES_IN=30d
-   CORS_ORIGINS=https://yourdomain.com
-   TRUST_PROXY_HOPS=1
-   EOF
-   ```
+```bash
+cd /opt/SmartBookingSystem
+git pull origin main
+docker build --network=host \
+  --build-arg NPM_REGISTRY=https://registry.npmmirror.com \
+  -t smartbookingsystem-app:latest .
+docker compose -f docker-compose.prod.yml up -d --force-recreate
+curl -sS http://127.0.0.1:8081/api/health
+```
 
-2. Tuỳ chọn — Facebook integration:
+Docker Desktop (Windows): dùng `docker compose up -d --build` với `docker-compose.yml` (`8081:3000`).
 
-   ```bash
-   echo "FB_APP_SECRET=<từ Meta App Dashboard>" >> .env
-   echo "FB_VERIFY_TOKEN=<chuỗi bí mật tự đặt>" >> .env
-   ```
-
-3. Build + chạy:
-
-   ```bash
-   docker compose up -d --build
-   docker logs -f musicbox-app
-   ```
-
-Port mặc định trong `docker-compose.yml`: `8081:3000`. Đổi nếu cần.
-
-Container sẽ **fail-closed** nếu thiếu `JWT_SECRET` hoặc `CORS_ORIGINS` — đó là
-chủ ý để tránh chạy production với secret yếu.
+Container **fail-closed** nếu thiếu `JWT_SECRET` hoặc `CORS_ORIGINS`.
 
 ---
 
@@ -100,9 +86,10 @@ IKA/
 ├─ client/              React + Vite + Tailwind + shadcn/ui
 │  └─ src/pages/        dashboard, rooms, orders, customers, stock, staff,
 │                       reports, settings, facebook, auth
-├─ docs/                PRD, ARCHITECTURE, DATABASE, API, UI wireframes
+├─ docs/                PRD, ARCHITECTURE, DATABASE, API, DEPLOY-VPS, …
 ├─ Dockerfile           multi-stage build, non-root user
-├─ docker-compose.yml   single-service, volume-backed SQLite + uploads
+├─ docker-compose.yml        Docker Desktop (bridge 8081:3000)
+├─ docker-compose.prod.yml   VPS Linux (host network, port 8081)
 └─ docker-entrypoint.sh `prisma db push` + idempotent seed + `node dist`
 ```
 
@@ -116,6 +103,7 @@ IKA/
 - `docs/API.md` — REST endpoints (có ADDENDUM: Facebook, rate limit, CORS)
 - `docs/UI-WIREFRAMES.md` — wireframe các màn hình chính
 - `docs/TASK-DECOMPOSITION.md` — task breakdown gốc
+- `docs/DEPLOY-VPS.md` — deploy production, tránh lỗi build/iptables
 
 ---
 
