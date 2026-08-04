@@ -1,10 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Copy, Check, Loader2, Sparkles, Trophy, CalendarPlus, Gift } from 'lucide-react'
+import {
+  Copy,
+  Check,
+  Loader2,
+  Sparkles,
+  Trophy,
+  CalendarPlus,
+  Gift,
+  UserRound,
+  DoorOpen,
+  CalendarDays,
+  Clock3,
+  Ticket,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
-import { publicService, type SpinResult } from '@/services/publicService'
+import { publicService, type SpinResult, type SpinTokenStatus } from '@/services/publicService'
 import { getErrorMessage } from '@/utils/error'
 import { cn } from '@/utils/cn'
 
@@ -20,6 +33,53 @@ function shortLabel(label: string) {
     .trim()
 }
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'IKA'
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase()
+}
+
+function formatBookingDate(value: string) {
+  const raw = value.includes('T') ? value : `${value}T00:00:00`
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleDateString('vi-VN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
+function formatBookingTime(value: string | Date) {
+  if (typeof value === 'string' && /^\d{1,2}:\d{2}/.test(value)) {
+    return value.slice(0, 5)
+  }
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+}
+
+function tokenStatusMeta(status: SpinTokenStatus['status']) {
+  if (status === 'UNUSED') {
+    return {
+      label: 'Sẵn sàng quay',
+      className: 'bg-[rgba(52,211,153,0.16)] text-emerald-300 border-emerald-400/30',
+    }
+  }
+  if (status === 'USED') {
+    return {
+      label: 'Đã quay',
+      className: 'bg-[rgba(61,158,255,0.16)] text-[var(--promo-blue)] border-[rgba(61,158,255,0.35)]',
+    }
+  }
+  return {
+    label: 'Hết hạn',
+    className: 'bg-[rgba(251,113,133,0.16)] text-rose-300 border-rose-400/30',
+  }
+}
+
 export default function SpinWheelPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -29,14 +89,27 @@ export default function SpinWheelPage() {
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<SpinResult | null>(null)
   const [copiedReward, setCopiedReward] = useState(false)
+  const [copiedToken, setCopiedToken] = useState(false)
 
   const hasToken = tokenFromUrl.length >= 6
+
+  const tokenQuery = useQuery({
+    queryKey: ['public', 'spin-token', tokenFromUrl],
+    queryFn: () => publicService.getToken(tokenFromUrl),
+    enabled: hasToken,
+    retry: false,
+  })
 
   const campaignQuery = useQuery({
     queryKey: ['public', 'spin-campaign', hasToken ? tokenFromUrl : 'default'],
     queryFn: () =>
       publicService.getCampaign(hasToken ? { token: tokenFromUrl } : undefined),
   })
+
+  const token = tokenQuery.data
+  const guestName = token?.booking.customerName?.trim() || result?.customerName?.trim() || ''
+  const tokenAlreadyUsed = token?.status === 'USED'
+  const tokenExpired = token?.status === 'EXPIRED'
 
   const prizes = campaignQuery.data?.prizes ?? []
   const segmentAngle = prizes.length > 0 ? 360 / prizes.length : 360
@@ -52,7 +125,7 @@ export default function SpinWheelPage() {
   }, [prizes, segmentAngle])
 
   const spinMutation = useMutation({
-    mutationFn: (token: string) => publicService.spin(token),
+    mutationFn: (code: string) => publicService.spin(code),
     onSuccess: (data) => {
       const targetIndex = data.prizeIndex
       const segmentCenter = targetIndex * segmentAngle
@@ -61,6 +134,7 @@ export default function SpinWheelPage() {
       setSpinning(true)
       setResult(null)
       setRotation((prev) => prev + finalRotation)
+      void tokenQuery.refetch()
       window.setTimeout(() => {
         setSpinning(false)
         setResult(data)
@@ -82,6 +156,7 @@ export default function SpinWheelPage() {
 
   function handleSpin() {
     if (!hasToken || spinning || spinMutation.isPending) return
+    if (tokenExpired || tokenAlreadyUsed) return
     if (prizes.length === 0) {
       toast.error('Vòng quay chưa sẵn sàng')
       return
@@ -91,9 +166,11 @@ export default function SpinWheelPage() {
   }
 
   async function copyReward() {
-    if (!result?.rewardCode) return
+    if (!result?.rewardCode && !token?.rewardCode) return
+    const code = result?.rewardCode ?? token?.rewardCode
+    if (!code) return
     try {
-      await navigator.clipboard.writeText(result.rewardCode)
+      await navigator.clipboard.writeText(code)
       setCopiedReward(true)
       toast.success('Đã sao chép mã đổi thưởng')
       setTimeout(() => setCopiedReward(false), 2000)
@@ -102,8 +179,28 @@ export default function SpinWheelPage() {
     }
   }
 
+  async function copyTokenCode() {
+    try {
+      await navigator.clipboard.writeText(tokenFromUrl)
+      setCopiedToken(true)
+      toast.success('Đã sao chép mã quay')
+      setTimeout(() => setCopiedToken(false), 2000)
+    } catch {
+      toast.error('Không sao chép được')
+    }
+  }
+
   const busy = spinning || spinMutation.isPending
-  const canSpin = hasToken && !busy && prizes.length > 0 && !result
+  const canSpin =
+    hasToken &&
+    !busy &&
+    prizes.length > 0 &&
+    !result &&
+    !tokenAlreadyUsed &&
+    !tokenExpired &&
+    tokenQuery.isSuccess
+
+  const statusMeta = token ? tokenStatusMeta(token.status) : null
 
   return (
     <PublicShell
@@ -120,10 +217,12 @@ export default function SpinWheelPage() {
               <>
                 <Loader2 className="w-4 h-4 animate-spin" /> Đang quay...
               </>
-            ) : result ? (
+            ) : tokenAlreadyUsed || result ? (
               <>
                 <Trophy className="w-4 h-4" /> Đã quay xong
               </>
+            ) : tokenExpired ? (
+              <>Hết hạn quay</>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" /> Quay ngay
@@ -142,54 +241,201 @@ export default function SpinWheelPage() {
       }
     >
       <section className="flex flex-col gap-5 w-full min-w-0">
-        {/* Hero copy */}
         <div className="fade-up space-y-1.5 min-w-0 text-center sm:text-left">
-          <p className="text-[var(--promo-gold)] text-xs font-semibold tracking-wide uppercase">
-            {campaignQuery.data?.name ?? 'Vòng quay khuyến mãi'}
+          <p className="text-[var(--promo-blue)] text-xs font-semibold tracking-[0.14em] uppercase">
+            {token?.campaignName ?? campaignQuery.data?.name ?? 'IKA · Cổng quay vũ trụ'}
           </p>
-          <h1 className="display text-[2.1rem] leading-[0.95]">
+          <h1 className="display text-[1.85rem] leading-[1.05] sm:text-[2.4rem]">
             {hasToken ? (
-              <>
-                Sẵn sàng quay,
-                <br />
-                <span className="text-[var(--promo-gold)]">chúc bạn may mắn</span>
-              </>
+              guestName ? (
+                <>
+                  Xin chào{' '}
+                  <span className="text-[var(--promo-gold)]">{guestName.split(/\s+/).slice(-1)[0]}</span>
+                  ,
+                  <br />
+                  <span className="text-[var(--promo-ink)]">cổng thưởng đang mở</span>
+                </>
+              ) : (
+                <>
+                  Cổng thưởng mở,
+                  <br />
+                  <span className="text-[var(--promo-gold)]">chúc bạn may mắn</span>
+                </>
+              )
             ) : (
               <>
                 Quay thưởng khi
                 <br />
-                <span className="text-[var(--promo-gold)]">đặt phòng hát</span>
+                <span className="text-[var(--promo-gold)]">đặt phòng IKA</span>
               </>
             )}
           </h1>
           {!hasToken && (
             <p className="text-sm text-[var(--promo-muted)] leading-relaxed pt-1">
-              Đặt lịch online → nhận mã quay → quay trúng giảm giờ hát hoặc combo đồ uống.
-            </p>
-          )}
-          {hasToken && (
-            <p className="text-sm text-[var(--promo-muted)] pt-1 font-mono tracking-wider text-[var(--promo-gold)]">
-              Mã: {tokenFromUrl}
+              Đặt lịch Music Box → nhận mã → quay trúng giảm giờ hát hoặc combo đồ uống.
             </p>
           )}
         </div>
 
+        {/* Guest passport card */}
+        {hasToken && (
+          <div className="fade-up relative overflow-hidden rounded-2xl border border-[rgba(255,229,102,0.35)] bg-[rgba(10,16,36,0.85)] shadow-[0_0_40px_rgba(196,77,255,0.14),0_0_28px_rgba(255,229,102,0.1)]">
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-px"
+              style={{
+                background:
+                  'linear-gradient(90deg, transparent, rgba(255,229,102,0.9), rgba(61,158,255,0.7), rgba(196,77,255,0.8), transparent)',
+              }}
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full opacity-40"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(255,229,102,0.35), transparent 70%)',
+              }}
+              aria-hidden
+            />
+
+            {tokenQuery.isLoading ? (
+              <div className="p-5 flex items-center gap-2 text-sm text-[var(--promo-muted)]">
+                <Loader2 className="w-4 h-4 animate-spin" /> Đang tải thông tin khách...
+              </div>
+            ) : tokenQuery.isError ? (
+              <div className="p-5 space-y-2">
+                <p className="display text-lg text-rose-300">Không tìm thấy mã quay</p>
+                <p className="text-sm text-[var(--promo-muted)]">
+                  Kiểm tra lại mã hoặc{' '}
+                  <Link to="/dat-lich" className="text-[var(--promo-gold)] underline underline-offset-2">
+                    đặt lịch mới
+                  </Link>
+                  .
+                </p>
+                <p className="font-mono text-sm tracking-wider text-[var(--promo-gold)]">{tokenFromUrl}</p>
+              </div>
+            ) : token ? (
+              <div className="p-4 sm:p-5 space-y-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div
+                    className="shrink-0 w-14 h-14 rounded-full grid place-items-center border-2 border-[var(--promo-gold)] bg-[rgba(255,229,102,0.1)] shadow-[0_0_20px_rgba(255,229,102,0.35)]"
+                    aria-hidden
+                  >
+                    <span className="display text-sm text-[var(--promo-gold)] leading-none">
+                      {initials(guestName || 'IKA')}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--promo-muted)] font-semibold">
+                      Khách IKA Music Box
+                    </p>
+                    <p className="display text-[1.55rem] sm:text-2xl leading-none text-[var(--promo-ink)] truncate">
+                      {guestName || 'Khách'}
+                    </p>
+                    {statusMeta && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          statusMeta.className,
+                        )}
+                      >
+                        {statusMeta.label}
+                      </span>
+                    )}
+                  </div>
+                  <UserRound className="w-5 h-5 text-[var(--promo-gold)]/70 shrink-0 mt-1" aria-hidden />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-xl border border-[rgba(157,190,255,0.16)] bg-[rgba(4,10,24,0.55)] px-3 py-2.5 min-w-0">
+                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-muted)]">
+                      <DoorOpen className="w-3 h-3" /> Phòng
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--promo-ink)] truncate">
+                      {token.booking.roomName}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[rgba(157,190,255,0.16)] bg-[rgba(4,10,24,0.55)] px-3 py-2.5 min-w-0">
+                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-muted)]">
+                      <CalendarDays className="w-3 h-3" /> Ngày hát
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--promo-ink)] truncate">
+                      {formatBookingDate(String(token.booking.bookingDate))}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[rgba(157,190,255,0.16)] bg-[rgba(4,10,24,0.55)] px-3 py-2.5 min-w-0">
+                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-muted)]">
+                      <Clock3 className="w-3 h-3" /> Giờ
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--promo-ink)] truncate">
+                      {formatBookingTime(token.booking.bookingTime as unknown as string)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-[rgba(255,229,102,0.28)] bg-[rgba(255,229,102,0.08)] px-3 py-2.5 min-w-0">
+                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-gold)]">
+                      <Ticket className="w-3 h-3" /> Mã quay
+                    </p>
+                    <div className="mt-1 flex items-center gap-1.5 min-w-0">
+                      <p className="font-mono text-sm font-semibold tracking-wider text-[var(--promo-gold)] truncate">
+                        {token.code}
+                      </p>
+                      <button
+                        type="button"
+                        className="shrink-0 p-1 rounded-md text-[var(--promo-gold)] touch-manipulation"
+                        onClick={copyTokenCode}
+                        aria-label="Sao chép mã quay"
+                      >
+                        {copiedToken ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {tokenAlreadyUsed && token.resultLabel && !result && (
+                  <div className="rounded-xl border border-[rgba(61,158,255,0.3)] bg-[rgba(61,158,255,0.1)] px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-[var(--promo-blue)] font-semibold">
+                      Kết quả đã quay
+                    </p>
+                    <p className="mt-1 display text-lg text-[var(--promo-ink)] leading-none">
+                      {token.resultLabel}
+                    </p>
+                    {token.rewardCode && (
+                      <p className="mt-1.5 text-xs text-[var(--promo-muted)]">
+                        Mã đổi:{' '}
+                        <span className="font-mono text-[var(--promo-gold)]">{token.rewardCode}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+
         {/* Wheel */}
-        <div className="fade-up order-1 flex flex-col items-center w-full min-w-0">
+        <div className="fade-up flex flex-col items-center w-full min-w-0">
           <div className="relative w-[min(86vw,320px)] aspect-square overflow-visible">
+            <div
+              className="pointer-events-none absolute -inset-3 rounded-full opacity-80"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(61,158,255,0.28) 0%, rgba(196,77,255,0.16) 42%, transparent 68%)',
+                filter: 'blur(6px)',
+              }}
+              aria-hidden
+            />
             <div
               className="absolute left-1/2 -translate-x-1/2 -top-0.5 z-20 w-0 h-0"
               style={{
                 borderLeft: '11px solid transparent',
                 borderRight: '11px solid transparent',
                 borderTop: '20px solid var(--promo-gold)',
-                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))',
+                filter: 'drop-shadow(0 0 8px rgba(255,229,102,0.85))',
               }}
               aria-hidden
             />
 
             <div
-              className="absolute inset-0 rounded-full border-[5px] sm:border-[6px] border-[rgba(232,184,109,0.55)] shadow-[0_0_48px_rgba(232,184,109,0.16)]"
+              className="absolute inset-0 rounded-full border-[5px] sm:border-[6px] border-[rgba(255,229,102,0.55)] shadow-[0_0_40px_rgba(61,158,255,0.35),0_0_64px_rgba(196,77,255,0.22)]"
               style={{
                 background: conicGradient,
                 transform: `rotate(${rotation}deg)`,
@@ -208,7 +454,7 @@ export default function SpinWheelPage() {
                   >
                     <span
                       className="block text-[9px] sm:text-[11px] font-bold text-white text-center max-w-[4.6rem] sm:max-w-[72px] leading-[1.15] px-0.5"
-                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(61,158,255,0.5)' }}
                     >
                       {shortLabel(p.label)}
                     </span>
@@ -217,8 +463,8 @@ export default function SpinWheelPage() {
               })}
             </div>
 
-            <div className="absolute inset-[30%] sm:inset-[32%] rounded-full bg-[#0b1220] border border-[rgba(232,184,109,0.4)] flex items-center justify-center z-10 pointer-events-none">
-              <span className="display text-xl sm:text-2xl text-[var(--promo-gold)]">SPIN</span>
+            <div className="absolute inset-[30%] sm:inset-[32%] rounded-full bg-[#050b1a] border-2 border-[rgba(255,229,102,0.55)] flex items-center justify-center z-10 pointer-events-none shadow-[inset_0_0_24px_rgba(61,158,255,0.25)]">
+              <span className="display text-lg sm:text-xl text-[var(--promo-gold)]">IKA</span>
             </div>
           </div>
 
@@ -234,12 +480,11 @@ export default function SpinWheelPage() {
           )}
         </div>
 
-        {/* Prize highlights */}
-        {prizes.length > 0 && (
+        {prizes.length > 0 && !tokenAlreadyUsed && (
           <div className="fade-up-delay space-y-3 w-full min-w-0">
             <div className="flex items-center gap-2 text-[var(--promo-gold)]">
               <Gift className="w-4 h-4 shrink-0" />
-              <h2 className="text-sm font-semibold tracking-wide uppercase">Phần thưởng</h2>
+              <h2 className="text-sm font-semibold tracking-[0.14em] uppercase">Phần thưởng IKA</h2>
             </div>
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {prizes.map((p) => (
@@ -269,15 +514,14 @@ export default function SpinWheelPage() {
           </div>
         )}
 
-        {/* CTA card when no token */}
         {!hasToken && (
-          <div className="fade-up panel rounded-2xl p-4 space-y-3 border-[rgba(232,184,109,0.35)]">
-            <p className="display text-xl text-[var(--promo-gold)] leading-none">
-              Đặt phòng → nhận lượt quay
+          <div className="fade-up panel rounded-2xl p-4 space-y-3 !border-[rgba(255,229,102,0.4)] shadow-[0_0_32px_rgba(196,77,255,0.12)]">
+            <p className="display text-lg sm:text-xl text-[var(--promo-gold)] leading-snug">
+              Đặt phòng Music Box → nhận lượt quay
             </p>
             <ol className="text-sm text-[var(--promo-muted)] space-y-2 text-left">
               <li className="flex gap-2">
-                <span className={cn('text-[var(--promo-gold)] font-semibold shrink-0')}>1.</span>
+                <span className="text-[var(--promo-gold)] font-semibold shrink-0">1.</span>
                 Chọn phòng & giờ hát trên trang đặt lịch
               </li>
               <li className="flex gap-2">
@@ -301,12 +545,14 @@ export default function SpinWheelPage() {
         {result && !spinning && (
           <div
             id="spin-result"
-            className="fade-up panel rounded-2xl p-4 sm:p-5 border-[rgba(232,184,109,0.35)] space-y-3"
+            className="fade-up panel rounded-2xl p-4 sm:p-5 !border-[rgba(255,229,102,0.4)] space-y-3 shadow-[0_0_32px_rgba(255,229,102,0.12)]"
           >
             <div className="flex items-center gap-2 text-[var(--promo-gold)]">
               <Trophy className="w-5 h-5 shrink-0" />
               <span className="font-semibold">
-                {result.prize.prizeType === 'NO_PRIZE' ? 'Kết quả' : 'Chúc mừng!'}
+                {result.prize.prizeType === 'NO_PRIZE'
+                  ? 'Kết quả'
+                  : `Chúc mừng${guestName ? ` ${guestName.split(/\s+/).slice(-1)[0]}` : ''}!`}
               </span>
             </div>
             <p className="display text-2xl sm:text-3xl leading-none">{result.prize.label}</p>
@@ -320,7 +566,7 @@ export default function SpinWheelPage() {
                 </p>
                 <button
                   type="button"
-                  className="cta-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1 touch-manipulation !min-h-0"
+                  className="cta-ghost px-3 py-1.5 text-xs inline-flex items-center gap-1 touch-manipulation !min-h-0 !w-auto"
                   onClick={copyReward}
                 >
                   {copiedReward ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
