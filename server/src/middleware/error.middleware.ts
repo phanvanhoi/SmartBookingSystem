@@ -136,6 +136,60 @@ export function errorMiddleware(
     return
   }
 
+  // Malformed JSON body (or non-JSON posted as application/json) — often scanners (/JNAP/).
+  // Check before hasStatusCode — body-parser SyntaxError also carries statusCode 400.
+  if (err instanceof SyntaxError || isBodyParserSyntaxError(err)) {
+    logger.warn('Rejected malformed JSON body', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip,
+    })
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_JSON',
+        message: 'Body JSON không hợp lệ',
+      },
+    })
+    return
+  }
+
+  // Duck-typed service errors: `createError()` attaches statusCode/code on a plain Error
+  // (booking/session/queue/room). Treat as intentional client/business responses.
+  if (hasStatusCode(err)) {
+    const status = err.statusCode
+    const code = typeof err.code === 'string' ? err.code : 'ERROR'
+    if (status >= 500) {
+      logger.error(err.message, { code, url: req.url, method: req.method })
+    }
+    res.status(status).json({
+      success: false,
+      error: {
+        code,
+        message: err.message,
+      },
+    })
+    return
+  }
+
+  // CORS package may still throw if misconfigured; scanners spoof Origin often.
+  if (err instanceof Error && /^CORS:/i.test(err.message)) {
+    logger.warn('Rejected CORS origin', {
+      message: err.message,
+      url: req.url,
+      method: req.method,
+      ip: req.ip,
+    })
+    res.status(403).json({
+      success: false,
+      error: {
+        code: 'CORS_DENIED',
+        message: 'Origin không được phép',
+      },
+    })
+    return
+  }
+
   // Malformed URL probes (/%c0, %2e%2e, invalid UTF-8) — scanners, not app bugs.
   // Express throws URIError while matching routes / serve-static.
   if (
@@ -173,6 +227,25 @@ export function errorMiddleware(
       message: 'Đã xảy ra lỗi server',
     },
   })
+}
+
+type StatusCodedError = Error & { statusCode: number; code?: string }
+
+function hasStatusCode(err: unknown): err is StatusCodedError {
+  if (!(err instanceof Error)) return false
+  const status = (err as { statusCode?: unknown }).statusCode
+  return typeof status === 'number' && status >= 400 && status < 600
+}
+
+/** body-parser attaches `status`/`statusCode`/`type` on SyntaxError for bad JSON. */
+function isBodyParserSyntaxError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const e = err as Error & { status?: number; statusCode?: number; type?: string }
+  const status = e.status ?? e.statusCode
+  return (
+    e.type === 'entity.parse.failed' ||
+    (status === 400 && /JSON|Unexpected token|in JSON/i.test(e.message))
+  )
 }
 
 export class AppError extends Error {

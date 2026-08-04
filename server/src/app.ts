@@ -86,7 +86,8 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true) // same-origin / curl / mobile
       if (allowedOrigins.includes(origin)) return callback(null, true)
-      return callback(new Error(`CORS: origin ${origin} not allowed`))
+      // Deny without throwing — scanners often spoof Origin; avoid "Unhandled error" noise.
+      return callback(null, false)
     },
     credentials: true,
     // Browser ẩn mọi response header không-safelisted trừ khi expose. Sliding
