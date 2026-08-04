@@ -83,6 +83,8 @@ export type PublicBookingResult = {
 export type SpinPrizeSegment = {
   id: number
   label: string
+  prizeType?: string
+  prizeValue?: string | null
   color: string
   sortOrder: number
   index: number

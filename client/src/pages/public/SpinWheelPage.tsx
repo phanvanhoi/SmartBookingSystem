@@ -14,23 +14,75 @@ import {
   CalendarDays,
   Clock3,
   Ticket,
+  Percent,
+  Flame,
+  CupSoda,
+  Cookie,
+  Star,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
-import { publicService, type SpinResult, type SpinTokenStatus } from '@/services/publicService'
+import {
+  publicService,
+  type SpinPrizeSegment,
+  type SpinResult,
+  type SpinTokenStatus,
+} from '@/services/publicService'
 import { getErrorMessage } from '@/utils/error'
 import { cn } from '@/utils/cn'
 
 const SPIN_DURATION_MS = 4200
 
-function shortLabel(label: string) {
-  return label
-    .replace('Giảm ', '-')
-    .replace(' giờ hát', '')
-    .replace('khô gà/bò', 'khô')
-    .replace('nước suối', 'suối')
-    .replace(' + ', '+')
-    .trim()
+function resolvePrizeType(p: Pick<SpinPrizeSegment, 'label' | 'prizeType'>) {
+  if (p.prizeType) return p.prizeType
+  if (/giảm|%|percent/i.test(p.label)) return 'PERCENT_OFF'
+  if (/đồng|fixed|k\b/i.test(p.label)) return 'FIXED_OFF'
+  return 'FREE_ITEM'
+}
+
+function prizePresentation(p: SpinPrizeSegment) {
+  const type = resolvePrizeType(p)
+  const value = (p.prizeValue ?? '').trim()
+  const hot = /50|siêu hot/i.test(p.label) || value === '50'
+
+  if (type === 'PERCENT_OFF') {
+    const pct = value || (p.label.match(/(\d+)\s*%/)?.[1] ?? '?')
+    return {
+      type,
+      hot,
+      badge: hot ? 'SIÊU HOT' : 'GIẢM GIÁ',
+      title: `Giảm ${pct}% tiền giờ hát`,
+      subtitle: hot
+        ? 'Tiết kiệm nửa tiền phòng — áp dụng tự động khi thanh toán'
+        : 'Áp dụng tự động trên tiền giờ hát khi checkout',
+      wheelCaption: `-${pct}%`,
+      Icon: hot ? Flame : Percent,
+    }
+  }
+
+  if (type === 'FIXED_OFF') {
+    return {
+      type,
+      hot: true,
+      badge: 'TIỀN MẶT',
+      title: p.label,
+      subtitle: 'Trừ thẳng vào hóa đơn phòng khi thanh toán',
+      wheelCaption: 'HOT',
+      Icon: Star,
+    }
+  }
+
+  const isDrink = /coca|suối|nước/i.test(p.label + value)
+  const isSnack = /khô/i.test(p.label + value)
+  return {
+    type,
+    hot: false,
+    badge: 'COMBO FREE',
+    title: p.label.replace(/^Combo miễn phí:\s*/i, 'Tặng ngay · '),
+    subtitle: 'Nhận tại phòng khi check-in — trị giá combo menu',
+    wheelCaption: 'FREE',
+    Icon: isSnack && !isDrink ? Cookie : CupSoda,
+  }
 }
 
 function initials(name: string) {
@@ -114,13 +166,17 @@ export default function SpinWheelPage() {
   const prizes = campaignQuery.data?.prizes ?? []
   const segmentAngle = prizes.length > 0 ? 360 / prizes.length : 360
 
+  // Solid slices + hairline dividers (không gradient từng ô).
   const conicGradient = useMemo(() => {
-    if (prizes.length === 0) return 'conic-gradient(#334155 0deg 360deg)'
-    const stops = prizes.map((p, i) => {
+    if (prizes.length === 0) return 'conic-gradient(#1a2440 0deg 360deg)'
+    const gap = Math.min(1.2, segmentAngle * 0.04)
+    const stops: string[] = []
+    for (let i = 0; i < prizes.length; i++) {
       const start = i * segmentAngle
       const end = (i + 1) * segmentAngle
-      return `${p.color} ${start}deg ${end}deg`
-    })
+      stops.push(`${prizes[i]!.color} ${start}deg ${end - gap}deg`)
+      stops.push(`#070d1c ${end - gap}deg ${end}deg`)
+    }
     return `conic-gradient(from -${segmentAngle / 2}deg, ${stops.join(', ')})`
   }, [prizes, segmentAngle])
 
@@ -413,58 +469,91 @@ export default function SpinWheelPage() {
 
         {/* Wheel */}
         <div className="fade-up flex flex-col items-center w-full min-w-0">
-          <div className="relative w-[min(86vw,320px)] aspect-square overflow-visible">
+          <div
+            className={cn(
+              'relative w-[min(90vw,340px)] aspect-square overflow-visible',
+              spinning && 'animate-pulse',
+            )}
+          >
             <div
-              className="pointer-events-none absolute -inset-3 rounded-full opacity-80"
+              className="pointer-events-none absolute -inset-4 rounded-full"
               style={{
                 background:
-                  'radial-gradient(circle, rgba(61,158,255,0.28) 0%, rgba(196,77,255,0.16) 42%, transparent 68%)',
-                filter: 'blur(6px)',
+                  'radial-gradient(circle, rgba(255,229,102,0.22) 0%, rgba(61,158,255,0.2) 35%, rgba(196,77,255,0.12) 55%, transparent 70%)',
+                filter: 'blur(8px)',
               }}
               aria-hidden
             />
+            {/* Outer studded ring */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 -top-0.5 z-20 w-0 h-0"
+              className="absolute inset-0 rounded-full border-[10px] border-[#1a2440] shadow-[0_0_0_3px_rgba(255,229,102,0.55),0_0_48px_rgba(255,229,102,0.25),0_0_72px_rgba(196,77,255,0.2)]"
+              aria-hidden
+            />
+            <div
+              className="absolute left-1/2 -translate-x-1/2 -top-1 z-30"
               style={{
-                borderLeft: '11px solid transparent',
-                borderRight: '11px solid transparent',
-                borderTop: '20px solid var(--promo-gold)',
-                filter: 'drop-shadow(0 0 8px rgba(255,229,102,0.85))',
+                width: 0,
+                height: 0,
+                borderLeft: '14px solid transparent',
+                borderRight: '14px solid transparent',
+                borderTop: '26px solid var(--promo-gold)',
+                filter: 'drop-shadow(0 0 10px rgba(255,229,102,0.95))',
               }}
               aria-hidden
             />
 
             <div
-              className="absolute inset-0 rounded-full border-[5px] sm:border-[6px] border-[rgba(255,229,102,0.55)] shadow-[0_0_40px_rgba(61,158,255,0.35),0_0_64px_rgba(196,77,255,0.22)]"
+              className="absolute inset-[10px] rounded-full overflow-hidden"
               style={{
                 background: conicGradient,
                 transform: `rotate(${rotation}deg)`,
                 transition: spinning
                   ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.12, 0.75, 0.08, 1)`
                   : 'none',
+                boxShadow: 'inset 0 0 28px rgba(0,0,0,0.45)',
               }}
             >
               {prizes.map((p, i) => {
                 const angle = i * segmentAngle
+                const view = prizePresentation(p)
+                const Icon = view.Icon
                 return (
                   <div
                     key={p.id}
-                    className="absolute inset-0 flex items-start justify-center pt-[11%] sm:pt-[13%]"
+                    className="absolute inset-0 flex items-start justify-center pt-[11%] sm:pt-[12%]"
                     style={{ transform: `rotate(${angle}deg)` }}
                   >
-                    <span
-                      className="block text-[9px] sm:text-[11px] font-bold text-white text-center max-w-[4.6rem] sm:max-w-[72px] leading-[1.15] px-0.5"
-                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(61,158,255,0.5)' }}
-                    >
-                      {shortLabel(p.label)}
-                    </span>
+                    <div className="flex flex-col items-center gap-1">
+                      <div
+                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl grid place-items-center border-2 bg-[#0a1228]/95 shadow-[0_4px_14px_rgba(0,0,0,0.45)]"
+                        style={{ borderColor: 'rgba(255,255,255,0.55)' }}
+                      >
+                        <Icon
+                          className="w-5 h-5 sm:w-[22px] sm:h-[22px]"
+                          style={{ color: p.color, filter: `drop-shadow(0 0 6px ${p.color})` }}
+                          strokeWidth={2.25}
+                        />
+                      </div>
+                      <span
+                        className="text-[9px] sm:text-[10px] font-extrabold text-white tracking-wide"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.95)' }}
+                      >
+                        {view.wheelCaption}
+                      </span>
+                    </div>
                   </div>
                 )
               })}
             </div>
 
-            <div className="absolute inset-[30%] sm:inset-[32%] rounded-full bg-[#050b1a] border-2 border-[rgba(255,229,102,0.55)] flex items-center justify-center z-10 pointer-events-none shadow-[inset_0_0_24px_rgba(61,158,255,0.25)]">
-              <span className="display text-lg sm:text-xl text-[var(--promo-gold)]">IKA</span>
+            <div className="absolute inset-[31%] sm:inset-[32%] rounded-full bg-[#050b1a] border-2 border-[rgba(255,229,102,0.65)] flex flex-col items-center justify-center z-10 pointer-events-none shadow-[inset_0_0_28px_rgba(61,158,255,0.3),0_0_24px_rgba(255,229,102,0.2)]">
+              <Sparkles className="w-4 h-4 text-[var(--promo-gold)] mb-0.5 opacity-90" />
+              <span className="display text-lg sm:text-xl text-[var(--promo-gold)] leading-none">
+                IKA
+              </span>
+              <span className="text-[8px] uppercase tracking-[0.18em] text-[var(--promo-muted)] mt-1">
+                Jackpot
+              </span>
             </div>
           </div>
 
@@ -482,30 +571,81 @@ export default function SpinWheelPage() {
 
         {prizes.length > 0 && !tokenAlreadyUsed && (
           <div className="fade-up-delay space-y-3 w-full min-w-0">
-            <div className="flex items-center gap-2 text-[var(--promo-gold)]">
-              <Gift className="w-4 h-4 shrink-0" />
-              <h2 className="text-sm font-semibold tracking-[0.14em] uppercase">Phần thưởng IKA</h2>
+            <div className="flex items-end justify-between gap-2">
+              <div className="flex items-center gap-2 text-[var(--promo-gold)] min-w-0">
+                <Gift className="w-4 h-4 shrink-0" />
+                <h2 className="text-sm font-semibold tracking-[0.08em] uppercase truncate">
+                  Kho quà IKA
+                </h2>
+              </div>
+              <p className="text-[10px] text-[var(--promo-muted)] shrink-0">100% có thưởng</p>
             </div>
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {prizes.map((p) => (
-                <li
-                  key={p.id}
-                  className="panel rounded-xl px-3.5 py-3 flex items-center gap-3 min-w-0"
-                >
-                  <span
-                    className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white/10"
-                    style={{ background: p.color }}
-                    aria-hidden
-                  />
-                  <span className="text-sm font-medium text-[var(--promo-ink)] leading-snug">
-                    {p.label}
-                  </span>
-                </li>
-              ))}
+            <ul className="grid grid-cols-1 gap-2.5">
+              {prizes.map((p) => {
+                const view = prizePresentation(p)
+                const Icon = view.Icon
+                return (
+                  <li
+                    key={p.id}
+                    className={cn(
+                      'relative overflow-hidden rounded-2xl border px-3.5 py-3.5 min-w-0',
+                      'bg-[rgba(10,16,36,0.88)]',
+                      view.hot
+                        ? 'border-[rgba(255,61,122,0.45)] shadow-[0_0_28px_rgba(255,61,122,0.18)]'
+                        : 'border-[rgba(157,190,255,0.18)]',
+                    )}
+                  >
+                    <div
+                      className="pointer-events-none absolute inset-y-0 left-0 w-1"
+                      style={{ background: p.color, boxShadow: `0 0 16px ${p.color}` }}
+                      aria-hidden
+                    />
+                    <div className="flex items-start gap-3 pl-1.5">
+                      <div
+                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border-2 bg-[#0a1228]"
+                        style={{
+                          borderColor: p.color,
+                          boxShadow: `0 0 14px ${p.color}55`,
+                          color: p.color,
+                        }}
+                      >
+                        <Icon className="w-5 h-5" strokeWidth={2.25} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide',
+                              view.hot
+                                ? 'bg-[rgba(255,61,122,0.2)] text-[#ff7aa8]'
+                                : view.badge === 'COMBO FREE'
+                                  ? 'bg-[rgba(255,197,61,0.18)] text-[var(--promo-gold)]'
+                                  : 'bg-[rgba(18,214,160,0.16)] text-[#5dffc8]',
+                            )}
+                          >
+                            {view.badge}
+                          </span>
+                          {view.hot && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-[#ff7aa8]">
+                              <Flame className="w-3 h-3" /> Hiếm
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 text-[15px] font-bold text-[var(--promo-ink)] leading-snug">
+                          {view.title}
+                        </p>
+                        <p className="mt-1 text-[11px] text-[var(--promo-muted)] leading-relaxed">
+                          {view.subtitle}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
             {campaignQuery.data?.roomTypeName && (
               <p className="text-xs text-[var(--promo-muted)] text-center sm:text-left">
-                Combo theo {campaignQuery.data.roomTypeName}
+                Kho quà theo {campaignQuery.data.roomTypeName}
                 {campaignQuery.data.capacityMin != null && campaignQuery.data.capacityMax != null
                   ? ` (${campaignQuery.data.capacityMin}–${campaignQuery.data.capacityMax} khách)`
                   : ''}
@@ -545,17 +685,34 @@ export default function SpinWheelPage() {
         {result && !spinning && (
           <div
             id="spin-result"
-            className="fade-up panel rounded-2xl p-4 sm:p-5 !border-[rgba(255,229,102,0.4)] space-y-3 shadow-[0_0_32px_rgba(255,229,102,0.12)]"
+            className="fade-up relative overflow-hidden rounded-2xl border border-[rgba(255,229,102,0.5)] bg-[rgba(10,16,36,0.92)] p-4 sm:p-5 space-y-3 shadow-[0_0_40px_rgba(255,229,102,0.2)]"
           >
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-px"
+              style={{
+                background:
+                  'linear-gradient(90deg, transparent, rgba(255,229,102,0.95), rgba(255,61,122,0.7), transparent)',
+              }}
+              aria-hidden
+            />
             <div className="flex items-center gap-2 text-[var(--promo-gold)]">
               <Trophy className="w-5 h-5 shrink-0" />
               <span className="font-semibold">
                 {result.prize.prizeType === 'NO_PRIZE'
                   ? 'Kết quả'
-                  : `Chúc mừng${guestName ? ` ${guestName.split(/\s+/).slice(-1)[0]}` : ''}!`}
+                  : `Jackpot mở · Chúc mừng${guestName ? ` ${guestName.split(/\s+/).slice(-1)[0]}` : ''}!`}
               </span>
             </div>
-            <p className="display text-2xl sm:text-3xl leading-none">{result.prize.label}</p>
+            <p className="display text-2xl sm:text-3xl leading-snug text-[var(--promo-ink)]">
+              {result.prize.label}
+            </p>
+            <p className="text-xs text-[var(--promo-gold)]/90 font-medium">
+              {result.prize.prizeType === 'PERCENT_OFF'
+                ? 'Ưu đãi giờ hát sẽ tự áp dụng khi thanh toán'
+                : result.prize.prizeType === 'FREE_ITEM'
+                  ? 'Combo sẽ được thêm miễn phí khi bạn check-in'
+                  : null}
+            </p>
             {result.rewardCode && (
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm">

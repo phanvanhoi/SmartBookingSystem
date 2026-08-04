@@ -586,6 +586,8 @@ export async function getPublicCampaign(opts?: { roomId?: number; token?: string
       prizes: campaign.prizes.map((p, index) => ({
         id: p.id,
         label: p.label,
+        prizeType: p.prizeType,
+        prizeValue: p.prizeValue,
         color: p.color,
         sortOrder: p.sortOrder,
         index,
@@ -615,6 +617,8 @@ export async function getPublicCampaign(opts?: { roomId?: number; token?: string
     prizes: campaign.prizes.map((p, index) => ({
       id: p.id,
       label: p.label,
+      prizeType: p.prizeType,
+      prizeValue: p.prizeValue,
       color: p.color,
       sortOrder: p.sortOrder,
       index,

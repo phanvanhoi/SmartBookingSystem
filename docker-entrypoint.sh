@@ -49,18 +49,18 @@ const bcrypt = require('bcryptjs');
 const p = new PrismaClient();
 
 const smallPrizes = [
-  { label: 'Giảm 25% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 30, color: '#22c55e', sortOrder: 1 },
-  { label: 'Giảm 50% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 10, color: '#ef4444', sortOrder: 2 },
-  { label: '1 khô gà/bò + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 20, color: '#eab308', sortOrder: 3 },
-  { label: '2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 20, color: '#f97316', sortOrder: 4 },
-  { label: '1 coca + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 20, color: '#0ea5e9', sortOrder: 5 },
+  { label: 'Giảm ngay 25% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 30, color: '#12d6a0', sortOrder: 1 },
+  { label: 'SIÊU HOT · Giảm 50% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 10, color: '#ff3d7a', sortOrder: 2 },
+  { label: 'Combo miễn phí: 1 khô + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 20, color: '#ffc53d', sortOrder: 3 },
+  { label: 'Combo miễn phí: 2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 20, color: '#ff8a3d', sortOrder: 4 },
+  { label: 'Combo miễn phí: Coca + nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 20, color: '#3d9eff', sortOrder: 5 },
 ];
 const largePrizes = [
-  { label: 'Giảm 10% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '10', weight: 30, color: '#22c55e', sortOrder: 1 },
-  { label: 'Giảm 25% giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 10, color: '#ef4444', sortOrder: 2 },
-  { label: '2 khô gà/bò + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò + 1 nước suối', weight: 20, color: '#eab308', sortOrder: 3 },
-  { label: '1 khô gà/bò + 2 coca', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 2 coca', weight: 20, color: '#f97316', sortOrder: 4 },
-  { label: '2 coca + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '2 coca + 1 nước suối', weight: 20, color: '#0ea5e9', sortOrder: 5 },
+  { label: 'Giảm ngay 10% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '10', weight: 30, color: '#12d6a0', sortOrder: 1 },
+  { label: 'HOT · Giảm 25% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 10, color: '#ff3d7a', sortOrder: 2 },
+  { label: 'Combo miễn phí: 2 khô + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò + 1 nước suối', weight: 20, color: '#ffc53d', sortOrder: 3 },
+  { label: 'Combo miễn phí: 1 khô + 2 Coca', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 2 coca', weight: 20, color: '#ff8a3d', sortOrder: 4 },
+  { label: 'Combo miễn phí: 2 Coca + nước suối', prizeType: 'FREE_ITEM', prizeValue: '2 coca + 1 nước suối', weight: 20, color: '#3d9eff', sortOrder: 5 },
 ];
 
 async function syncCampaign(roomTypeId, name, prizes) {
