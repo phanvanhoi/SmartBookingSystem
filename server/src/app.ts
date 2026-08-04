@@ -32,6 +32,17 @@ const app = express()
 // Set TRUST_PROXY_HOPS in env if multiple proxies are chained.
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1))
 
+// Reject malformed percent-encoding early (scanner probes like /%c0) before
+// express.static / router try decodeURIComponent and throw URIError.
+app.use((req, _res, next) => {
+  try {
+    decodeURIComponent(req.path)
+    next()
+  } catch {
+    next(new URIError(`Failed to decode param '${req.path}'`))
+  }
+})
+
 // ── Security & Performance ────────────────────────────────────────────────────
 // CSP policy compatible with Vite-built React SPA + same-origin API + WS for
 // socket.io + Google Fonts. Inline styles allowed because Tailwind/shadcn

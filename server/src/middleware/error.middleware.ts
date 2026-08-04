@@ -136,6 +136,27 @@ export function errorMiddleware(
     return
   }
 
+  // Malformed URL probes (/%c0, %2e%2e, invalid UTF-8) — scanners, not app bugs.
+  // Express throws URIError while matching routes / serve-static.
+  if (
+    err instanceof URIError ||
+    (err instanceof Error && /Failed to decode param/i.test(err.message))
+  ) {
+    logger.warn('Rejected malformed URL', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip,
+    })
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'URL không hợp lệ',
+      },
+    })
+    return
+  }
+
   // Generic error
   const error = err as Error
   logger.error('Unhandled error', {
