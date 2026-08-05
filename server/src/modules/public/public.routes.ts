@@ -18,6 +18,7 @@ import {
   adminCampaignHandler,
   updatePrizeHandler,
   recentSpinsHandler,
+  getStoreInfoHandler,
 } from './public.controller'
 
 const router = Router()
@@ -67,6 +68,7 @@ const spinLimiter = rateLimit({
 // ── Public (no auth) ─────────────────────────────────────────────────────────
 
 router.get('/rooms', publicLimiter, listRoomsHandler)
+router.get('/store-info', publicLimiter, getStoreInfoHandler)
 router.get('/availability', publicLimiter, getAvailabilityHandler)
 router.post(
   '/bookings',

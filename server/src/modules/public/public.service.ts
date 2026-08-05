@@ -52,6 +52,29 @@ async function getPublicOperatingHours(): Promise<{ open: string; close: string 
   return { open, close }
 }
 
+function settingString(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return ''
+}
+
+/** Public store contact shown on booking / spin result cards. */
+export async function getPublicStoreInfo() {
+  const hours = await getPublicOperatingHours()
+  const rows = await prisma.setting.findMany({
+    where: { key: { in: ['store_name', 'store_address', 'store_phone', 'store_maps_url'] } },
+  })
+  const map = new Map(rows.map((r) => [r.key, r.value]))
+
+  return {
+    name: settingString(map.get('store_name')) || 'IKA Music Box',
+    address: settingString(map.get('store_address')),
+    phone: settingString(map.get('store_phone')),
+    mapsUrl: settingString(map.get('store_maps_url')),
+    operatingHours: hours,
+  }
+}
+
 /**
  * Combine calendar booking date + HH:mm.
  * Slots before open (vd 01:00 khi mở cửa 12:00) = sau nửa đêm → ngày lịch +1.

@@ -107,6 +107,8 @@ function GeneralTab() {
   const [form, setForm] = useState({
     store_name: '',
     store_address: '',
+    store_maps_url: '',
+    store_phone: '',
     open_time: '',
     close_time: '',
     business_day_start_hour: '',
@@ -123,6 +125,8 @@ function GeneralTab() {
     setForm({
       store_name: getValue('store_name', 'Music Box Karaoke'),
       store_address: getValue('store_address'),
+      store_maps_url: getValue('store_maps_url'),
+      store_phone: getValue('store_phone'),
       open_time: getValue('open_time', '12:00'),
       close_time: getValue('close_time', '05:00'),
       business_day_start_hour: getValue('business_day_start_hour', '12'),
@@ -185,6 +189,25 @@ function GeneralTab() {
             value={form.store_address}
             onChange={(e) => setForm((f) => ({ ...f, store_address: e.target.value }))}
             placeholder="123 Đường ABC, Quận X, TP.HCM"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Link Google Maps</label>
+          <Input
+            value={form.store_maps_url}
+            onChange={(e) => setForm((f) => ({ ...f, store_maps_url: e.target.value }))}
+            placeholder="https://maps.app.goo.gl/..."
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Số điện thoại quán</label>
+          <Input
+            value={form.store_phone}
+            onChange={(e) => setForm((f) => ({ ...f, store_phone: e.target.value }))}
+            placeholder="0901 234 567"
+            inputMode="tel"
           />
         </div>
 

@@ -100,6 +100,14 @@ export type SpinCampaign = {
   prizes: SpinPrizeSegment[]
 }
 
+export type PublicStoreInfo = {
+  name: string
+  address: string
+  phone: string
+  mapsUrl: string
+  operatingHours: { open: string; close: string }
+}
+
 export type SpinTokenStatus = {
   code: string
   status: 'UNUSED' | 'USED' | 'EXPIRED'
@@ -174,6 +182,11 @@ export type RecentSpin = {
 export const publicService = {
   async getRooms() {
     const res = await publicApi.get<{ success: boolean; data: PublicRoom[] }>('/rooms')
+    return res.data.data
+  },
+
+  async getStoreInfo() {
+    const res = await publicApi.get<{ success: boolean; data: PublicStoreInfo }>('/store-info')
     return res.data.data
   },
 

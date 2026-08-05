@@ -165,3 +165,16 @@ export async function recentSpinsHandler(
     next(err)
   }
 }
+
+export async function getStoreInfoHandler(
+  _req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) {
+  try {
+    const data = await publicService.getPublicStoreInfo()
+    res.json({ success: true, data })
+  } catch (err) {
+    next(err)
+  }
+}

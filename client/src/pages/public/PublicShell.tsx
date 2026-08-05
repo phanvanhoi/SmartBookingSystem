@@ -93,6 +93,174 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
           0%, 100% { box-shadow: 0 0 0 1px rgba(255,229,102,0.25), 0 0 16px rgba(255,229,102,0.4), 0 0 28px rgba(196,77,255,0.15); }
           50% { box-shadow: 0 0 0 1px rgba(255,229,102,0.4), 0 0 24px rgba(255,229,102,0.65), 0 0 40px rgba(61,158,255,0.25); }
         }
+        @keyframes ika-sheet-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes ika-sheet-up {
+          from { transform: translateY(110%); }
+          to { transform: translateY(0); }
+        }
+        @keyframes ika-gold-shine {
+          0%, 100% { background-position: 120% 0; }
+          50% { background-position: -20% 0; }
+        }
+        .ika-sheet-root {
+          position: fixed;
+          inset: 0;
+          z-index: 9200;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          pointer-events: none;
+        }
+        .ika-sheet-scrim {
+          position: absolute;
+          inset: 0;
+          background: rgba(2, 6, 18, 0.55);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          pointer-events: auto;
+          animation: ika-sheet-in 0.28s ease both;
+        }
+        .ika-sheet-panel {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 32rem;
+          margin: 0 auto;
+          max-height: min(88dvh, 720px);
+          overflow: auto;
+          overscroll-behavior: contain;
+          pointer-events: auto;
+          border-radius: 1.75rem 1.75rem 0 0;
+          padding: 0.55rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
+          text-align: center;
+          color: #1a1200;
+          font-family: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+          background:
+            linear-gradient(
+              155deg,
+              #fff6b8 0%,
+              #ffe566 16%,
+              #f5d24a 32%,
+              #e0ad18 48%,
+              #f0c020 62%,
+              #ffe566 82%,
+              #fff0a0 100%
+            );
+          border: 1px solid rgba(255, 248, 200, 0.95);
+          border-bottom: none;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.65),
+            inset 0 -2px 0 rgba(140, 95, 0, 0.18),
+            0 -18px 48px rgba(0, 0, 0, 0.45),
+            0 0 56px rgba(255, 229, 102, 0.32);
+          animation: ika-sheet-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .ika-sheet-panel::before {
+          content: '';
+          pointer-events: none;
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(
+            105deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0) 35%,
+            rgba(255, 255, 255, 0.45) 50%,
+            rgba(255, 255, 255, 0) 65%,
+            transparent 100%
+          );
+          background-size: 220% 100%;
+          animation: ika-gold-shine 3.6s ease-in-out infinite;
+        }
+        .ika-sheet-panel::after {
+          content: '';
+          pointer-events: none;
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          box-shadow: inset 0 0 0 1px rgba(120, 80, 0, 0.18);
+        }
+        .ika-sheet-handle {
+          position: relative;
+          z-index: 1;
+          width: 2.75rem;
+          height: 0.28rem;
+          margin: 0.15rem auto 0.85rem;
+          border-radius: 999px;
+          background: rgba(26, 18, 0, 0.28);
+        }
+        .ika-sheet-body {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        .ika-sheet-panel .display {
+          font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+          letter-spacing: -0.02em;
+          font-weight: 800;
+          line-height: 1.15;
+        }
+        .ika-gold-mark {
+          width: 3rem;
+          height: 3rem;
+          border-radius: 999px;
+          display: grid;
+          place-items: center;
+          margin: 0 auto;
+          background:
+            radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), transparent 50%),
+            #1a1200;
+          border: 2px solid #1a1200;
+          box-shadow: 0 0 0 2px rgba(255,245,180,0.7), 0 6px 16px rgba(0,0,0,0.25);
+        }
+        .ika-gold-mark span {
+          font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+          font-weight: 800;
+          font-size: 0.7rem;
+          letter-spacing: 0.08em;
+          color: #ffe566;
+          line-height: 1;
+        }
+        .ika-gold-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          flex: 1;
+          min-height: 44px;
+          padding: 0.65rem 0.9rem;
+          border-radius: 999px;
+          font-size: 0.875rem;
+          font-weight: 700;
+          text-decoration: none;
+          border: none;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .ika-gold-btn-dark {
+          background: #1a1200;
+          color: #ffe566;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+        }
+        .ika-gold-btn-outline {
+          background: rgba(255,255,255,0.28);
+          color: #1a1200;
+          border: 1.5px solid rgba(26,18,0,0.35);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ika-sheet-scrim,
+          .ika-sheet-panel {
+            animation: none;
+          }
+          .ika-sheet-panel::before {
+            animation: none;
+          }
+        }
         .public-promo .panel {
           background: var(--promo-panel);
           border: 1px solid rgba(157, 190, 255, 0.16);
@@ -222,11 +390,76 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
           0%, 100% { opacity: 0.45; }
           50% { opacity: 1; }
         }
+        @keyframes public-reveal {
+          from { opacity: 0; transform: translateY(18px) scale(0.985); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes public-guide-bounce {
+          0%, 100% { transform: translateY(0); opacity: 0.85; }
+          50% { transform: translateY(5px); opacity: 1; }
+        }
+        @keyframes public-guide-pulse {
+          0%, 100% {
+            box-shadow: 0 0 0 0 rgba(255,229,102,0.35), 0 0 20px rgba(61,158,255,0.08);
+            border-color: rgba(255,229,102,0.45);
+          }
+          50% {
+            box-shadow: 0 0 0 8px rgba(255,229,102,0), 0 0 28px rgba(255,229,102,0.22);
+            border-color: rgba(255,229,102,0.85);
+          }
+        }
+        @keyframes public-shimmer {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        @keyframes public-card-pop {
+          from { opacity: 0; transform: translateY(14px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes public-nudge-field {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(61,158,255,0.25); }
+          50% { box-shadow: 0 0 0 4px rgba(61,158,255,0.18), 0 0 22px rgba(255,229,102,0.15); }
+        }
         .public-promo .fade-up {
           animation: public-fade-up 0.5s ease both;
         }
         .public-promo .fade-up-delay {
           animation: public-fade-up 0.55s ease 0.1s both;
+        }
+        .public-promo .reveal-section {
+          animation: public-reveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .public-promo .guide-banner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          width: 100%;
+          padding: 0.7rem 0.9rem;
+          border-radius: 999px;
+          border: 1px solid rgba(255,229,102,0.45);
+          background: linear-gradient(110deg, rgba(255,229,102,0.14), rgba(61,158,255,0.12), rgba(255,229,102,0.14));
+          background-size: 200% 100%;
+          color: var(--promo-gold);
+          font-size: 0.8125rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          animation: public-guide-pulse 1.8s ease-in-out infinite, public-shimmer 2.8s linear infinite;
+        }
+        .public-promo .guide-banner .guide-chevron {
+          animation: public-guide-bounce 1.1s ease-in-out infinite;
+        }
+        .public-promo .guide-target {
+          border-radius: 1rem;
+          border: 1px solid rgba(255,229,102,0.35);
+          padding: 0.75rem;
+          animation: public-guide-pulse 2s ease-in-out infinite;
+        }
+        .public-promo .room-card-enter {
+          animation: public-card-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .public-promo .nudge-field {
+          animation: public-nudge-field 1.6s ease-in-out infinite;
         }
         .public-promo .neon-line {
           height: 2px;
@@ -251,11 +484,149 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
           font-weight: 600;
           box-shadow: 0 0 16px rgba(255,229,102,0.18);
         }
+        @keyframes public-confetti-fall {
+          0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+          100% { transform: translate3d(var(--drift, 20px), 110vh, 0) rotate(720deg); opacity: 0.85; }
+        }
+        @keyframes public-bigwin-pop {
+          0% { opacity: 0; transform: scale(0.82) translateY(16px); }
+          55% { opacity: 1; transform: scale(1.04) translateY(0); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes public-bigwin-burst {
+          0% { opacity: 0; transform: scale(0.4); }
+          40% { opacity: 0.9; }
+          100% { opacity: 0; transform: scale(1.35); }
+        }
+        @keyframes public-bigwin-shine {
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.25); }
+        }
+        .bigwin-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          justify-content: flex-end;
+          background: rgba(2, 6, 18, 0.82);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+        }
+        .bigwin-confetti {
+          pointer-events: none;
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .bigwin-piece {
+          position: absolute;
+          top: -8vh;
+          border-radius: 2px;
+          animation-name: public-confetti-fall;
+          animation-timing-function: cubic-bezier(0.22, 0.8, 0.35, 1);
+          animation-fill-mode: both;
+          animation-iteration-count: 1;
+        }
+        .bigwin-burst {
+          pointer-events: none;
+          position: absolute;
+          left: 50%;
+          top: 38%;
+          width: min(90vw, 28rem);
+          height: min(90vw, 28rem);
+          margin-left: calc(min(90vw, 28rem) / -2);
+          margin-top: calc(min(90vw, 28rem) / -2);
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(255,229,102,0.45) 0%, rgba(255,61,122,0.2) 35%, transparent 70%);
+          animation: public-bigwin-burst 1.1s ease-out both;
+        }
+        .bigwin-panel {
+          position: relative;
+          z-index: 2;
+          width: 100%;
+          max-width: 28rem;
+          margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+          animation: public-bigwin-pop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .bigwin-card {
+          position: relative;
+          width: 100%;
+          text-align: center;
+          border-radius: 1.5rem;
+          border: 2px solid rgba(255,229,102,0.7);
+          background:
+            radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,229,102,0.22), transparent 55%),
+            rgba(8, 14, 32, 0.96);
+          padding: 1.5rem 1.25rem 1.25rem;
+          box-shadow:
+            0 0 0 1px rgba(255,61,122,0.25),
+            0 0 48px rgba(255,229,102,0.35),
+            0 0 80px rgba(61,158,255,0.18);
+        }
+        .bigwin-actions {
+          width: 100%;
+        }
+        .bigwin-cta {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          min-height: 56px;
+          padding: 0.9rem 1.25rem;
+          border: none;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #ffe566 0%, #f0c020 100%);
+          color: #1a1200;
+          font-size: 1.05rem;
+          font-weight: 800;
+          letter-spacing: 0.01em;
+          cursor: pointer;
+          box-shadow: 0 0 28px rgba(255,229,102,0.45);
+          -webkit-tap-highlight-color: transparent;
+        }
+        .bigwin-cta:active {
+          transform: scale(0.98);
+        }
+        .bigwin-card .display {
+          font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+          letter-spacing: -0.02em;
+          font-weight: 800;
+          line-height: 1.15;
+        }
+        .bigwin-pct {
+          animation: public-bigwin-shine 1.4s ease-in-out infinite;
+          text-shadow: 0 0 24px rgba(255,229,102,0.65);
+          color: #ffe566;
+        }
+        .public-promo .result-jackpot {
+          border-color: rgba(255,229,102,0.75) !important;
+          box-shadow:
+            0 0 40px rgba(255,229,102,0.28),
+            0 0 60px rgba(255,61,122,0.16) !important;
+          animation: public-bigwin-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
         @media (prefers-reduced-motion: reduce) {
           .public-promo .fade-up,
           .public-promo .fade-up-delay,
+          .public-promo .reveal-section,
+          .public-promo .guide-banner,
+          .public-promo .guide-banner .guide-chevron,
+          .public-promo .guide-target,
+          .public-promo .room-card-enter,
+          .public-promo .nudge-field,
           .public-promo .ika-mark,
-          .public-promo .neon-line {
+          .public-promo .neon-line,
+          .bigwin-piece,
+          .bigwin-burst,
+          .bigwin-panel,
+          .bigwin-pct,
+          .public-promo .result-jackpot {
             animation: none;
           }
         }
@@ -319,6 +690,7 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
 
       {footer ? (
         <div
+          data-public-footer
           className="fixed inset-x-0 bottom-0 z-40 w-full max-w-[100vw] header-bar border-t border-b-0"
           style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
         >
