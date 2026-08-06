@@ -440,6 +440,28 @@ type NoRoomDetails = {
   alternatives: Array<{ bookingTime: string; roomCount: number }>
 }
 
+function timeToMinutes(value: string) {
+  const [h, m] = value.split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return Number.POSITIVE_INFINITY
+  return h * 60 + m
+}
+
+/**
+ * Phút trên timeline ca mở cửa (qua đêm): giờ < open → +24h.
+ * VD open 12:00: 23:30=1410, 00:15=1455 → gần nhau đúng 45 phút.
+ */
+function timelineMinutes(hm: string, openHm: string) {
+  const mins = timeToMinutes(hm)
+  const open = timeToMinutes(openHm)
+  if (!Number.isFinite(mins) || !Number.isFinite(open)) return mins
+  return mins < open ? mins + 24 * 60 : mins
+}
+
+/**
+ * Khi hết phòng ở giờ đã chọn:
+ * - nextFree* = khung trống kế tiếp trên timeline ca (ưu tiên sau giờ chọn)
+ * - alternatives = tối đa 5 khung trống gần nhất theo |Δ| trên timeline qua đêm
+ */
 function computeNextFreeAndAlternatives(args: {
   date: string
   bookingTime: string
@@ -447,29 +469,37 @@ function computeNextFreeAndAlternatives(args: {
   timeSlots: string[]
   rooms: Array<{ availableSlots: string[] }>
 }): NoRoomDetails {
+  const preferredMin = timelineMinutes(args.bookingTime, args.openHm)
   const slotCounts = args.timeSlots
     .map((bookingTime) => ({
       bookingTime,
       roomCount: args.rooms.filter((r) => r.availableSlots.includes(bookingTime)).length,
+      minutes: timelineMinutes(bookingTime, args.openHm),
     }))
-    .filter((s) => s.roomCount > 0)
+    .filter((s) => s.roomCount > 0 && s.bookingTime !== args.bookingTime)
 
-  const next = slotCounts[0] ?? null
+  const after = slotCounts
+    .filter((s) => s.minutes > preferredMin)
+    .sort((a, b) => a.minutes - b.minutes)
+  const before = slotCounts
+    .filter((s) => s.minutes < preferredMin)
+    .sort((a, b) => b.minutes - a.minutes)
+
+  const next = after[0] ?? before[0] ?? null
   const nextFreeAt = next
     ? combineBookingDateTime(args.date, next.bookingTime, args.openHm).toISOString()
     : null
 
-  const after = slotCounts.filter((s) => s.bookingTime > args.bookingTime)
-  const before = slotCounts.filter((s) => s.bookingTime < args.bookingTime).reverse()
-  const alternatives: Array<{ bookingTime: string; roomCount: number }> = []
-  for (const s of after) {
-    if (alternatives.length >= 5) break
-    alternatives.push(s)
-  }
-  for (const s of before) {
-    if (alternatives.length >= 5) break
-    alternatives.push(s)
-  }
+  const alternatives = [...slotCounts]
+    .sort((a, b) => {
+      const da = Math.abs(a.minutes - preferredMin)
+      const db = Math.abs(b.minutes - preferredMin)
+      if (da !== db) return da - db
+      // Cùng khoảng cách → ưu tiên giờ sau trên timeline ca
+      return a.minutes - b.minutes
+    })
+    .slice(0, 5)
+    .map(({ bookingTime, roomCount }) => ({ bookingTime, roomCount }))
 
   return {
     nextFreeAt,

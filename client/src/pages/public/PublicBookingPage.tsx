@@ -53,11 +53,32 @@ function timeToMinutes(value: string) {
   return h * 60 + m
 }
 
-/** Gợi ý các khung giờ trống gần nhất với giờ khách đã chọn. */
-function nearestAvailableTimes(preferred: string, options: string[], limit = 5) {
-  const pref = timeToMinutes(preferred)
+/** Phút trên timeline ca mở cửa (qua đêm): giờ < open → +24h. */
+function timelineMinutes(hm: string, openHm: string) {
+  const mins = timeToMinutes(hm)
+  const open = timeToMinutes(openHm)
+  if (!Number.isFinite(mins) || !Number.isFinite(open)) return mins
+  return mins < open ? mins + 24 * 60 : mins
+}
+
+/** Gợi ý khung trống gần nhất trên timeline qua đêm (ưu tiên giờ sau nếu cùng |Δ|). */
+function nearestAvailableTimes(
+  preferred: string,
+  options: string[],
+  openHm: string,
+  limit = 5,
+) {
+  const pref = timelineMinutes(preferred, openHm)
   return [...options]
-    .sort((a, b) => Math.abs(timeToMinutes(a) - pref) - Math.abs(timeToMinutes(b) - pref))
+    .filter((t) => t !== preferred)
+    .sort((a, b) => {
+      const ma = timelineMinutes(a, openHm)
+      const mb = timelineMinutes(b, openHm)
+      const da = Math.abs(ma - pref)
+      const db = Math.abs(mb - pref)
+      if (da !== db) return da - db
+      return ma - mb
+    })
     .slice(0, limit)
 }
 
@@ -117,10 +138,11 @@ export default function PublicBookingPage() {
   }, [availability, bookingTime])
 
   const selectedTimeAvailable = !bookingTime || timeOptions.includes(bookingTime)
+  const openHm = availability?.operatingHours?.open ?? '12:00'
   const nearbyFreeTimes = useMemo(() => {
     if (!bookingTime || selectedTimeAvailable || timeOptions.length === 0) return []
-    return nearestAvailableTimes(bookingTime, timeOptions, 5)
-  }, [bookingTime, selectedTimeAvailable, timeOptions])
+    return nearestAvailableTimes(bookingTime, timeOptions, openHm, 5)
+  }, [bookingTime, openHm, selectedTimeAvailable, timeOptions])
 
   // Giữ giờ khách đã chọn — không tự đổi sang khung trống khác khi lọc theo số người.
   const notifiedMismatchRef = useRef('')
@@ -527,16 +549,23 @@ export default function PublicBookingPage() {
               </div>
               {nearbyFreeTimes.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {nearbyFreeTimes.map((time) => (
-                    <button
-                      key={time}
-                      type="button"
-                      className="chip shrink-0 touch-manipulation !border-amber-300/40 !text-amber-100"
-                      onClick={() => applyAlternative(time)}
-                    >
-                      {time}
-                    </button>
-                  ))}
+                  {nearbyFreeTimes.map((time) => {
+                    const roomCount =
+                      availability?.rooms.filter((r) => r.availableSlots.includes(time)).length ?? 0
+                    return (
+                      <button
+                        key={time}
+                        type="button"
+                        className="chip shrink-0 touch-manipulation !border-amber-300/40 !text-amber-100"
+                        onClick={() => applyAlternative(time)}
+                      >
+                        {time}
+                        {roomCount > 0 ? (
+                          <span className="opacity-70 text-[10px]">· {roomCount} phòng</span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -555,7 +584,7 @@ export default function PublicBookingPage() {
                   </p>
                   <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
                     {nextFreeLabel
-                      ? `Dự kiến có phòng từ ${nextFreeLabel} (cùng ngày).`
+                      ? `Gợi ý gần nhất: ${nextFreeLabel} (cùng ngày). Bấm khung bên dưới để đổi.`
                       : 'Hôm nay không còn khung giờ trống phù hợp số khách.'}
                   </p>
                 </div>
