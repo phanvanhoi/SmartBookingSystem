@@ -3,7 +3,7 @@ import { z } from 'zod'
 const phoneRegex = /^(0|\+84)(3|5|7|8|9)\d{8}$/
 
 export const publicBookingSchema = z.object({
-  roomId: z.number({ required_error: 'Vui lòng chọn phòng' }).int().positive(),
+  roomId: z.number().int().positive().optional(),
   customerName: z
     .string({ required_error: 'Vui lòng nhập họ tên' })
     .trim()
@@ -21,7 +21,11 @@ export const publicBookingSchema = z.object({
     .string({ required_error: 'Vui lòng chọn giờ' })
     .regex(/^\d{2}:\d{2}$/, 'Giờ phải có định dạng HH:mm'),
   durationHours: z.number().positive().max(12).default(2),
-  guestCount: z.number().int().positive().max(50).optional(),
+  guestCount: z
+    .number({ required_error: 'Vui lòng nhập số khách' })
+    .int()
+    .positive('Số khách phải lớn hơn 0')
+    .max(50, 'Số khách tối đa 50'),
   notes: z.string().trim().max(300).optional(),
 })
 
@@ -53,6 +57,7 @@ export const publicAvailabilityQuerySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải có định dạng YYYY-MM-DD'),
   durationHours: z.coerce.number().positive().max(12).default(2),
   roomId: z.coerce.number().int().positive().optional(),
+  guestCount: z.coerce.number().int().positive().max(50).optional(),
 })
 
 export type PublicBookingInput = z.infer<typeof publicBookingSchema>

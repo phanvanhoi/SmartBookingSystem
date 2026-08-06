@@ -72,7 +72,7 @@ export default function TimelinePage() {
   const dateStr = formatDateISO(selectedDate)
 
   const { data: rooms = [] } = useRooms()
-  const { data: bookingData } = useBookings(dateStr)
+  const { data: bookingData } = useBookings(dateStr, { limit: 100 })
   const bookings: Booking[] = Array.isArray(bookingData) ? bookingData : bookingData?.bookings ?? []
 
   const [nowHour, setNowHour] = useState(getNowHour)
@@ -111,12 +111,14 @@ export default function TimelinePage() {
     }
   }, [])
 
-  // Sort & group rooms
+  // Sort & group rooms — Phòng lớn seed capacityMax=7, không dùng ngưỡng >8.
   const { smallRooms, largeRooms } = useMemo(() => {
     const small: Room[] = []
     const large: Room[] = []
-    rooms.forEach(r => {
-      if (r.roomType.capacityMax > 8) large.push(r)
+    rooms.forEach((r) => {
+      const isLarge =
+        /lớn|lon|large/i.test(r.roomType.name) || r.roomType.capacityMax > 3
+      if (isLarge) large.push(r)
       else small.push(r)
     })
     small.sort((a, b) => a.sortOrder - b.sortOrder)
@@ -149,11 +151,13 @@ export default function TimelinePage() {
       const startH = toTimelineHour(b.bookingTime)
       const duration = b.durationHours ? Number(b.durationHours) : 0
       const endH = duration > 0 ? startH + duration : startH + 1
+      const guestFromNotes = b.notes?.match(/Số khách:\s*(\d+)/i)
       result.push({
         id: `booking-${b.id}`,
         roomId: b.roomId,
         startH, endH,
         label: b.customerName,
+        guestCount: guestFromNotes ? Number(guestFromNotes[1]) : undefined,
         type: 'booking',
         booking: b,
       })

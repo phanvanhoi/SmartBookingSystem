@@ -2,10 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as bookingService from '@/services/bookingService'
 import toast from 'react-hot-toast'
 
-export function useBookings(date?: string) {
+export function useBookings(date?: string, opts?: { limit?: number; status?: string }) {
   return useQuery({
-    queryKey: ['bookings', date],
-    queryFn: () => bookingService.getBookings({ date }),
+    queryKey: ['bookings', date, opts?.limit ?? null, opts?.status ?? null],
+    queryFn: () =>
+      bookingService.getBookings({
+        date,
+        limit: opts?.limit,
+        status: opts?.status,
+      }),
     staleTime: 30_000,
   })
 }

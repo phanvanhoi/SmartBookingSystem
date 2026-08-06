@@ -36,3 +36,13 @@ export function getErrorCode(err: unknown): string | null {
   }
   return null
 }
+
+/** Extra payload on structured API errors (eg. NO_ROOM_AVAILABLE alternatives). */
+export function getErrorDetails<T = Record<string, unknown>>(err: unknown): T | null {
+  if (err && typeof err === 'object') {
+    const e = err as { response?: { data?: { error?: { details?: T } } } }
+    const details = e.response?.data?.error?.details
+    if (details && typeof details === 'object') return details
+  }
+  return null
+}

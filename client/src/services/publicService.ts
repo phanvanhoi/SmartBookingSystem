@@ -42,21 +42,25 @@ export type PublicAvailabilityRoom = {
 export type PublicAvailability = {
   date: string
   durationHours: number
+  guestCount?: number | null
   operatingHours: { open: string; close: string }
   minLeadMinutes: number
+  slotStepMinutes?: number
+  earliestSlot?: string
   timeSlots: string[]
+  availableTimeSlots?: string[]
   serverNow: string
   rooms: PublicAvailabilityRoom[]
 }
 
 export type PublicBookingPayload = {
-  roomId: number
+  roomId?: number
   customerName: string
   customerPhone: string
   bookingDate: string
   bookingTime: string
   durationHours: number
-  guestCount?: number
+  guestCount: number
   notes?: string
 }
 
@@ -65,11 +69,13 @@ export type PublicBookingResult = {
     id: number
     roomId: number
     roomName: string
+    roomTypeName?: string
     customerName: string
     customerPhone: string | null
     bookingDate: string
     bookingTime: string
     durationHours: number
+    guestCount?: number
     status: string
   }
   spinToken: {
@@ -78,6 +84,12 @@ export type PublicBookingResult = {
     status: string
   }
   campaignName: string
+}
+
+export type NoRoomAvailableDetails = {
+  nextFreeAt: string | null
+  nextFreeTime: string | null
+  alternatives: Array<{ bookingTime: string; roomCount: number }>
 }
 
 export type SpinPrizeSegment = {
@@ -190,7 +202,12 @@ export const publicService = {
     return res.data.data
   },
 
-  async getAvailability(params: { date: string; durationHours: number; roomId?: number }) {
+  async getAvailability(params: {
+    date: string
+    durationHours: number
+    roomId?: number
+    guestCount?: number
+  }) {
     const res = await publicApi.get<{ success: boolean; data: PublicAvailability }>(
       '/availability',
       { params },

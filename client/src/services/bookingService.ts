@@ -27,8 +27,22 @@ export interface CreateBookingPayload {
   notes?: string
 }
 
-export async function getBookings(params: { date?: string; roomId?: number; status?: string }) {
-  const { data } = await api.get('/bookings', { params })
+export async function getBookings(params: {
+  date?: string
+  roomId?: number
+  status?: string
+  limit?: number
+  page?: number
+}) {
+  const { data } = await api.get('/bookings', {
+    params: {
+      date: params.date,
+      roomId: params.roomId,
+      status: params.status,
+      limit: params.limit,
+      page: params.page,
+    },
+  })
   return data.data
 }
 

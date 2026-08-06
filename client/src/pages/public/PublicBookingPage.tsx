@@ -7,19 +7,17 @@ import {
   Loader2,
   PartyPopper,
   ChevronDown,
-  Users,
-  DoorOpen,
   Sparkles,
+  Clock3,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
 import {
   publicService,
-  type PublicAvailabilityRoom,
+  type NoRoomAvailableDetails,
   type PublicBookingResult,
-  type PublicRoom,
 } from '@/services/publicService'
-import { getErrorMessage } from '@/utils/error'
+import { getErrorCode, getErrorDetails, getErrorMessage } from '@/utils/error'
 import { cn } from '@/utils/cn'
 
 function todayISO() {
@@ -38,83 +36,38 @@ function formatDayMonth(iso: string) {
   return `${d}/${m}`
 }
 
-const DURATIONS = [1, 1.5, 2, 2.5, 3, 4]
-
-type RoomTier = {
-  roomTypeId: number
-  name: string
-  capacityMin: number
-  capacityMax: number
-  rooms: PublicRoom[]
-  accent: 'small' | 'large'
-}
-
-function buildTiers(rooms: PublicRoom[]): RoomTier[] {
-  const map = new Map<number, RoomTier>()
-  for (const r of rooms) {
-    let tier = map.get(r.roomTypeId)
-    if (!tier) {
-      const isSmall = /bé|nho|nhỏ|small/i.test(r.roomTypeName) || r.capacityMax <= 3
-      tier = {
-        roomTypeId: r.roomTypeId,
-        name: r.roomTypeName,
-        capacityMin: r.capacityMin,
-        capacityMax: r.capacityMax,
-        rooms: [],
-        accent: isSmall ? 'small' : 'large',
-      }
-      map.set(r.roomTypeId, tier)
-    }
-    tier.rooms.push(r)
-    tier.capacityMin = Math.min(tier.capacityMin, r.capacityMin)
-    tier.capacityMax = Math.max(tier.capacityMax, r.capacityMax)
-  }
-  return Array.from(map.values()).sort((a, b) => a.capacityMax - b.capacityMax)
-}
-
-function roomFitsSlot(av: PublicAvailabilityRoom | undefined, time: string) {
-  return !!time && !!av && av.availableSlots.includes(time)
-}
-
-/** Status khách được xem — không hiện “hết chỗ / bận”. */
-function publicRoomHint(av: PublicAvailabilityRoom, time: string) {
-  if (av.isSinging && av.sessionEndsAt) {
-    const endLabel = new Date(av.sessionEndsAt).toLocaleTimeString('vi-VN', {
+function formatNextFreeLabel(details: NoRoomAvailableDetails) {
+  if (details.nextFreeTime) return details.nextFreeTime
+  if (details.nextFreeAt) {
+    return new Date(details.nextFreeAt).toLocaleTimeString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
     })
-    return {
-      badge: 'Sắp trống',
-      detail: `Dự kiến trống từ ${endLabel}`,
-      tone: 'soon' as const,
-    }
   }
-
-  const laterSlots = av.availableSlots.filter((s) => s > time).slice(0, 2)
-  if (laterSlots.length > 0) {
-    return {
-      badge: 'Sẵn sàng',
-      detail: `Khung ${time} · còn ${laterSlots.join(', ')}`,
-      tone: 'free' as const,
-    }
-  }
-
-  return {
-    badge: 'Sẵn sàng',
-    detail: `Trống khung ${time}`,
-    tone: 'free' as const,
-  }
+  return null
 }
+
+function timeToMinutes(value: string) {
+  const [h, m] = value.split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return Number.POSITIVE_INFINITY
+  return h * 60 + m
+}
+
+/** Gợi ý các khung giờ trống gần nhất với giờ khách đã chọn. */
+function nearestAvailableTimes(preferred: string, options: string[], limit = 5) {
+  const pref = timeToMinutes(preferred)
+  return [...options]
+    .sort((a, b) => Math.abs(timeToMinutes(a) - pref) - Math.abs(timeToMinutes(b) - pref))
+    .slice(0, limit)
+}
+
+const DURATIONS = [1, 1.5, 2, 2.5, 3, 4]
 
 export default function PublicBookingPage() {
   const navigate = useNavigate()
-  const roomsSectionRef = useRef<HTMLDivElement>(null)
   const contactSectionRef = useRef<HTMLDivElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
-  const prevRoomsGuideKeyRef = useRef('')
-  const prevRoomIdRef = useRef<number | ''>('')
-  const [roomTypeId, setRoomTypeId] = useState<number | ''>('')
-  const [roomId, setRoomId] = useState<number | ''>('')
+  const prevContactGuideKeyRef = useRef('')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [bookingDate, setBookingDate] = useState(todayISO())
@@ -125,35 +78,32 @@ export default function PublicBookingPage() {
   const [notesOpen, setNotesOpen] = useState(false)
   const [result, setResult] = useState<PublicBookingResult | null>(null)
   const [copied, setCopied] = useState(false)
-  const [guideStep, setGuideStep] = useState<'idle' | 'rooms' | 'contact'>('idle')
+  const [guideStep, setGuideStep] = useState<'idle' | 'contact'>('idle')
+  const [fullDetails, setFullDetails] = useState<NoRoomAvailableDetails | null>(null)
 
-  const roomsQuery = useQuery({
-    queryKey: ['public', 'rooms'],
-    queryFn: () => publicService.getRooms(),
-  })
+  const guestCountNum = useMemo(() => {
+    const n = Number(guestCount)
+    return Number.isInteger(n) && n > 0 ? n : 0
+  }, [guestCount])
 
   const availabilityQuery = useQuery({
-    queryKey: ['public', 'availability', bookingDate, durationHours],
+    queryKey: ['public', 'availability', bookingDate, durationHours, guestCountNum || null],
     queryFn: () =>
-      publicService.getAvailability({ date: bookingDate, durationHours }),
+      publicService.getAvailability({
+        date: bookingDate,
+        durationHours,
+        guestCount: guestCountNum || undefined,
+      }),
     enabled: /^\d{4}-\d{2}-\d{2}$/.test(bookingDate),
     refetchInterval: 60_000,
   })
 
-  const rooms = roomsQuery.data ?? []
   const availability = availabilityQuery.data
-  const availabilityByRoom = useMemo(() => {
-    const map = new Map<number, PublicAvailabilityRoom>()
-    for (const r of availability?.rooms ?? []) map.set(r.id, r)
-    return map
-  }, [availability])
 
-  const tiers = useMemo(() => buildTiers(rooms), [rooms])
-  const selectedAvailability = roomId ? availabilityByRoom.get(Number(roomId)) : undefined
-
-  // Giờ chọn = khung có ÍT NHẤT 1 phòng trống (không phụ thuộc phòng đã chọn).
+  // Giờ chọn = khung có ≥1 phòng trống (đã lọc theo số khách nếu có).
   const timeOptions = useMemo(() => {
     if (!availability) return []
+    if (availability.availableTimeSlots?.length) return availability.availableTimeSlots
     const free = new Set<string>()
     for (const r of availability.rooms) {
       for (const slot of r.availableSlots) free.add(slot)
@@ -161,110 +111,77 @@ export default function PublicBookingPage() {
     return availability.timeSlots.filter((t) => free.has(t))
   }, [availability])
 
-  // Chỉ chỉnh giờ khi ngày/thời lượng làm khung hiện tại hết chỗ — không đụng khi đổi phòng.
+  const matchingRoomCount = useMemo(() => {
+    if (!bookingTime || !availability) return 0
+    return availability.rooms.filter((r) => r.availableSlots.includes(bookingTime)).length
+  }, [availability, bookingTime])
+
+  const selectedTimeAvailable = !bookingTime || timeOptions.includes(bookingTime)
+  const nearbyFreeTimes = useMemo(() => {
+    if (!bookingTime || selectedTimeAvailable || timeOptions.length === 0) return []
+    return nearestAvailableTimes(bookingTime, timeOptions, 5)
+  }, [bookingTime, selectedTimeAvailable, timeOptions])
+
+  // Giữ giờ khách đã chọn — không tự đổi sang khung trống khác khi lọc theo số người.
+  const notifiedMismatchRef = useRef('')
   useEffect(() => {
-    setBookingTime((prev) => {
-      if (timeOptions.length === 0) return ''
-      if (prev && timeOptions.includes(prev)) return prev
-      return timeOptions[0] ?? ''
-    })
-  }, [timeOptions])
-
-  // Đổi giờ / availability → bỏ phòng không còn khớp khung đã chọn.
-  useEffect(() => {
-    if (!roomId || !bookingTime) return
-    const av = availabilityByRoom.get(Number(roomId))
-    if (av && !av.availableSlots.includes(bookingTime)) {
-      setRoomId('')
-    }
-  }, [bookingTime, availabilityByRoom, roomId])
-
-  const guestCountNum = useMemo(() => {
-    const n = Number(guestCount)
-    return Number.isInteger(n) && n > 0 ? n : 0
-  }, [guestCount])
-
-  const roomsMatchingSlot = useMemo(() => {
-    if (!bookingTime || !guestCountNum) return []
-    return rooms.filter((r) => {
-      if (!roomFitsSlot(availabilityByRoom.get(r.id), bookingTime)) return false
-      return r.capacityMin <= guestCountNum && r.capacityMax >= guestCountNum
-    })
-  }, [rooms, availabilityByRoom, bookingTime, guestCountNum])
-
-  const availableTiers = useMemo(() => {
-    if (!bookingTime || !guestCountNum) return []
-    return tiers
-      .map((tier) => ({
-        ...tier,
-        rooms: tier.rooms.filter((r) => {
-          if (!roomFitsSlot(availabilityByRoom.get(r.id), bookingTime)) return false
-          return r.capacityMin <= guestCountNum && r.capacityMax >= guestCountNum
-        }),
-      }))
-      .filter((tier) => tier.rooms.length > 0)
-  }, [tiers, availabilityByRoom, bookingTime, guestCountNum])
-
-  const selectedTier = useMemo(
-    () => availableTiers.find((t) => t.roomTypeId === roomTypeId) ?? null,
-    [availableTiers, roomTypeId],
-  )
-
-  // Hạng / phòng đã chọn mà hết chỗ hoặc không khớp số khách → bỏ chọn.
-  useEffect(() => {
-    if (!bookingTime || !guestCountNum) {
-      if (roomTypeId || roomId) {
-        setRoomTypeId('')
-        setRoomId('')
-      }
+    if (!bookingTime || selectedTimeAvailable) {
+      notifiedMismatchRef.current = ''
       return
     }
-    if (roomTypeId && !availableTiers.some((t) => t.roomTypeId === roomTypeId)) {
-      setRoomTypeId('')
-      setRoomId('')
+    if (availabilityQuery.isLoading || availabilityQuery.isFetching) return
+
+    const key = `${bookingDate}|${bookingTime}|${guestCountNum}|${durationHours}|${nearbyFreeTimes.join(',')}`
+    if (notifiedMismatchRef.current === key) return
+    notifiedMismatchRef.current = key
+
+    if (nearbyFreeTimes.length > 0) {
+      toast.error(
+        `Giờ ${bookingTime} hết phòng${guestCountNum ? ` cho ${guestCountNum} khách` : ''}. Còn trống lúc ${nearbyFreeTimes[0]}.`,
+        { id: 'booking-time-unavailable' },
+      )
       return
     }
-    if (roomId && !roomsMatchingSlot.some((r) => r.id === roomId)) {
-      setRoomId('')
-    }
-  }, [bookingTime, guestCountNum, availableTiers, roomTypeId, roomId, roomsMatchingSlot])
 
-  // Sau khi nhập số người (+ có giờ) → kéo xuống khu chọn phòng + highlight.
-  const roomsGuideKey =
-    guestCountNum > 0 && bookingTime && !roomId ? `${guestCountNum}|${bookingTime}` : ''
-  useEffect(() => {
-    if (!roomsGuideKey || roomsGuideKey === prevRoomsGuideKeyRef.current) return
-    prevRoomsGuideKeyRef.current = roomsGuideKey
-    setGuideStep('rooms')
-    const t = window.setTimeout(() => {
-      roomsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 220)
-    return () => window.clearTimeout(t)
-  }, [roomsGuideKey])
+    toast.error(
+      guestCountNum
+        ? `Giờ ${bookingTime} hết phòng cho ${guestCountNum} khách. Đổi ngày hoặc thời lượng.`
+        : `Giờ ${bookingTime} hết phòng. Đổi ngày hoặc thời lượng.`,
+      { id: 'booking-time-unavailable' },
+    )
+  }, [
+    availabilityQuery.isFetching,
+    availabilityQuery.isLoading,
+    bookingDate,
+    bookingTime,
+    durationHours,
+    guestCountNum,
+    nearbyFreeTimes,
+    selectedTimeAvailable,
+  ])
 
-  // Sau khi chọn phòng → kéo xuống họ tên / SĐT + focus.
+  // Sau khi nhập số người (+ giờ còn phòng) → kéo xuống họ tên / SĐT.
+  const contactGuideKey =
+    guestCountNum > 0 && bookingTime && selectedTimeAvailable
+      ? `${guestCountNum}|${bookingTime}`
+      : ''
   useEffect(() => {
-    const prev = prevRoomIdRef.current
-    prevRoomIdRef.current = roomId
-    if (!roomId || roomId === prev) return
+    if (!contactGuideKey || contactGuideKey === prevContactGuideKeyRef.current) return
+    prevContactGuideKeyRef.current = contactGuideKey
     setGuideStep('contact')
     const t = window.setTimeout(() => {
       contactSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       nameInputRef.current?.focus({ preventScroll: true })
-    }, 320)
+    }, 220)
     return () => window.clearTimeout(t)
-  }, [roomId])
+  }, [contactGuideKey])
 
-  // Khi bỏ chọn phòng / xóa số người → lùi bước hướng dẫn.
   useEffect(() => {
-    if (!guestCountNum || !bookingTime) {
+    if (!guestCountNum || !bookingTime || !selectedTimeAvailable) {
       setGuideStep('idle')
-      return
     }
-    if (!roomId && guideStep === 'contact') setGuideStep('rooms')
-  }, [guestCountNum, bookingTime, roomId, guideStep])
+  }, [guestCountNum, bookingTime, selectedTimeAvailable])
 
-  // Đã điền đủ thông tin → tắt highlight hướng dẫn.
   useEffect(() => {
     if (
       guideStep === 'contact' &&
@@ -275,35 +192,43 @@ export default function PublicBookingPage() {
     }
   }, [guideStep, customerName, customerPhone])
 
+  useEffect(() => {
+    setFullDetails(null)
+  }, [bookingDate, bookingTime, durationHours, guestCountNum])
+
   const bookMutation = useMutation({
     mutationFn: publicService.createBooking,
     onSuccess: (data) => {
+      setFullDetails(null)
       setResult(data)
       toast.success('Đặt lịch thành công!')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    onError: (err) => toast.error(getErrorMessage(err, 'Không thể đặt lịch')),
+    onError: (err) => {
+      if (getErrorCode(err) === 'NO_ROOM_AVAILABLE') {
+        const details = getErrorDetails<NoRoomAvailableDetails>(err)
+        setFullDetails(details)
+        toast.error(getErrorMessage(err, 'Hết phòng cho khung giờ này'))
+        return
+      }
+      setFullDetails(null)
+      toast.error(getErrorMessage(err, 'Không thể đặt lịch'))
+    },
   })
 
   const canSubmit =
-    !!roomId &&
     !!bookingTime &&
     guestCountNum > 0 &&
     customerName.trim().length >= 2 &&
     customerPhone.trim().length >= 9 &&
     !bookMutation.isPending &&
-    roomFitsSlot(selectedAvailability, bookingTime)
-
-  function selectRoom(room: PublicRoom) {
-    setRoomTypeId(room.roomTypeId)
-    setRoomId(room.id)
-  }
+    timeOptions.includes(bookingTime)
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!canSubmit || !roomId || !bookingTime || !guestCountNum) return
+    if (!canSubmit || !bookingTime || !guestCountNum) return
+    setFullDetails(null)
     bookMutation.mutate({
-      roomId: Number(roomId),
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       bookingDate,
@@ -312,6 +237,12 @@ export default function PublicBookingPage() {
       guestCount: guestCountNum,
       notes: notes.trim() || undefined,
     })
+  }
+
+  function applyAlternative(time: string) {
+    setBookingTime(time)
+    setFullDetails(null)
+    toast.success(`Đã chọn giờ ${time}`)
   }
 
   async function copyToken() {
@@ -359,10 +290,12 @@ export default function PublicBookingPage() {
             </div>
             <h1 className="display text-2xl sm:text-3xl text-[var(--promo-gold)]">Đặt lịch thành công</h1>
             <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
-              IKA Music Box · {result.booking.roomName}
+              IKA Music Box · hệ thống xếp {result.booking.roomName}
+              {result.booking.roomTypeName ? ` (${result.booking.roomTypeName})` : ''}
               <br />
-              {result.booking.bookingDate} · {result.booking.bookingTime} ·{' '}
+              {formatDayMonth(result.booking.bookingDate)} · {result.booking.bookingTime} ·{' '}
               {result.booking.durationHours}h
+              {result.booking.guestCount ? ` · ${result.booking.guestCount} khách` : ''}
             </p>
           </div>
 
@@ -408,11 +341,9 @@ export default function PublicBookingPage() {
               setNotes('')
               setGuestCount('')
               setNotesOpen(false)
-              setRoomTypeId('')
-              setRoomId('')
               setGuideStep('idle')
-              prevRoomsGuideKeyRef.current = ''
-              prevRoomIdRef.current = ''
+              setFullDetails(null)
+              prevContactGuideKeyRef.current = ''
             }}
           >
             Đặt lịch khác
@@ -421,6 +352,8 @@ export default function PublicBookingPage() {
       </PublicShell>
     )
   }
+
+  const nextFreeLabel = fullDetails ? formatNextFreeLabel(fullDetails) : null
 
   return (
     <PublicShell
@@ -453,7 +386,8 @@ export default function PublicBookingPage() {
             <span className="text-[var(--promo-gold)]">quay thưởng liền</span>
           </h1>
           <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
-            Không gian karaoke kiểu studio vũ trụ — đặt lịch, nhận mã quay khuyến mãi.
+            Không gian karaoke kiểu studio vũ trụ — đặt lịch, nhận mã quay khuyến mãi. Hệ thống tự
+            xếp phòng phù hợp.
           </p>
         </div>
 
@@ -461,7 +395,6 @@ export default function PublicBookingPage() {
           onSubmit={handleSubmit}
           className="fade-up-delay panel rounded-2xl p-4 space-y-4 w-full min-w-0"
         >
-          {/* Ngày · Giờ · Thời lượng */}
           <div className="space-y-3 min-w-0 rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(0,0,0,0.18)] p-3">
             <div className="field-grid">
               <div className="space-y-1.5 min-w-0">
@@ -488,11 +421,13 @@ export default function PublicBookingPage() {
                 <label className="text-sm text-[var(--promo-muted)]" htmlFor="bk-time">
                   Giờ bắt đầu
                 </label>
-                {timeOptions.length === 0 ? (
+                {timeOptions.length === 0 && selectedTimeAvailable ? (
                   <p className="text-sm text-rose-300 py-2.5 leading-snug">
                     {availabilityQuery.isLoading
                       ? 'Đang tải khung giờ…'
-                      : 'Không còn khung giờ. Đổi ngày hoặc thời lượng.'}
+                      : guestCountNum
+                        ? 'Không còn khung giờ phù hợp số khách. Đổi ngày hoặc thời lượng.'
+                        : 'Không còn khung giờ. Đổi ngày hoặc thời lượng.'}
                   </p>
                 ) : (
                   <select
@@ -502,6 +437,14 @@ export default function PublicBookingPage() {
                     onChange={(e) => setBookingTime(e.target.value)}
                     required
                   >
+                    <option value="" disabled>
+                      Chọn giờ
+                    </option>
+                    {bookingTime && !timeOptions.includes(bookingTime) ? (
+                      <option value={bookingTime}>
+                        {bookingTime} (hết phòng)
+                      </option>
+                    ) : null}
                     {timeOptions.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -547,7 +490,14 @@ export default function PublicBookingPage() {
             {availability && (
               <p className="text-xs text-[var(--promo-muted)]">
                 Giờ mở cửa {availability.operatingHours.open}–{availability.operatingHours.close}
-                {' · '}Chỉ hiện giờ còn ít nhất 1 phòng trống (≥{availability.minLeadMinutes} phút)
+                {' · '}Khung {availability.slotStepMinutes ?? 15} phút
+                {availability.earliestSlot ? ` · sớm nhất từ ${availability.earliestSlot}` : ''}
+                {guestCountNum ? ` · lọc theo ${guestCountNum} khách` : ''}
+                {bookingTime && guestCountNum
+                  ? matchingRoomCount > 0
+                    ? ` · ~${matchingRoomCount} phòng lúc ${bookingTime}`
+                    : ` · hết phòng lúc ${bookingTime}`
+                  : ''}
                 {availabilityQuery.isFetching ? ' · đang cập nhật…' : ''}
               </p>
             )}
@@ -556,199 +506,97 @@ export default function PublicBookingPage() {
             )}
           </div>
 
-          <div
-            ref={roomsSectionRef}
-            className={cn(
-              'space-y-3 min-w-0 scroll-mt-28',
-              guestCountNum > 0 && bookingTime && 'reveal-section',
-              guideStep === 'rooms' && !roomId && 'guide-target',
-            )}
-          >
-            {guideStep === 'rooms' && !roomId && guestCountNum > 0 && bookingTime ? (
-              <div className="guide-banner" role="status">
-                <Sparkles className="w-4 h-4 shrink-0" />
-                <span>Chọn phòng phù hợp cho {guestCountNum} người</span>
-                <ChevronDown className="w-4 h-4 shrink-0 guide-chevron" />
+          {bookingTime && !selectedTimeAvailable && (
+            <div
+              className="rounded-2xl border border-[rgba(251,191,36,0.45)] bg-[rgba(251,191,36,0.1)] px-4 py-4 space-y-3 reveal-section"
+              role="alert"
+            >
+              <div className="flex items-start gap-2">
+                <Clock3 className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+                <div className="min-w-0 space-y-1">
+                  <p className="display text-lg text-[var(--promo-gold)] leading-snug">
+                    Giờ {bookingTime} hết phòng
+                    {guestCountNum ? ` cho ${guestCountNum} khách` : ''}
+                  </p>
+                  <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
+                    {nearbyFreeTimes.length > 0
+                      ? `Vẫn giữ giờ bạn chọn. Gợi ý khung còn trống gần đó (bấm để đổi):`
+                      : 'Không còn khung giờ trống phù hợp. Đổi ngày, thời lượng hoặc số khách.'}
+                  </p>
+                </div>
               </div>
-            ) : null}
-
-            <div className="flex flex-col gap-1 min-w-0">
-              <label className="text-sm text-[var(--promo-muted)]">Phòng phù hợp</label>
-              {!guestCountNum ? (
-                <p className="text-xs text-[var(--promo-muted)]">
-                  Nhập số người để xem loại phòng phù hợp.
-                </p>
-              ) : bookingTime ? (
-                <p className="text-xs text-[var(--promo-gold)]/90">
-                  {guestCountNum} người · {formatDayMonth(bookingDate)} · {bookingTime} ·{' '}
-                  {durationHours}h
-                  {roomsMatchingSlot.length > 0
-                    ? ` · ${availableTiers.length} loại · ${roomsMatchingSlot.length} phòng`
-                    : ' · chưa có phòng phù hợp'}
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--promo-muted)]">
-                  Chọn giờ bắt đầu để xem phòng trống cho {guestCountNum} người.
-                </p>
+              {nearbyFreeTimes.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {nearbyFreeTimes.map((time) => (
+                    <button
+                      key={time}
+                      type="button"
+                      className="chip shrink-0 touch-manipulation !border-amber-300/40 !text-amber-100"
+                      onClick={() => applyAlternative(time)}
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
+          )}
 
-            {!guestCountNum || !bookingTime ? null : roomsQuery.isLoading ||
-              availabilityQuery.isLoading ? (
-              <p className="text-sm text-[var(--promo-muted)] py-2 inline-flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Đang tải phòng phù hợp...
-              </p>
-            ) : roomsQuery.isError || availabilityQuery.isError ? (
-              <p className="text-sm text-rose-300 py-2">Không tải được danh sách phòng</p>
-            ) : availableTiers.length === 0 ? (
-              <div className="panel rounded-2xl px-4 py-5 text-center space-y-1 reveal-section">
-                <p className="display text-lg text-[var(--promo-gold)]">Không có phòng phù hợp</p>
-                <p className="text-sm text-[var(--promo-muted)]">
-                  Thử đổi số người, giờ hoặc thời lượng — chỉ hiện phòng còn chỗ và đủ sức chứa.
-                </p>
+          {fullDetails && (
+            <div
+              className="rounded-2xl border border-[rgba(251,191,36,0.45)] bg-[rgba(251,191,36,0.1)] px-4 py-4 space-y-3 reveal-section"
+              role="alert"
+            >
+              <div className="flex items-start gap-2">
+                <Clock3 className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+                <div className="min-w-0 space-y-1">
+                  <p className="display text-lg text-[var(--promo-gold)] leading-snug">
+                    Hết phòng cho khung giờ này
+                  </p>
+                  <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
+                    {nextFreeLabel
+                      ? `Dự kiến có phòng từ ${nextFreeLabel} (cùng ngày).`
+                      : 'Hôm nay không còn khung giờ trống phù hợp số khách.'}
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {availableTiers.map((tier, tierIdx) => {
-                  const isSmall = tier.accent === 'small'
-                  return (
-                    <div
-                      key={tier.roomTypeId}
-                      className="space-y-2.5 min-w-0 room-card-enter"
-                      style={{ animationDelay: `${tierIdx * 80}ms` }}
-                    >
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                        <div className="min-w-0">
-                          <p className="display text-base text-[var(--promo-ink)] truncate">
-                            {tier.name}
-                          </p>
-                          <p className="text-[11px] text-[var(--promo-muted)]">
-                            Phù hợp {tier.capacityMin}–{tier.capacityMax} khách ·{' '}
-                            {tier.rooms.length} phòng trống
-                          </p>
-                        </div>
-                        <span
-                          className={cn(
-                            'shrink-0 text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full border',
-                            isSmall
-                              ? 'border-[rgba(61,158,255,0.4)] text-[var(--promo-blue)] bg-[rgba(61,158,255,0.12)]'
-                              : 'border-[rgba(196,77,255,0.4)] text-[var(--promo-purple)] bg-[rgba(196,77,255,0.12)]',
-                          )}
-                        >
-                          {isSmall ? 'Phòng bé' : 'Phòng lớn'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                        {tier.rooms.map((r, roomIdx) => {
-                          const av = availabilityByRoom.get(r.id)
-                          if (!av) return null
-                          const hint = publicRoomHint(av, bookingTime)
-                          const active = roomId === r.id
-                          return (
-                            <button
-                              key={r.id}
-                              type="button"
-                              onClick={() => selectRoom(r)}
-                              className={cn(
-                                'relative text-left rounded-2xl p-3.5 touch-manipulation transition-all duration-300 border min-w-0 overflow-hidden room-card-enter',
-                                'bg-[rgba(12,20,42,0.75)] backdrop-blur-sm',
-                                'hover:-translate-y-0.5 active:scale-[0.98]',
-                                active
-                                  ? 'border-[var(--promo-gold)] shadow-[0_0_28px_rgba(255,229,102,0.22),0_0_40px_rgba(61,158,255,0.12)] scale-[1.01]'
-                                  : 'border-[rgba(157,190,255,0.16)] hover:border-[rgba(255,229,102,0.45)]',
-                                guideStep === 'rooms' && !roomId && 'hover:shadow-[0_0_24px_rgba(255,229,102,0.18)]',
-                              )}
-                              style={{ animationDelay: `${tierIdx * 80 + roomIdx * 60 + 40}ms` }}
-                            >
-                              <div
-                                className="pointer-events-none absolute inset-x-0 top-0 h-px"
-                                style={{
-                                  background: isSmall
-                                    ? 'linear-gradient(90deg, transparent, rgba(61,158,255,0.7), transparent)'
-                                    : 'linear-gradient(90deg, transparent, rgba(196,77,255,0.7), transparent)',
-                                }}
-                                aria-hidden
-                              />
-                              <div className="flex items-start gap-3">
-                                <div
-                                  className={cn(
-                                    'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-transform duration-300',
-                                    isSmall
-                                      ? 'bg-[rgba(61,158,255,0.14)] text-[var(--promo-blue)] border-[rgba(61,158,255,0.3)]'
-                                      : 'bg-[rgba(196,77,255,0.14)] text-[var(--promo-purple)] border-[rgba(196,77,255,0.3)]',
-                                    active && 'scale-110',
-                                  )}
-                                >
-                                  {isSmall ? (
-                                    <DoorOpen className="w-5 h-5" />
-                                  ) : (
-                                    <Users className="w-5 h-5" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="display text-lg leading-none text-[var(--promo-ink)] truncate">
-                                      {r.name}
-                                    </p>
-                                    {active && (
-                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--promo-gold)] shrink-0 animate-pulse">
-                                        Đã chọn
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="mt-1.5 text-[11px] text-[var(--promo-muted)]">
-                                    {av.capacityMin}–{av.capacityMax} khách
-                                  </p>
-                                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                    <span
-                                      className={cn(
-                                        'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                                        hint.tone === 'soon'
-                                          ? 'bg-[rgba(251,191,36,0.15)] text-amber-300'
-                                          : 'bg-[rgba(52,211,153,0.15)] text-emerald-300',
-                                      )}
-                                    >
-                                      {hint.badge}
-                                    </span>
-                                  </div>
-                                  <p className="mt-1.5 text-[11px] text-[var(--promo-muted)] leading-snug">
-                                    {hint.detail}
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-                <p className="text-[11px] text-[var(--promo-muted)] text-center">
-                  {selectedTier
-                    ? `Combo ${selectedTier.name}: ${
-                        selectedTier.accent === 'small'
-                          ? 'giảm 25–50% giờ hát · đồ uống'
-                          : 'giảm 10–25% giờ hát · combo lớn'
-                      }`
-                    : 'Chọn phòng để xem combo khuyến mãi tương ứng'}
-                </p>
-              </div>
-            )}
-          </div>
+              {fullDetails.alternatives.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-amber-200/90">
+                    Gợi ý giờ gần còn phòng
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {fullDetails.alternatives.map((alt) => (
+                      <button
+                        key={alt.bookingTime}
+                        type="button"
+                        className="chip shrink-0 touch-manipulation !border-amber-300/40 !text-amber-100"
+                        onClick={() => applyAlternative(alt.bookingTime)}
+                      >
+                        {alt.bookingTime}
+                        <span className="opacity-70 text-[10px]">· {alt.roomCount} phòng</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div
             ref={contactSectionRef}
             className={cn(
               'space-y-3 min-w-0 scroll-mt-28 transition-all duration-500',
-              roomId ? 'reveal-section opacity-100' : 'opacity-55',
-              guideStep === 'contact' && roomId && 'guide-target',
+              guestCountNum > 0 && bookingTime && selectedTimeAvailable
+                ? 'reveal-section opacity-100'
+                : 'opacity-55',
+              guideStep === 'contact' && 'guide-target',
             )}
           >
-            {guideStep === 'contact' && roomId ? (
+            {guideStep === 'contact' && guestCountNum > 0 && bookingTime && selectedTimeAvailable ? (
               <div className="guide-banner" role="status">
                 <Sparkles className="w-4 h-4 shrink-0" />
-                <span>Điền tên & SĐT để nhận mã quay thưởng</span>
+                <span>Điền tên & SĐT — hệ thống tự xếp phòng</span>
                 <ChevronDown className="w-4 h-4 shrink-0 guide-chevron" />
               </div>
             ) : null}
@@ -760,7 +608,7 @@ export default function PublicBookingPage() {
               <input
                 ref={nameInputRef}
                 id="bk-name"
-                className={cn('field', guideStep === 'contact' && roomId && 'nudge-field')}
+                className={cn('field', guideStep === 'contact' && 'nudge-field')}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Nguyễn Văn A"
@@ -778,10 +626,7 @@ export default function PublicBookingPage() {
                 id="bk-phone"
                 className={cn(
                   'field',
-                  guideStep === 'contact' &&
-                    roomId &&
-                    customerName.trim().length >= 2 &&
-                    'nudge-field',
+                  guideStep === 'contact' && customerName.trim().length >= 2 && 'nudge-field',
                 )}
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}

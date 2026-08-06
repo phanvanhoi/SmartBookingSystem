@@ -5,7 +5,8 @@ import type { PublicBookingInput, UpdateSpinPrizeInput } from './public.validati
 
 const HOUR_MS = 3_600_000
 const TOKEN_TTL_DAYS = 7
-const MIN_LEAD_MS = 15 * 60_000
+/** Public booking slots every 15 minutes; earliest = ceil(now → next 15m mark). */
+const SLOT_STEP_MINUTES = 15
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const DEFAULT_OPEN = '12:00'
 const DEFAULT_CLOSE = '05:00'
@@ -90,16 +91,22 @@ function combineBookingDateTime(dateStr: string, timeHm: string, openHm: string)
   return dt
 }
 
-/** Generate HH:mm slots from open→close (cross-midnight ok), step 30m. */
+/** Generate HH:mm slots from open→close (cross-midnight ok), step 15m. */
 function generateOperatingSlots(openHm: string, closeHm: string): string[] {
   const open = parseHm(openHm).mins
   let close = parseHm(closeHm).mins
   if (close <= open) close += 24 * 60
   const slots: string[] = []
-  for (let t = open; t < close; t += 30) {
+  for (let t = open; t < close; t += SLOT_STEP_MINUTES) {
     slots.push(formatHm(t))
   }
   return slots
+}
+
+/** Next allowed start: round up to a 15-minute mark (22:25→22:30, 22:35→22:45). */
+function ceilToSlotStep(date: Date): Date {
+  const stepMs = SLOT_STEP_MINUTES * 60_000
+  return new Date(Math.ceil(date.getTime() / stepMs) * stepMs)
 }
 
 function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
@@ -264,24 +271,34 @@ export async function getPublicAvailability(args: {
   date: string
   durationHours: number
   roomId?: number
+  guestCount?: number
 }) {
   const hours = await getPublicOperatingHours()
   const allSlots = generateOperatingSlots(hours.open, hours.close)
   const durationHours = args.durationHours
   const now = new Date()
-  const earliest = new Date(now.getTime() + MIN_LEAD_MS)
+  const earliest = ceilToSlotStep(now)
 
   const rooms = await prisma.room.findMany({
     where: {
       isActive: true,
       status: { not: 'MAINTENANCE' },
       ...(args.roomId ? { id: args.roomId } : {}),
+      ...(args.guestCount !== undefined
+        ? {
+            roomType: {
+              capacityMin: { lte: args.guestCount },
+              capacityMax: { gte: args.guestCount },
+            },
+          }
+        : {}),
     },
-    orderBy: { sortOrder: 'asc' },
+    orderBy: [{ roomType: { capacityMax: 'asc' } }, { sortOrder: 'asc' }, { id: 'asc' }],
     select: {
       id: true,
       name: true,
       status: true,
+      sortOrder: true,
       roomType: {
         select: { id: true, name: true, capacityMin: true, capacityMax: true },
       },
@@ -302,20 +319,23 @@ export async function getPublicAvailability(args: {
   dayAfter.setDate(dayAfter.getDate() + 1)
 
   const roomIds = rooms.map((r) => r.id)
-  const bookings = await prisma.booking.findMany({
-    where: {
-      roomId: { in: roomIds },
-      bookingDate: { in: [dayBefore, bookingDate, dayAfter] },
-      status: { in: ['PENDING', 'CONFIRMED'] },
-    },
-    select: {
-      roomId: true,
-      bookingTime: true,
-      durationHours: true,
-      customerName: true,
-      status: true,
-    },
-  })
+  const bookings =
+    roomIds.length === 0
+      ? []
+      : await prisma.booking.findMany({
+          where: {
+            roomId: { in: roomIds },
+            bookingDate: { in: [dayBefore, bookingDate, dayAfter] },
+            status: { in: ['PENDING', 'CONFIRMED'] },
+          },
+          select: {
+            roomId: true,
+            bookingTime: true,
+            durationHours: true,
+            customerName: true,
+            status: true,
+          },
+        })
 
   const bookingsByRoom = new Map<number, typeof bookings>()
   for (const b of bookings) {
@@ -362,20 +382,7 @@ export async function getPublicAvailability(args: {
       const end = effectiveEnd(start, durationHours)
       if (start < earliest) return false
 
-      // Slot must finish before close (approximate using operating window)
-      const closeDt = combineBookingDateTime(
-        args.date,
-        hours.close,
-        hours.open,
-      )
-      // close on same business evening: if close < open, close is next calendar day
-      let closeAt = closeDt
-      if (parseHm(hours.close).mins >= parseHm(hours.open).mins) {
-        // same-day close (rare) — combine already correct
-      } else {
-        // close is next morning — combine with open pushes early times +1 day;
-        // for close time itself (< open), combine already +1 day from booking date ✓
-      }
+      const closeAt = combineBookingDateTime(args.date, hours.close, hours.open)
       if (end > closeAt) return false
 
       for (const b of bookingsByRoom.get(room.id) ?? []) {
@@ -394,6 +401,7 @@ export async function getPublicAvailability(args: {
       id: room.id,
       name: room.name,
       status: room.status,
+      sortOrder: room.sortOrder,
       roomTypeId: room.roomType.id,
       roomTypeName: room.roomType.name,
       capacityMin: room.roomType.capacityMin,
@@ -406,43 +414,108 @@ export async function getPublicAvailability(args: {
     }
   })
 
+  const freeSlotSet = new Set<string>()
+  for (const r of roomPayload) {
+    for (const s of r.availableSlots) freeSlotSet.add(s)
+  }
+
   return {
     date: args.date,
     durationHours,
+    guestCount: args.guestCount ?? null,
     operatingHours: hours,
-    minLeadMinutes: MIN_LEAD_MS / 60_000,
+    minLeadMinutes: 0,
+    slotStepMinutes: SLOT_STEP_MINUTES,
+    earliestSlot: hmLabel(earliest),
     timeSlots: allSlots,
+    availableTimeSlots: allSlots.filter((t) => freeSlotSet.has(t)),
     serverNow: now.toISOString(),
     rooms: roomPayload,
+  }
+}
+
+type NoRoomDetails = {
+  nextFreeAt: string | null
+  nextFreeTime: string | null
+  alternatives: Array<{ bookingTime: string; roomCount: number }>
+}
+
+function computeNextFreeAndAlternatives(args: {
+  date: string
+  bookingTime: string
+  openHm: string
+  timeSlots: string[]
+  rooms: Array<{ availableSlots: string[] }>
+}): NoRoomDetails {
+  const slotCounts = args.timeSlots
+    .map((bookingTime) => ({
+      bookingTime,
+      roomCount: args.rooms.filter((r) => r.availableSlots.includes(bookingTime)).length,
+    }))
+    .filter((s) => s.roomCount > 0)
+
+  const next = slotCounts[0] ?? null
+  const nextFreeAt = next
+    ? combineBookingDateTime(args.date, next.bookingTime, args.openHm).toISOString()
+    : null
+
+  const after = slotCounts.filter((s) => s.bookingTime > args.bookingTime)
+  const before = slotCounts.filter((s) => s.bookingTime < args.bookingTime).reverse()
+  const alternatives: Array<{ bookingTime: string; roomCount: number }> = []
+  for (const s of after) {
+    if (alternatives.length >= 5) break
+    alternatives.push(s)
+  }
+  for (const s of before) {
+    if (alternatives.length >= 5) break
+    alternatives.push(s)
+  }
+
+  return {
+    nextFreeAt,
+    nextFreeTime: next?.bookingTime ?? null,
+    alternatives,
+  }
+}
+
+async function assertRoomFreeForSlot(args: {
+  roomId: number
+  bookingDate: Date
+  bookingTime: Date
+  newEnd: Date
+}) {
+  const conflict = await findConflictingBooking({
+    roomId: args.roomId,
+    bookingDate: args.bookingDate,
+    newStart: args.bookingTime,
+    newEnd: args.newEnd,
+  })
+  if (conflict) {
+    throw new AppError(409, 'BOOKING_OVERLAP', 'Khung giờ này đã có người đặt. Vui lòng chọn giờ khác.')
+  }
+
+  const sessionConflict = await findConflictingSession({
+    roomId: args.roomId,
+    newStart: args.bookingTime,
+    newEnd: args.newEnd,
+  })
+  if (sessionConflict) {
+    const until = sessionConflict.estimatedEnd
+      ? hmLabel(sessionConflict.estimatedEnd)
+      : 'chưa rõ'
+    throw new AppError(
+      409,
+      'ROOM_SINGING',
+      `Phòng đang có khách hát (dự kiến đến ~${until}). Vui lòng chọn giờ khác.`,
+    )
   }
 }
 
 // ─── Public booking + spin token ─────────────────────────────────────────────
 
 export async function createPublicBooking(data: PublicBookingInput) {
-  const room = await prisma.room.findFirst({
-    where: { id: data.roomId, isActive: true, status: { not: 'MAINTENANCE' } },
-    include: {
-      roomType: { select: { id: true, name: true, capacityMin: true, capacityMax: true } },
-    },
-  })
-  if (!room) {
-    throw new AppError(404, 'ROOM_NOT_FOUND', 'Phòng không tồn tại hoặc đang bảo trì')
-  }
-
-  if (data.guestCount !== undefined) {
-    if (
-      data.guestCount < room.roomType.capacityMin ||
-      data.guestCount > room.roomType.capacityMax
-    ) {
-      throw new AppError(
-        400,
-        'INVALID_GUEST_COUNT',
-        `${room.roomType.name} nhận ${room.roomType.capacityMin}–${room.roomType.capacityMax} người`,
-      )
-    }
-  }
-
+  const guestCount = data.guestCount
+  const durationHours = data.durationHours ?? 2
   const hours = await getPublicOperatingHours()
   const allowedSlots = generateOperatingSlots(hours.open, hours.close)
   if (!allowedSlots.includes(data.bookingTime)) {
@@ -463,18 +536,16 @@ export async function createPublicBooking(data: PublicBookingInput) {
   }
 
   const bookingTime = combineBookingDateTime(data.bookingDate, data.bookingTime, hours.open)
-  const earliest = new Date(Date.now() + MIN_LEAD_MS)
+  const earliest = ceilToSlotStep(new Date())
   if (bookingTime < earliest) {
     throw new AppError(
       400,
       'TIME_IN_PAST',
-      'Giờ đặt phải sau thời điểm hiện tại ít nhất 15 phút',
+      `Giờ đặt sớm nhất hiện tại là ${hmLabel(earliest)} (làm tròn ${SLOT_STEP_MINUTES} phút)`,
     )
   }
 
-  const durationHours = data.durationHours ?? 2
   const newEnd = effectiveEnd(bookingTime, durationHours)
-
   const closeAt = combineBookingDateTime(data.bookingDate, hours.close, hours.open)
   if (newEnd > closeAt) {
     throw new AppError(
@@ -484,31 +555,166 @@ export async function createPublicBooking(data: PublicBookingInput) {
     )
   }
 
-  const conflict = await findConflictingBooking({
-    roomId: data.roomId,
-    bookingDate,
-    newStart: bookingTime,
-    newEnd,
+  const availability = await getPublicAvailability({
+    date: data.bookingDate,
+    durationHours,
+    guestCount,
   })
-  if (conflict) {
-    throw new AppError(409, 'BOOKING_OVERLAP', 'Khung giờ này đã có người đặt. Vui lòng chọn giờ khác.')
-  }
 
-  const sessionConflict = await findConflictingSession({
-    roomId: data.roomId,
-    newStart: bookingTime,
-    newEnd,
-  })
-  if (sessionConflict) {
-    const until = sessionConflict.estimatedEnd
-      ? hmLabel(sessionConflict.estimatedEnd)
-      : 'chưa rõ'
+  if (availability.rooms.length === 0) {
     throw new AppError(
-      409,
-      'ROOM_SINGING',
-      `Phòng đang có khách hát (dự kiến đến ~${until}). Vui lòng chọn giờ khác hoặc phòng khác.`,
+      400,
+      'INVALID_GUEST_COUNT',
+      'Không có loại phòng phù hợp với số khách này',
     )
   }
+
+  const noRoomDetails = (): NoRoomDetails =>
+    computeNextFreeAndAlternatives({
+      date: data.bookingDate,
+      bookingTime: data.bookingTime,
+      openHm: hours.open,
+      timeSlots: availability.timeSlots,
+      rooms: availability.rooms,
+    })
+
+  let resolvedRoomId = data.roomId
+
+  if (resolvedRoomId !== undefined) {
+    const room = availability.rooms.find((r) => r.id === resolvedRoomId)
+    if (!room) {
+      throw new AppError(404, 'ROOM_NOT_FOUND', 'Phòng không tồn tại hoặc không phù hợp số khách')
+    }
+    if (!room.availableSlots.includes(data.bookingTime)) {
+      throw new AppError(
+        409,
+        'NO_ROOM_AVAILABLE',
+        'Hết phòng phù hợp cho khung giờ này',
+        noRoomDetails(),
+      )
+    }
+  } else {
+    const candidates = availability.rooms
+      .filter((r) => r.availableSlots.includes(data.bookingTime))
+      .sort(
+        (a, b) =>
+          a.capacityMax - b.capacityMax || a.sortOrder - b.sortOrder || a.id - b.id,
+      )
+
+    if (candidates.length === 0) {
+      throw new AppError(
+        409,
+        'NO_ROOM_AVAILABLE',
+        'Hết phòng phù hợp cho khung giờ này',
+        noRoomDetails(),
+      )
+    }
+
+    let assigned: number | null = null
+    const tryRooms = candidates.slice(0, Math.min(3, candidates.length))
+    for (const candidate of tryRooms) {
+      try {
+        await assertRoomFreeForSlot({
+          roomId: candidate.id,
+          bookingDate,
+          bookingTime,
+          newEnd,
+        })
+        assigned = candidate.id
+        break
+      } catch (err) {
+        if (
+          err instanceof AppError &&
+          (err.code === 'BOOKING_OVERLAP' || err.code === 'ROOM_SINGING')
+        ) {
+          continue
+        }
+        throw err
+      }
+    }
+
+    if (assigned == null) {
+      // Race: refresh and retry once more with latest availability
+      const fresh = await getPublicAvailability({
+        date: data.bookingDate,
+        durationHours,
+        guestCount,
+      })
+      const retryCandidates = fresh.rooms
+        .filter((r) => r.availableSlots.includes(data.bookingTime))
+        .sort(
+          (a, b) =>
+            a.capacityMax - b.capacityMax || a.sortOrder - b.sortOrder || a.id - b.id,
+        )
+      for (const candidate of retryCandidates.slice(0, 3)) {
+        try {
+          await assertRoomFreeForSlot({
+            roomId: candidate.id,
+            bookingDate,
+            bookingTime,
+            newEnd,
+          })
+          assigned = candidate.id
+          break
+        } catch (err) {
+          if (
+            err instanceof AppError &&
+            (err.code === 'BOOKING_OVERLAP' || err.code === 'ROOM_SINGING')
+          ) {
+            continue
+          }
+          throw err
+        }
+      }
+    }
+
+    if (assigned == null) {
+      const fresh = await getPublicAvailability({
+        date: data.bookingDate,
+        durationHours,
+        guestCount,
+      })
+      throw new AppError(
+        409,
+        'NO_ROOM_AVAILABLE',
+        'Hết phòng phù hợp cho khung giờ này',
+        computeNextFreeAndAlternatives({
+          date: data.bookingDate,
+          bookingTime: data.bookingTime,
+          openHm: hours.open,
+          timeSlots: fresh.timeSlots,
+          rooms: fresh.rooms,
+        }),
+      )
+    }
+
+    resolvedRoomId = assigned
+  }
+
+  const room = await prisma.room.findFirst({
+    where: { id: resolvedRoomId, isActive: true, status: { not: 'MAINTENANCE' } },
+    include: {
+      roomType: { select: { id: true, name: true, capacityMin: true, capacityMax: true } },
+    },
+  })
+  if (!room) {
+    throw new AppError(404, 'ROOM_NOT_FOUND', 'Phòng không tồn tại hoặc đang bảo trì')
+  }
+
+  if (guestCount < room.roomType.capacityMin || guestCount > room.roomType.capacityMax) {
+    throw new AppError(
+      400,
+      'INVALID_GUEST_COUNT',
+      `${room.roomType.name} nhận ${room.roomType.capacityMin}–${room.roomType.capacityMax} người`,
+    )
+  }
+
+  await assertRoomFreeForSlot({
+    roomId: room.id,
+    bookingDate,
+    bookingTime,
+    newEnd,
+  })
 
   const campaign = await getActiveCampaign(room.roomType.id)
   const systemUserId = await resolveSystemUserId()
@@ -516,7 +722,7 @@ export async function createPublicBooking(data: PublicBookingInput) {
 
   const noteParts = [
     '[Đặt online]',
-    data.guestCount ? `Số khách: ${data.guestCount}` : null,
+    `Số khách: ${guestCount}`,
     data.notes?.trim() || null,
   ].filter(Boolean)
 
@@ -530,7 +736,7 @@ export async function createPublicBooking(data: PublicBookingInput) {
   const result = await prisma.$transaction(async (tx) => {
     const booking = await tx.booking.create({
       data: {
-        roomId: data.roomId,
+        roomId: room.id,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         bookingDate,
@@ -541,7 +747,15 @@ export async function createPublicBooking(data: PublicBookingInput) {
         createdById: systemUserId,
         status: 'PENDING',
       },
-      include: { room: { select: { id: true, name: true } } },
+      include: {
+        room: {
+          select: {
+            id: true,
+            name: true,
+            roomType: { select: { name: true } },
+          },
+        },
+      },
     })
 
     const token = await tx.spinToken.create({
@@ -561,11 +775,13 @@ export async function createPublicBooking(data: PublicBookingInput) {
       id: result.booking.id,
       roomId: result.booking.room.id,
       roomName: result.booking.room.name,
+      roomTypeName: result.booking.room.roomType.name,
       customerName: result.booking.customerName,
       customerPhone: result.booking.customerPhone,
       bookingDate: data.bookingDate,
       bookingTime: data.bookingTime,
       durationHours,
+      guestCount,
       status: result.booking.status,
     },
     spinToken: {

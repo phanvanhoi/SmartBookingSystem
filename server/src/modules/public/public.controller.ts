@@ -27,6 +27,11 @@ export async function getAvailabilityHandler(
     const roomIdRaw = req.query.roomId
     const roomId =
       typeof roomIdRaw === 'string' && roomIdRaw.trim() ? Number(roomIdRaw) : undefined
+    const guestCountRaw = req.query.guestCount
+    const guestCount =
+      typeof guestCountRaw === 'string' && guestCountRaw.trim()
+        ? Number(guestCountRaw)
+        : undefined
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       res.status(400).json({
@@ -40,6 +45,8 @@ export async function getAvailabilityHandler(
       date,
       durationHours: Number.isFinite(durationHours) && durationHours > 0 ? durationHours : 2,
       roomId: roomId && Number.isFinite(roomId) ? roomId : undefined,
+      guestCount:
+        guestCount && Number.isFinite(guestCount) && guestCount > 0 ? guestCount : undefined,
     })
     res.json({ success: true, data })
   } catch (err) {
