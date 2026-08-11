@@ -6,9 +6,11 @@ import logger from '../../utils/logger'
 type Tx = Prisma.TransactionClient
 
 const PROMO_SKUS = {
-  coca: 'PROMO-COCA',
-  nuoc_suoi: 'PROMO-SUOI',
-  kho: 'PROMO-KHO',
+  coca: 'COCA COLA',
+  nuoc_suoi: 'LAVIE',
+  /** Combo “khô gà/bò” và khô gà → trừ kho thật KHO GA */
+  kho_ga: 'KHO GA',
+  kho_bo: 'KHO BO',
 } as const
 
 type PromoKey = keyof typeof PROMO_SKUS
@@ -27,6 +29,7 @@ type SpinVoucherInfo = {
 
 /**
  * Parse prizeValue like "1 khô gà/bò + 1 nước suối" → line items.
+ * Map sang SKU kho bán thật (không dùng PROMO-* tách kho).
  */
 export function parseFreeItemPrize(prizeValue: string): ParsedLine[] {
   const parts = prizeValue
@@ -45,8 +48,15 @@ export function parseFreeItemPrize(prizeValue: string): ParsedLine[] {
       lines.push({ key: 'coca', qty })
     } else if (/su[oố]i|suoi|aquafina|lavie/.test(name)) {
       lines.push({ key: 'nuoc_suoi', qty })
-    } else if (/kh[oô]|kho|g[aà]|b[oò]/.test(name)) {
-      lines.push({ key: 'kho', qty })
+    } else if (/kh[oô]|kho/.test(name)) {
+      const hasGa = /g[aà]/.test(name)
+      const hasBo = /b[oò]/.test(name)
+      if (hasBo && !hasGa) {
+        lines.push({ key: 'kho_bo', qty })
+      } else {
+        // “khô gà”, “khô gà/bò”, hoặc chỉ “khô” → KHO GA
+        lines.push({ key: 'kho_ga', qty })
+      }
     } else {
       logger.warn('[spin-reward] Unmapped prize part', { part })
     }
@@ -54,8 +64,9 @@ export function parseFreeItemPrize(prizeValue: string): ParsedLine[] {
   return lines
 }
 
-async function resolvePromoMenuItems(tx: Tx = prisma) {
-  const skus = Object.values(PROMO_SKUS)
+async function resolvePromoMenuItems(tx: Tx = prisma, keys?: PromoKey[]) {
+  const needed = keys?.length ? keys : (Object.keys(PROMO_SKUS) as PromoKey[])
+  const skus = needed.map((k) => PROMO_SKUS[k])
   const products = await tx.product.findMany({
     where: { sku: { in: [...skus] }, isActive: true },
     include: {
@@ -70,14 +81,15 @@ async function resolvePromoMenuItems(tx: Tx = prisma) {
   const bySku = new Map(products.map((p) => [p.sku!, p]))
   const result = new Map<PromoKey, { menuItemId: number; productId: number; name: string }>()
 
-  for (const [key, sku] of Object.entries(PROMO_SKUS) as Array<[PromoKey, string]>) {
+  for (const key of needed) {
+    const sku = PROMO_SKUS[key]
     const product = bySku.get(sku)
     const menuItem = product?.menuItems[0]
     if (!product || !menuItem) {
       throw new AppError(
         500,
         'PROMO_MENU_MISSING',
-        `Thiếu món khuyến mãi trong hệ thống (${sku}). Chạy seed lại.`,
+        `Thiếu sản phẩm/menu kho thật cho quà vòng quay (${sku}). Kiểm tra SKU trong kho.`,
       )
     }
     result.set(key, {
@@ -212,7 +224,10 @@ export async function attachSpinRewardToSession(args: {
       )
     }
 
-    const catalog = await resolvePromoMenuItems(db)
+    const catalog = await resolvePromoMenuItems(
+      db,
+      parsed.map((line) => line.key),
+    )
     const orderItemsData = parsed.map((line) => {
       const item = catalog.get(line.key)!
       return {

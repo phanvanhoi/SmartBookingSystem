@@ -56,9 +56,11 @@ Log khởi động phải có dạng:
 ```text
 → Database has data, skipping base seed.
 → Spin campaigns ready.
-→ Promo products ready (PROMO-COCA, PROMO-SUOI, PROMO-KHO).
+→ Spin FREE_ITEM uses real stock (COCA COLA, LAVIE, KHO GA/BO).
 🚀 Starting server on port 8081...
 ```
+
+(có thể kèm `Disabled legacy promo SKUs: PROMO-COCA, ...`)
 
 `Created=` phải là thời điểm vừa build (không còn vài tuần trước).
 

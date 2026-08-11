@@ -91,55 +91,43 @@ async function ensureSpinCampaigns() {
 }
 
 async function ensurePromoProducts() {
-  const ensureCat = async (name, sortOrder) => {
-    const existing = await p.menuCategory.findUnique({ where: { name } });
-    if (existing) return existing;
-    return p.menuCategory.create({ data: { name, sortOrder } });
-  };
-  const snackCat = await ensureCat('Đồ ăn nhẹ', 3);
-  const drinkCat = await ensureCat('Nước ngọt', 4);
-
-  const promoProducts = [
-    { sku: 'PROMO-COCA', name: 'Coca', category: 'Nước ngọt', unit: 'lon', costPrice: 8000, sellPrice: 20000, stock: 200, menuCategoryId: drinkCat.id },
-    { sku: 'PROMO-SUOI', name: 'Nước suối', category: 'Nước ngọt', unit: 'chai', costPrice: 3000, sellPrice: 10000, stock: 300, menuCategoryId: drinkCat.id },
-    { sku: 'PROMO-KHO', name: 'Khô gà/bò', category: 'Đồ ăn nhẹ', unit: 'gói', costPrice: 15000, sellPrice: 35000, stock: 150, menuCategoryId: snackCat.id },
+  // FREE_ITEM trừ kho bán thật — chỉ verify SKU + menu; tắt PROMO-* cũ.
+  const required = [
+    { sku: 'COCA COLA', label: 'Coca' },
+    { sku: 'LAVIE', label: 'Nước suối' },
+    { sku: 'KHO GA', label: 'Khô gà' },
+    { sku: 'KHO BO', label: 'Khô bò' },
   ];
 
-  for (const item of promoProducts) {
-    const product = await p.product.upsert({
-      where: { sku: item.sku },
-      update: { name: item.name, stockQuantity: item.stock, isActive: true },
-      create: {
-        name: item.name,
-        sku: item.sku,
-        category: item.category,
-        unit: item.unit,
-        costPrice: item.costPrice,
-        stockQuantity: item.stock,
-        minStock: 20,
-        isActive: true,
-      },
+  for (const item of required) {
+    const product = await p.product.findFirst({
+      where: { sku: item.sku, isActive: true },
+      include: { menuItems: { where: { isAvailable: true }, take: 1 } },
     });
-    const existingMenu = await p.menuItem.findFirst({ where: { productId: product.id } });
-    if (existingMenu) {
-      await p.menuItem.update({
-        where: { id: existingMenu.id },
-        data: { name: item.name, price: item.sellPrice, isAvailable: true, categoryId: item.menuCategoryId },
-      });
-    } else {
-      await p.menuItem.create({
-        data: {
-          name: item.name,
-          price: item.sellPrice,
-          categoryId: item.menuCategoryId,
-          productId: product.id,
-          isAvailable: true,
-          sortOrder: 1,
-        },
-      });
+    if (!product) {
+      console.warn('  ⚠ Missing real product SKU for spin FREE_ITEM:', item.sku);
+      continue;
+    }
+    if (product.menuItems.length === 0) {
+      console.warn('  ⚠ Product has no available menu item:', item.sku, '(' + item.label + ')');
     }
   }
-  console.log('  → Promo products ready (PROMO-COCA, PROMO-SUOI, PROMO-KHO).');
+
+  const legacy = await p.product.findMany({
+    where: { sku: { in: ['PROMO-COCA', 'PROMO-SUOI', 'PROMO-KHO'] } },
+    select: { id: true, sku: true },
+  });
+  for (const prod of legacy) {
+    await p.product.update({ where: { id: prod.id }, data: { isActive: false } });
+    await p.menuItem.updateMany({
+      where: { productId: prod.id },
+      data: { isAvailable: false },
+    });
+  }
+  if (legacy.length) {
+    console.log('  → Disabled legacy promo SKUs:', legacy.map((x) => x.sku).join(', '));
+  }
+  console.log('  → Spin FREE_ITEM uses real stock (COCA COLA, LAVIE, KHO GA/BO).');
 }
 
 async function seed() {

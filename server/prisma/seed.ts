@@ -385,90 +385,39 @@ async function main() {
     prizes: largePrizes,
   })
 
-  // ── Menu + kho cho quà vòng quay (trừ tồn khi checkout) ──
-  console.log('Seeding promo menu items...')
-  const snackCat = await prisma.menuCategory.findUnique({ where: { name: 'Đồ ăn nhẹ' } })
-  const drinkCat = await prisma.menuCategory.findUnique({ where: { name: 'Nước ngọt' } })
-  if (snackCat && drinkCat) {
-    const promoProducts = [
-      {
-        sku: 'PROMO-COCA',
-        name: 'Coca',
-        category: 'Nước ngọt',
-        unit: 'lon',
-        costPrice: 8000,
-        sellPrice: 20000,
-        stock: 200,
-        menuCategoryId: drinkCat.id,
-      },
-      {
-        sku: 'PROMO-SUOI',
-        name: 'Nước suối',
-        category: 'Nước ngọt',
-        unit: 'chai',
-        costPrice: 3000,
-        sellPrice: 10000,
-        stock: 300,
-        menuCategoryId: drinkCat.id,
-      },
-      {
-        sku: 'PROMO-KHO',
-        name: 'Khô gà/bò',
-        category: 'Đồ ăn nhẹ',
-        unit: 'gói',
-        costPrice: 15000,
-        sellPrice: 35000,
-        stock: 150,
-        menuCategoryId: snackCat.id,
-      },
-    ]
-
-    for (const item of promoProducts) {
-      const product = await prisma.product.upsert({
-        where: { sku: item.sku },
-        update: {
-          name: item.name,
-          stockQuantity: item.stock,
-          isActive: true,
-        },
-        create: {
-          name: item.name,
-          sku: item.sku,
-          category: item.category,
-          unit: item.unit,
-          costPrice: item.costPrice,
-          stockQuantity: item.stock,
-          minStock: 20,
-          isActive: true,
-        },
-      })
-
-      const existingMenu = await prisma.menuItem.findFirst({
-        where: { productId: product.id },
-      })
-      if (existingMenu) {
-        await prisma.menuItem.update({
-          where: { id: existingMenu.id },
-          data: {
-            name: item.name,
-            price: item.sellPrice,
-            isAvailable: true,
-            categoryId: item.menuCategoryId,
-          },
-        })
-      } else {
-        await prisma.menuItem.create({
-          data: {
-            name: item.name,
-            price: item.sellPrice,
-            categoryId: item.menuCategoryId,
-            productId: product.id,
-            isAvailable: true,
-            sortOrder: 1,
-          },
-        })
-      }
+  // ── Quà FREE_ITEM trừ kho bán thật (COCA COLA / LAVIE / KHO GA|BO) ──
+  console.log('Linking spin FREE_ITEM to real stock SKUs...')
+  const requiredSpinSkus = ['COCA COLA', 'LAVIE', 'KHO GA', 'KHO BO']
+  for (const sku of requiredSpinSkus) {
+    const product = await prisma.product.findFirst({
+      where: { sku, isActive: true },
+      include: { menuItems: { where: { isAvailable: true }, take: 1 } },
+    })
+    if (!product) {
+      console.warn(`  ⚠ Missing real product for spin reward: ${sku}`)
+      continue
     }
+    if (product.menuItems.length === 0) {
+      console.warn(`  ⚠ No available menu item linked to ${sku}`)
+    }
+  }
+
+  const legacyPromo = await prisma.product.findMany({
+    where: { sku: { in: ['PROMO-COCA', 'PROMO-SUOI', 'PROMO-KHO'] } },
+    select: { id: true, sku: true },
+  })
+  for (const prod of legacyPromo) {
+    await prisma.product.update({ where: { id: prod.id }, data: { isActive: false } })
+    await prisma.menuItem.updateMany({
+      where: { productId: prod.id },
+      data: { isAvailable: false },
+    })
+  }
+  if (legacyPromo.length) {
+    console.log(
+      '  Disabled legacy promo SKUs:',
+      legacyPromo.map((p) => p.sku).join(', '),
+    )
   }
 
   console.log('Seed completed successfully!')
