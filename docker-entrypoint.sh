@@ -49,11 +49,11 @@ const bcrypt = require('bcryptjs');
 const p = new PrismaClient();
 
 const smallPrizes = [
-  { label: 'Giảm ngay 25% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 0, color: '#12d6a0', sortOrder: 1 },
-  { label: 'SIÊU HOT · Giảm 50% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 0, color: '#ff3d7a', sortOrder: 2 },
-  { label: 'Combo miễn phí: 1 khô + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 0, color: '#ffc53d', sortOrder: 3 },
-  { label: 'Combo miễn phí: 2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 100, color: '#ff8a3d', sortOrder: 4 },
-  { label: 'Combo miễn phí: Coca + nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 0, color: '#3d9eff', sortOrder: 5 },
+  { label: 'Giảm ngay 25% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 30, color: '#12d6a0', sortOrder: 1 },
+  { label: 'SIÊU HOT · Giảm 50% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 10, color: '#ff3d7a', sortOrder: 2 },
+  { label: 'Combo miễn phí: 1 khô + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 20, color: '#ffc53d', sortOrder: 3 },
+  { label: 'Combo miễn phí: 2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 20, color: '#ff8a3d', sortOrder: 4 },
+  { label: 'Combo miễn phí: Coca + nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 20, color: '#3d9eff', sortOrder: 5 },
 ];
 const largePrizes = [
   { label: 'Giảm ngay 10% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '10', weight: 30, color: '#12d6a0', sortOrder: 1 },
@@ -83,11 +83,20 @@ async function ensureSpinCampaigns() {
   }
   const small = types[0];
   const large = types[1];
-  await p.roomType.update({ where: { id: small.id }, data: { name: 'Phòng bé', capacityMin: 1, capacityMax: 3 } });
-  await p.roomType.update({ where: { id: large.id }, data: { name: 'Phòng lớn', capacityMin: 4, capacityMax: 7 } });
-  await syncCampaign(small.id, 'KM Phòng bé (1–7)', smallPrizes);
-  await syncCampaign(large.id, 'KM Phòng lớn (8–10)', largePrizes);
-  console.log('  → Spin campaigns ready.');
+  // Never rewrite existing prizes/weights on restart (prod data stays as-is).
+  const specs = [
+    [small.id, 'KM Phòng bé (1–7)', smallPrizes],
+    [large.id, 'KM Phòng lớn (8–10)', largePrizes],
+  ];
+  for (const [roomTypeId, name, prizes] of specs) {
+    const existing = await p.spinCampaign.findFirst({ where: { roomTypeId } });
+    if (existing) {
+      console.log('  → Keep existing spin campaign:', existing.name);
+      continue;
+    }
+    await syncCampaign(roomTypeId, name, prizes);
+    console.log('  → Created spin campaign:', name);
+  }
 }
 
 async function ensurePromoProducts() {

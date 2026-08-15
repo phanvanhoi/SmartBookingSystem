@@ -189,15 +189,50 @@ export async function getBookings(filters: BookingQueryInput) {
       take: limit,
       orderBy: { bookingTime: 'asc' },
       include: {
-        room: { select: { id: true, name: true } },
+        room: {
+          select: {
+            id: true,
+            name: true,
+            roomType: { select: { id: true, name: true, capacityMin: true, capacityMax: true } },
+          },
+        },
         createdBy: { select: { id: true, fullName: true } },
+        spinToken: {
+          select: {
+            code: true,
+            status: true,
+            resultLabel: true,
+            rewardCode: true,
+            spunAt: true,
+            campaign: { select: { id: true, name: true } },
+            prize: {
+              select: { id: true, label: true, prizeType: true, prizeValue: true },
+            },
+          },
+        },
       },
     }),
     prisma.booking.count({ where }),
   ])
 
   return {
-    bookings,
+    bookings: bookings.map((b) => {
+      const isOnline =
+        !!b.spinToken || /\[Đặt online\]/i.test(b.notes ?? '')
+      const comboLabel =
+        b.spinToken?.resultLabel?.trim() ||
+        b.spinToken?.prize?.label?.trim() ||
+        null
+      const campaignName = b.spinToken?.campaign?.name ?? null
+      return {
+        ...b,
+        isOnline,
+        comboLabel,
+        campaignName,
+        spinStatus: b.spinToken?.status ?? null,
+        spinCode: b.spinToken?.code ?? null,
+      }
+    }),
     pagination: {
       page,
       limit,

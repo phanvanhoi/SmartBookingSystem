@@ -1,7 +1,12 @@
 import { Request, Response, NextFunction } from 'express'
 import type { ApiResponse } from '../../types'
 import * as publicService from './public.service'
-import type { PublicBookingInput, PublicSpinInput, UpdateSpinPrizeInput } from './public.validation'
+import type {
+  PublicBookingInput,
+  PublicPriceQuoteQuery,
+  PublicSpinInput,
+  UpdateSpinPrizeInput,
+} from './public.validation'
 
 export async function listRoomsHandler(
   _req: Request,
@@ -47,6 +52,26 @@ export async function getAvailabilityHandler(
       roomId: roomId && Number.isFinite(roomId) ? roomId : undefined,
       guestCount:
         guestCount && Number.isFinite(guestCount) && guestCount > 0 ? guestCount : undefined,
+    })
+    res.json({ success: true, data })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getPriceQuoteHandler(
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) {
+  try {
+    const q = req.query as unknown as PublicPriceQuoteQuery
+    const data = await publicService.getPublicPriceQuote({
+      date: q.date,
+      bookingTime: q.bookingTime,
+      durationHours: q.durationHours,
+      guestCount: q.guestCount,
+      roomId: q.roomId,
     })
     res.json({ success: true, data })
   } catch (err) {

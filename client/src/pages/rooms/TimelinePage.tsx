@@ -64,6 +64,10 @@ interface BarData {
   guestCount?: number
   type: 'session' | 'booking'
   booking?: Booking
+  isOnline?: boolean
+  comboLabel?: string | null
+  campaignName?: string | null
+  spinStatus?: Booking['spinStatus']
 }
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -152,6 +156,7 @@ export default function TimelinePage() {
       const duration = b.durationHours ? Number(b.durationHours) : 0
       const endH = duration > 0 ? startH + duration : startH + 1
       const guestFromNotes = b.notes?.match(/Số khách:\s*(\d+)/i)
+      const isOnline = !!b.isOnline || /\[Đặt online\]/i.test(b.notes ?? '')
       result.push({
         id: `booking-${b.id}`,
         roomId: b.roomId,
@@ -160,6 +165,10 @@ export default function TimelinePage() {
         guestCount: guestFromNotes ? Number(guestFromNotes[1]) : undefined,
         type: 'booking',
         booking: b,
+        isOnline,
+        comboLabel: b.comboLabel ?? null,
+        campaignName: b.campaignName ?? null,
+        spinStatus: b.spinStatus ?? null,
       })
     }
     return result
@@ -344,6 +353,12 @@ export default function TimelinePage() {
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="w-4 h-3 rounded-sm bg-sky-500" /> Đã nhận
             </span>
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="px-1 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-400 text-amber-950">
+                Online
+              </span>
+              Đặt online
+            </span>
             {upcomingCount > 0 && (
               <span className="text-emerald-700 font-semibold tabular-nums">
                 {upcomingCount} sắp đến
@@ -515,16 +530,35 @@ export default function TimelinePage() {
 
                     const isSession = bar.type === 'session'
                     const timeStr = timelineHourToTimeStr(displayStart)
+                    const comboHint =
+                      bar.comboLabel ||
+                      (bar.isOnline && bar.spinStatus === 'UNUSED'
+                        ? 'Chưa quay'
+                        : bar.isOnline && bar.campaignName
+                          ? bar.campaignName
+                          : null)
 
                     return (
                       <div
                         key={bar.id}
+                        title={
+                          [
+                            bar.label,
+                            bar.isOnline ? 'Đặt online' : null,
+                            comboHint,
+                            bar.guestCount ? `${bar.guestCount} khách` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        }
                         className={cn(
                           'absolute top-1 bottom-1 rounded-md flex items-center gap-1.5 px-2.5 overflow-hidden z-10 group',
                           'transition-shadow',
                           isSession
                             ? 'bg-blue-500/90 cursor-default'
-                            : 'bg-emerald-500/90 cursor-grab active:cursor-grabbing',
+                            : bar.isOnline
+                              ? 'bg-emerald-500/90 cursor-grab active:cursor-grabbing ring-1 ring-amber-300/70'
+                              : 'bg-emerald-500/90 cursor-grab active:cursor-grabbing',
                           isDragging && !dragPreview?.hasConflict && 'opacity-80 shadow-lg ring-2 ring-white/30',
                           isDragging && dragPreview?.hasConflict && 'opacity-80 shadow-lg ring-2 ring-red-500 bg-red-500/80'
                         )}
@@ -539,9 +573,19 @@ export default function TimelinePage() {
                         <span className="text-[11px] font-semibold text-white whitespace-nowrap">
                           {timeStr}
                         </span>
+                        {bar.isOnline && (
+                          <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide bg-amber-300 text-amber-950">
+                            Online
+                          </span>
+                        )}
                         <span className="text-[11px] text-white/90 truncate font-medium">
                           {bar.label}
                         </span>
+                        {comboHint && (
+                          <span className="hidden sm:inline text-[10px] text-white/85 truncate max-w-[9rem] font-medium">
+                            · {comboHint}
+                          </span>
+                        )}
                         {bar.guestCount && (
                           <span className="flex items-center gap-0.5 text-white/80 shrink-0">
                             <Users className="w-3 h-3" />
@@ -640,6 +684,9 @@ function BookingDetailDialog({ booking, open, onClose }: { booking: Booking; ope
 
         <div className="space-y-3 py-2">
           <Row label="Phòng" value={booking.room.name} />
+          {booking.room.roomType?.name && (
+            <Row label="Loại phòng" value={booking.room.roomType.name} />
+          )}
           <Row label="Khách" value={booking.customerName} bold />
           {booking.customerPhone && <Row label="SĐT" value={booking.customerPhone} />}
           <Row label="Giờ đến" value={timeStr} bold />
@@ -647,6 +694,26 @@ function BookingDetailDialog({ booking, open, onClose }: { booking: Booking; ope
           {booking.depositAmount > 0 && (
             <Row label="Đặt cọc" value={formatCurrency(booking.depositAmount, true)} className="text-emerald-600" />
           )}
+          {(booking.isOnline || /\[Đặt online\]/i.test(booking.notes ?? '')) && (
+            <div className="flex justify-between text-sm items-center">
+              <span className="text-muted-foreground">Nguồn</span>
+              <Badge className="bg-amber-400 text-amber-950 hover:bg-amber-400">Đặt online</Badge>
+            </div>
+          )}
+          {booking.campaignName && <Row label="Chiến dịch" value={booking.campaignName} />}
+          {booking.spinCode && <Row label="Mã quay" value={booking.spinCode} />}
+          <div className="flex justify-between text-sm items-center gap-3">
+            <span className="text-muted-foreground shrink-0">Combo / quà</span>
+            <span className="font-medium text-right">
+              {booking.comboLabel
+                ? booking.comboLabel
+                : booking.spinStatus === 'UNUSED'
+                  ? 'Chưa quay thưởng'
+                  : booking.spinStatus === 'EXPIRED'
+                    ? 'Mã quay hết hạn'
+                    : '—'}
+            </span>
+          </div>
           {booking.notes && (
             <div className="text-sm">
               <span className="text-muted-foreground">Ghi chú: </span>{booking.notes}

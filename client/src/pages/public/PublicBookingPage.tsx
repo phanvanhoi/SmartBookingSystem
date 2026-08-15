@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Sparkles,
   Clock3,
+  Users,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
@@ -16,6 +17,7 @@ import {
   publicService,
   type NoRoomAvailableDetails,
   type PublicBookingResult,
+  type PublicPriceQuote,
 } from '@/services/publicService'
 import { getErrorCode, getErrorDetails, getErrorMessage } from '@/utils/error'
 import { cn } from '@/utils/cn'
@@ -82,6 +84,97 @@ function nearestAvailableTimes(
     .slice(0, limit)
 }
 
+function formatVnd(amount: number) {
+  return `${Math.round(amount).toLocaleString('vi-VN')}đ`
+}
+
+function roundVnd(amount: number) {
+  return Math.round(amount / 1000) * 1000
+}
+
+function PriceQuoteCard({
+  quote,
+  guestCount,
+}: {
+  quote: PublicPriceQuote
+  guestCount?: number
+}) {
+  const billedHours = quote.durationHours > 0 ? quote.durationHours : 1
+  const hourly =
+    quote.pricePerHour != null && quote.pricePerHour > 0
+      ? quote.pricePerHour
+      : quote.estimatedTotal > 0
+        ? quote.estimatedTotal / billedHours
+        : 0
+  const rateVaries = quote.rateVaries || (quote.pricePerHour == null && quote.segments.length > 1)
+
+  const perHead =
+    guestCount && guestCount > 0 && hourly > 0
+      ? roundVnd(hourly / guestCount)
+      : null
+  const perHeadLow =
+    quote.capacityMax > 0 && hourly > 0 ? roundVnd(hourly / quote.capacityMax) : null
+  const perHeadHigh =
+    quote.capacityMin > 0 && hourly > 0 ? roundVnd(hourly / quote.capacityMin) : null
+
+  const spinLine = quote.spinHint?.trim() || 'Đặt xong nhận mã quay thưởng ngay'
+  const hourlyLabel = hourly > 0 ? formatVnd(hourly) : '—'
+  const hourlySuffix = rateVaries ? '/giờ (tb)' : '/giờ'
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-[rgba(255,229,102,0.4)] bg-[rgba(10,16,36,0.9)] px-4 py-4 space-y-3">
+      <div
+        className="pointer-events-none absolute -right-10 -top-12 h-28 w-28 rounded-full opacity-50"
+        style={{ background: 'radial-gradient(circle, rgba(52,211,153,0.22), transparent 70%)' }}
+        aria-hidden
+      />
+      <div className="min-w-0 space-y-2">
+        <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] font-semibold text-emerald-300">
+          <Users className="w-3.5 h-3.5" />
+          Chia đều mỗi người
+        </p>
+        {perHead != null ? (
+          <>
+            <p className="display text-[2.15rem] leading-none text-emerald-300">
+              ≈ {formatVnd(perHead)}
+              <span className="text-base font-semibold text-[var(--promo-muted)]">/người</span>
+            </p>
+            <p className="text-xs text-[var(--promo-muted)]">
+              Chia {guestCount} khách · {quote.roomTypeName}{' '}
+              <span className="text-[var(--promo-ink)]/70">{hourlyLabel}{hourlySuffix}</span>
+            </p>
+          </>
+        ) : perHeadLow != null && perHeadHigh != null ? (
+          <>
+            <p className="display text-[2.15rem] leading-none text-emerald-300">
+              từ {formatVnd(perHeadLow)}
+              <span className="text-base font-semibold text-[var(--promo-muted)]">/người</span>
+            </p>
+            <p className="text-xs text-[var(--promo-muted)]">
+              Khi đủ {quote.capacityMax} khách · tối đa ≈ {formatVnd(perHeadHigh)}/người khi {quote.capacityMin} khách
+            </p>
+            <p className="text-[11px] text-[var(--promo-muted)]/80">
+              {quote.roomTypeName} · {hourlyLabel}{hourlySuffix}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-[var(--promo-muted)]">
+            {quote.roomTypeName} · {hourlyLabel}{hourlySuffix}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-start gap-2 rounded-xl border border-[rgba(255,229,102,0.28)] bg-[rgba(255,229,102,0.08)] px-3 py-2.5">
+        <Sparkles className="w-4 h-4 text-[var(--promo-gold)] shrink-0 mt-0.5" />
+        <p className="text-xs text-[var(--promo-ink)] leading-relaxed font-medium">{spinLine}</p>
+      </div>
+      <p className="text-[11px] text-[var(--promo-muted)]/90 leading-relaxed">
+        Chưa gồm đồ uống/đồ ăn. Thanh toán theo giờ hát thực tế.
+      </p>
+    </div>
+  )
+}
+
 const DURATIONS = [1, 1.5, 2, 2.5, 3, 4]
 
 export default function PublicBookingPage() {
@@ -138,6 +231,23 @@ export default function PublicBookingPage() {
   }, [availability, bookingTime])
 
   const selectedTimeAvailable = !bookingTime || timeOptions.includes(bookingTime)
+
+  const quoteQuery = useQuery({
+    queryKey: ['public', 'price-quote', bookingDate, bookingTime, durationHours, guestCountNum],
+    queryFn: () =>
+      publicService.getPriceQuote({
+        date: bookingDate,
+        bookingTime,
+        durationHours,
+        guestCount: guestCountNum,
+      }),
+    enabled:
+      /^\d{4}-\d{2}-\d{2}$/.test(bookingDate) &&
+      /^\d{2}:\d{2}$/.test(bookingTime) &&
+      guestCountNum > 0 &&
+      timeOptions.includes(bookingTime),
+  })
+
   const openHm = availability?.operatingHours?.open ?? '12:00'
   const nearbyFreeTimes = useMemo(() => {
     if (!bookingTime || selectedTimeAvailable || timeOptions.length === 0) return []
@@ -319,6 +429,9 @@ export default function PublicBookingPage() {
               {result.booking.durationHours}h
               {result.booking.guestCount ? ` · ${result.booking.guestCount} khách` : ''}
             </p>
+            {result.priceQuote ? (
+              <PriceQuoteCard quote={result.priceQuote} guestCount={result.booking.guestCount} />
+            ) : null}
           </div>
 
           <div className="rounded-2xl border-2 border-[var(--promo-gold)] bg-[rgba(255,229,102,0.1)] px-4 py-6 space-y-3 shadow-[0_0_40px_rgba(255,229,102,0.2),0_0_60px_rgba(196,77,255,0.12)]">
@@ -523,6 +636,19 @@ export default function PublicBookingPage() {
                 {availabilityQuery.isFetching ? ' · đang cập nhật…' : ''}
               </p>
             )}
+            {quoteQuery.isFetching && guestCountNum > 0 && bookingTime && selectedTimeAvailable ? (
+              <p className="text-xs text-[var(--promo-muted)] inline-flex items-center gap-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tính giá giờ hát…
+              </p>
+            ) : null}
+            {quoteQuery.data && !quoteQuery.isError ? (
+              <PriceQuoteCard quote={quoteQuery.data} guestCount={guestCountNum || undefined} />
+            ) : null}
+            {quoteQuery.isError && selectedTimeAvailable ? (
+              <p className="text-xs text-rose-300">
+                {getErrorMessage(quoteQuery.error, 'Chưa tính được giá cho số khách / khung giờ này.')}
+              </p>
+            ) : null}
             {availabilityQuery.isError && (
               <p className="text-sm text-rose-300">Không tải được lịch trống. Thử lại sau.</p>
             )}

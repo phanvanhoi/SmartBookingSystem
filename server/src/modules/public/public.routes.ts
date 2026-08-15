@@ -5,12 +5,14 @@ import { authorize } from '../../middleware/role.middleware'
 import { validate } from '../../middleware/validate.middleware'
 import {
   publicBookingSchema,
+  publicPriceQuoteQuerySchema,
   publicSpinSchema,
   updateSpinPrizeSchema,
 } from './public.validation'
 import {
   listRoomsHandler,
   getAvailabilityHandler,
+  getPriceQuoteHandler,
   createBookingHandler,
   getCampaignHandler,
   getTokenHandler,
@@ -70,6 +72,12 @@ const spinLimiter = rateLimit({
 router.get('/rooms', publicLimiter, listRoomsHandler)
 router.get('/store-info', publicLimiter, getStoreInfoHandler)
 router.get('/availability', publicLimiter, getAvailabilityHandler)
+router.get(
+  '/price-quote',
+  publicLimiter,
+  validate(publicPriceQuoteQuerySchema, 'query'),
+  getPriceQuoteHandler,
+)
 router.post(
   '/bookings',
   publicLimiter,

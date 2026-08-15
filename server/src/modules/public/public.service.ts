@@ -1,7 +1,13 @@
 import { randomBytes } from 'crypto'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
+import logger from '../../utils/logger'
 import type { PublicBookingInput, UpdateSpinPrizeInput } from './public.validation'
+import {
+  calculateRoomPrice,
+  getBillRoundAmount,
+  roundBillUp,
+} from '../rooms/pricing.service'
 
 const HOUR_MS = 3_600_000
 const TOKEN_TTL_DAYS = 7
@@ -508,6 +514,148 @@ function computeNextFreeAndAlternatives(args: {
   }
 }
 
+export type PublicPriceQuote = {
+  roomTypeName: string
+  capacityMin: number
+  capacityMax: number
+  durationHours: number
+  bookingTime: string
+  estimatedTotal: number
+  pricePerHour: number | null
+  rateVaries: boolean
+  spinHint: string
+  segments: Array<{ slotName: string; minutes: number; pricePerHour: number; amount: number }>
+  disclaimer: string
+}
+
+const GENERIC_SPIN_HINT = 'Đặt xong nhận mã quay thưởng ngay'
+
+async function spinHintForRoomType(roomTypeId: number): Promise<string> {
+  try {
+    const now = new Date()
+    const campaign = await prisma.spinCampaign.findFirst({
+      where: {
+        isActive: true,
+        roomTypeId,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+      select: {
+        prizes: {
+          where: { isActive: true },
+          select: { label: true, weight: true, stockLimit: true, wonCount: true },
+        },
+      },
+    })
+    const eligible = (campaign?.prizes ?? []).filter(
+      (p) => p.weight > 0 && (p.stockLimit === null || p.wonCount < p.stockLimit),
+    )
+    const totalWeight = eligible.reduce((sum, p) => sum + p.weight, 0)
+    const sure = eligible.find((p) => totalWeight > 0 && p.weight === totalWeight)
+    if (sure?.label) return `Đặt xong nhận mã quay · 100% ${sure.label}`
+  } catch (err) {
+    logger.warn('spin hint lookup failed', { err, roomTypeId })
+  }
+  return GENERIC_SPIN_HINT
+}
+
+async function buildPriceQuote(args: {
+  date: string
+  bookingTime: string
+  durationHours: number
+  roomType: { id: number; name: string; capacityMin: number; capacityMax: number }
+}): Promise<PublicPriceQuote> {
+  const hours = await getPublicOperatingHours()
+  const start = combineBookingDateTime(args.date, args.bookingTime, hours.open)
+  const end = effectiveEnd(start, args.durationHours)
+  const breakdown = await calculateRoomPrice(start, end, args.roomType.id)
+  const roundStep = await getBillRoundAmount()
+  const estimatedTotal = roundBillUp(breakdown.total, roundStep)
+  const rates = [...new Set(breakdown.segments.map((s) => s.pricePerHour))]
+  const spinHint = await spinHintForRoomType(args.roomType.id)
+  return {
+    roomTypeName: args.roomType.name,
+    capacityMin: args.roomType.capacityMin,
+    capacityMax: args.roomType.capacityMax,
+    durationHours: args.durationHours,
+    bookingTime: args.bookingTime,
+    estimatedTotal,
+    pricePerHour: rates.length === 1 ? (rates[0] ?? null) : null,
+    rateVaries: rates.length > 1,
+    spinHint,
+    segments: breakdown.segments.map((s) => ({
+      slotName: s.slotName,
+      minutes: s.minutes,
+      pricePerHour: s.pricePerHour,
+      amount: s.amount,
+    })),
+    disclaimer:
+      'Giá giờ hát dự kiến theo thời lượng đặt. Chưa gồm đồ uống/đồ ăn. Thanh toán theo giờ hát thực tế khi checkout.',
+  }
+}
+
+export async function getPublicPriceQuote(args: {
+  date: string
+  bookingTime: string
+  durationHours: number
+  guestCount: number
+  roomId?: number
+}): Promise<PublicPriceQuote> {
+  const durationHours = Math.min(
+    12,
+    Number.isFinite(args.durationHours) && args.durationHours > 0 ? args.durationHours : 2,
+  )
+
+  let roomType: { id: number; name: string; capacityMin: number; capacityMax: number } | null =
+    null
+
+  if (args.roomId) {
+    const room = await prisma.room.findFirst({
+      where: { id: args.roomId, isActive: true, status: { not: 'MAINTENANCE' } },
+      select: {
+        roomType: { select: { id: true, name: true, capacityMin: true, capacityMax: true } },
+      },
+    })
+    roomType = room?.roomType ?? null
+    if (
+      roomType &&
+      (args.guestCount < roomType.capacityMin || args.guestCount > roomType.capacityMax)
+    ) {
+      throw new AppError(
+        400,
+        'INVALID_GUEST_COUNT',
+        `${roomType.name} nhận ${roomType.capacityMin}–${roomType.capacityMax} người`,
+      )
+    }
+  } else {
+    roomType = await prisma.roomType.findFirst({
+      where: {
+        capacityMin: { lte: args.guestCount },
+        capacityMax: { gte: args.guestCount },
+      },
+      orderBy: { capacityMax: 'asc' },
+      select: { id: true, name: true, capacityMin: true, capacityMax: true },
+    })
+  }
+
+  if (!roomType) {
+    throw new AppError(
+      400,
+      'INVALID_GUEST_COUNT',
+      'Không có loại phòng phù hợp với số khách này',
+    )
+  }
+
+  return buildPriceQuote({
+    date: args.date,
+    bookingTime: args.bookingTime,
+    durationHours,
+    roomType,
+  })
+}
+
 async function assertRoomFreeForSlot(args: {
   roomId: number
   bookingDate: Date
@@ -820,6 +968,22 @@ export async function createPublicBooking(data: PublicBookingInput) {
       status: result.token.status,
     },
     campaignName: campaign.name,
+    priceQuote: await (async () => {
+      try {
+        return await buildPriceQuote({
+          date: data.bookingDate,
+          bookingTime: data.bookingTime,
+          durationHours,
+          roomType: room.roomType,
+        })
+      } catch (err) {
+        logger.warn('public booking created but price quote failed', {
+          err,
+          bookingId: result.booking.id,
+        })
+        return undefined
+      }
+    })(),
   }
 }
 

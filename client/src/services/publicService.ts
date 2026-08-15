@@ -64,6 +64,20 @@ export type PublicBookingPayload = {
   notes?: string
 }
 
+export type PublicPriceQuote = {
+  roomTypeName: string
+  capacityMin: number
+  capacityMax: number
+  durationHours: number
+  bookingTime: string
+  estimatedTotal: number
+  pricePerHour: number | null
+  rateVaries?: boolean
+  spinHint?: string
+  segments: Array<{ slotName: string; minutes: number; pricePerHour: number; amount: number }>
+  disclaimer: string
+}
+
 export type PublicBookingResult = {
   booking: {
     id: number
@@ -84,6 +98,7 @@ export type PublicBookingResult = {
     status: string
   }
   campaignName: string
+  priceQuote?: PublicPriceQuote
 }
 
 export type NoRoomAvailableDetails = {
@@ -210,6 +225,20 @@ export const publicService = {
   }) {
     const res = await publicApi.get<{ success: boolean; data: PublicAvailability }>(
       '/availability',
+      { params },
+    )
+    return res.data.data
+  },
+
+  async getPriceQuote(params: {
+    date: string
+    bookingTime: string
+    durationHours: number
+    guestCount: number
+    roomId?: number
+  }) {
+    const res = await publicApi.get<{ success: boolean; data: PublicPriceQuote }>(
+      '/price-quote',
       { params },
     )
     return res.data.data

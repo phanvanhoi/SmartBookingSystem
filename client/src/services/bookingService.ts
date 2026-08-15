@@ -3,7 +3,11 @@ import api from './api'
 export interface Booking {
   id: number
   roomId: number
-  room: { id: number; name: string }
+  room: {
+    id: number
+    name: string
+    roomType?: { id: number; name: string; capacityMin: number; capacityMax: number }
+  }
   customerName: string
   customerPhone?: string
   bookingDate: string
@@ -14,6 +18,13 @@ export interface Booking {
   notes?: string
   createdBy?: { id: number; fullName: string }
   createdAt: string
+  /** Public /dat-lich booking (notes or spin token). */
+  isOnline?: boolean
+  /** Won prize label, or null if not spun yet. */
+  comboLabel?: string | null
+  campaignName?: string | null
+  spinStatus?: 'UNUSED' | 'USED' | 'EXPIRED' | null
+  spinCode?: string | null
 }
 
 export interface CreateBookingPayload {
