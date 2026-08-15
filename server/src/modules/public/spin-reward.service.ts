@@ -5,15 +5,15 @@ import logger from '../../utils/logger'
 
 type Tx = Prisma.TransactionClient
 
-const PROMO_SKUS = {
-  coca: 'COCA COLA',
-  nuoc_suoi: 'LAVIE',
-  /** Combo “khô gà/bò” và khô gà → trừ kho thật KHO GA */
-  kho_ga: 'KHO GA',
-  kho_bo: 'KHO BO',
-} as const
+/** SKU kho thật — production dùng chữ có dấu (KHÔ GÀ), không phải KHO GA. */
+const PROMO_SKUS: Record<PromoKey, readonly string[]> = {
+  coca: ['COCA COLA'],
+  nuoc_suoi: ['LAVIE'],
+  kho_ga: ['KHÔ GÀ', 'KHO GA'],
+  kho_bo: ['KHÔ BÒ', 'KHO BO'],
+}
 
-type PromoKey = keyof typeof PROMO_SKUS
+type PromoKey = 'coca' | 'nuoc_suoi' | 'kho_ga' | 'kho_bo'
 
 type ParsedLine = { key: PromoKey; qty: number }
 
@@ -66,9 +66,9 @@ export function parseFreeItemPrize(prizeValue: string): ParsedLine[] {
 
 async function resolvePromoMenuItems(tx: Tx = prisma, keys?: PromoKey[]) {
   const needed = keys?.length ? keys : (Object.keys(PROMO_SKUS) as PromoKey[])
-  const skus = needed.map((k) => PROMO_SKUS[k])
+  const skus = needed.flatMap((k) => [...PROMO_SKUS[k]])
   const products = await tx.product.findMany({
-    where: { sku: { in: [...skus] }, isActive: true },
+    where: { sku: { in: skus }, isActive: true },
     include: {
       menuItems: {
         where: { isAvailable: true },
@@ -82,14 +82,14 @@ async function resolvePromoMenuItems(tx: Tx = prisma, keys?: PromoKey[]) {
   const result = new Map<PromoKey, { menuItemId: number; productId: number; name: string }>()
 
   for (const key of needed) {
-    const sku = PROMO_SKUS[key]
-    const product = bySku.get(sku)
+    const aliases = PROMO_SKUS[key]
+    const product = aliases.map((sku) => bySku.get(sku)).find(Boolean)
     const menuItem = product?.menuItems[0]
     if (!product || !menuItem) {
       throw new AppError(
         500,
         'PROMO_MENU_MISSING',
-        `Thiếu sản phẩm/menu kho thật cho quà vòng quay (${sku}). Kiểm tra SKU trong kho.`,
+        `Thiếu sản phẩm/menu kho thật cho quà vòng quay (${aliases.join(' / ')}). Kiểm tra SKU trong kho.`,
       )
     }
     result.set(key, {

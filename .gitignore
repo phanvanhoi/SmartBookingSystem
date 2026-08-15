@@ -22,6 +22,11 @@ server/prisma/*.db
 server/prisma/*.db-journal
 server/prisma/*.db-shm
 server/prisma/*.db-wal
+# Production dumps copied for local clone
+musicbox-prod.db
+backups/*.db
+*.db-wal
+*.db-shm
 
 # Runtime logs
 server/logs/

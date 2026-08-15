@@ -269,7 +269,7 @@ async function main() {
       label: 'Giảm ngay 25% tiền giờ hát',
       prizeType: 'PERCENT_OFF' as const,
       prizeValue: '25',
-      weight: 20,
+      weight: 0,
       color: '#12d6a0',
       sortOrder: 1,
     },
@@ -277,7 +277,7 @@ async function main() {
       label: 'SIÊU HOT · Giảm 50% tiền giờ hát',
       prizeType: 'PERCENT_OFF' as const,
       prizeValue: '50',
-      weight: 50,
+      weight: 0,
       color: '#ff3d7a',
       sortOrder: 2,
     },
@@ -285,7 +285,7 @@ async function main() {
       label: 'Combo miễn phí: 1 khô + 1 nước suối',
       prizeType: 'FREE_ITEM' as const,
       prizeValue: '1 khô gà/bò + 1 nước suối',
-      weight: 10,
+      weight: 0,
       color: '#ffc53d',
       sortOrder: 3,
     },
@@ -293,7 +293,7 @@ async function main() {
       label: 'Combo miễn phí: 2 khô gà/bò',
       prizeType: 'FREE_ITEM' as const,
       prizeValue: '2 khô gà/bò',
-      weight: 10,
+      weight: 100,
       color: '#ff8a3d',
       sortOrder: 4,
     },
@@ -301,7 +301,7 @@ async function main() {
       label: 'Combo miễn phí: Coca + nước suối',
       prizeType: 'FREE_ITEM' as const,
       prizeValue: '1 coca + 1 nước suối',
-      weight: 10,
+      weight: 0,
       color: '#3d9eff',
       sortOrder: 5,
     },
@@ -387,18 +387,23 @@ async function main() {
 
   // ── Quà FREE_ITEM trừ kho bán thật (COCA COLA / LAVIE / KHO GA|BO) ──
   console.log('Linking spin FREE_ITEM to real stock SKUs...')
-  const requiredSpinSkus = ['COCA COLA', 'LAVIE', 'KHO GA', 'KHO BO']
-  for (const sku of requiredSpinSkus) {
+  const requiredSpinSkus = [
+    ['COCA COLA'],
+    ['LAVIE'],
+    ['KHÔ GÀ', 'KHO GA'],
+    ['KHÔ BÒ', 'KHO BO'],
+  ]
+  for (const skus of requiredSpinSkus) {
     const product = await prisma.product.findFirst({
-      where: { sku, isActive: true },
+      where: { sku: { in: skus }, isActive: true },
       include: { menuItems: { where: { isAvailable: true }, take: 1 } },
     })
     if (!product) {
-      console.warn(`  ⚠ Missing real product for spin reward: ${sku}`)
+      console.warn(`  ⚠ Missing real product for spin reward: ${skus.join(' / ')}`)
       continue
     }
     if (product.menuItems.length === 0) {
-      console.warn(`  ⚠ No available menu item linked to ${sku}`)
+      console.warn(`  ⚠ No available menu item linked to ${product.sku}`)
     }
   }
 

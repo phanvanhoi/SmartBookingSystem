@@ -49,11 +49,11 @@ const bcrypt = require('bcryptjs');
 const p = new PrismaClient();
 
 const smallPrizes = [
-  { label: 'Giảm ngay 25% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 30, color: '#12d6a0', sortOrder: 1 },
-  { label: 'SIÊU HOT · Giảm 50% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 10, color: '#ff3d7a', sortOrder: 2 },
-  { label: 'Combo miễn phí: 1 khô + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 20, color: '#ffc53d', sortOrder: 3 },
-  { label: 'Combo miễn phí: 2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 20, color: '#ff8a3d', sortOrder: 4 },
-  { label: 'Combo miễn phí: Coca + nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 20, color: '#3d9eff', sortOrder: 5 },
+  { label: 'Giảm ngay 25% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '25', weight: 0, color: '#12d6a0', sortOrder: 1 },
+  { label: 'SIÊU HOT · Giảm 50% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '50', weight: 0, color: '#ff3d7a', sortOrder: 2 },
+  { label: 'Combo miễn phí: 1 khô + 1 nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 khô gà/bò + 1 nước suối', weight: 0, color: '#ffc53d', sortOrder: 3 },
+  { label: 'Combo miễn phí: 2 khô gà/bò', prizeType: 'FREE_ITEM', prizeValue: '2 khô gà/bò', weight: 100, color: '#ff8a3d', sortOrder: 4 },
+  { label: 'Combo miễn phí: Coca + nước suối', prizeType: 'FREE_ITEM', prizeValue: '1 coca + 1 nước suối', weight: 0, color: '#3d9eff', sortOrder: 5 },
 ];
 const largePrizes = [
   { label: 'Giảm ngay 10% tiền giờ hát', prizeType: 'PERCENT_OFF', prizeValue: '10', weight: 30, color: '#12d6a0', sortOrder: 1 },
@@ -93,23 +93,23 @@ async function ensureSpinCampaigns() {
 async function ensurePromoProducts() {
   // FREE_ITEM trừ kho bán thật — chỉ verify SKU + menu; tắt PROMO-* cũ.
   const required = [
-    { sku: 'COCA COLA', label: 'Coca' },
-    { sku: 'LAVIE', label: 'Nước suối' },
-    { sku: 'KHO GA', label: 'Khô gà' },
-    { sku: 'KHO BO', label: 'Khô bò' },
+    { skus: ['COCA COLA'], label: 'Coca' },
+    { skus: ['LAVIE'], label: 'Nước suối' },
+    { skus: ['KHÔ GÀ', 'KHO GA'], label: 'Khô gà' },
+    { skus: ['KHÔ BÒ', 'KHO BO'], label: 'Khô bò' },
   ];
 
   for (const item of required) {
     const product = await p.product.findFirst({
-      where: { sku: item.sku, isActive: true },
+      where: { sku: { in: item.skus }, isActive: true },
       include: { menuItems: { where: { isAvailable: true }, take: 1 } },
     });
     if (!product) {
-      console.warn('  ⚠ Missing real product SKU for spin FREE_ITEM:', item.sku);
+      console.warn('  ⚠ Missing real product SKU for spin FREE_ITEM:', item.skus.join(' / '));
       continue;
     }
     if (product.menuItems.length === 0) {
-      console.warn('  ⚠ Product has no available menu item:', item.sku, '(' + item.label + ')');
+      console.warn('  ⚠ Product has no available menu item:', product.sku, '(' + item.label + ')');
     }
   }
 
