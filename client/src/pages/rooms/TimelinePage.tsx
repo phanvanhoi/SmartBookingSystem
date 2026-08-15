@@ -17,10 +17,12 @@ const HOUR_START = 12
 const HOUR_END = 29 // 05:00 next day
 const TOTAL_HOURS = HOUR_END - HOUR_START
 const PX_PER_HOUR = 150
-const ROW_HEIGHT = 36
 const HEADER_HEIGHT = 32
-const GROUP_HEADER_HEIGHT = 26
 const ROOM_LABEL_WIDTH = 180
+const ROW_HEIGHT_MAX = 56
+const ROW_HEIGHT_MIN = 28
+const GROUP_HEADER_MAX = 26
+const GROUP_HEADER_MIN = 20
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function formatDateISO(d: Date): string {
@@ -86,6 +88,8 @@ export default function TimelinePage() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const justDraggedRef = useRef(false)
+  const [rowHeight, setRowHeight] = useState(ROW_HEIGHT_MAX)
+  const [groupHeaderHeight, setGroupHeaderHeight] = useState(GROUP_HEADER_MAX)
 
   const updateBookingMutation = useUpdateBooking()
 
@@ -107,7 +111,7 @@ export default function TimelinePage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Scroll to now on mount
+  // Scroll to now on mount (horizontal)
   useEffect(() => {
     if (scrollRef.current) {
       const scrollTo = (getNowHour() - HOUR_START - 1.5) * PX_PER_HOUR
@@ -129,6 +133,48 @@ export default function TimelinePage() {
     large.sort((a, b) => a.sortOrder - b.sortOrder)
     return { smallRooms: small, largeRooms: large }
   }, [rooms])
+
+  // Fit all room rows into viewport — no vertical scrollbar.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const measure = () => {
+      const available = el.clientHeight
+      if (available <= 0) return
+
+      const smallOpen = !collapsedGroups['small']
+      const largeOpen = !collapsedGroups['large']
+      const roomCount =
+        (smallOpen ? smallRooms.length : 0) + (largeOpen ? largeRooms.length : 0)
+      // Both group headers are always rendered in the grid
+      const groupCount = 2
+
+      if (roomCount <= 0) {
+        setRowHeight(ROW_HEIGHT_MAX)
+        setGroupHeaderHeight(GROUP_HEADER_MAX)
+        return
+      }
+
+      let groupH = GROUP_HEADER_MAX
+      let body = available - HEADER_HEIGHT - groupCount * groupH
+      let rowH = Math.floor(body / roomCount)
+
+      if (rowH < ROW_HEIGHT_MIN) {
+        groupH = GROUP_HEADER_MIN
+        body = available - HEADER_HEIGHT - groupCount * groupH
+        rowH = Math.floor(body / roomCount)
+      }
+
+      setGroupHeaderHeight(groupH)
+      setRowHeight(Math.max(ROW_HEIGHT_MIN, Math.min(ROW_HEIGHT_MAX, rowH)))
+    }
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [collapsedGroups, smallRooms.length, largeRooms.length])
 
   // Build bars
   const bars = useMemo(() => {
@@ -250,7 +296,7 @@ export default function TimelinePage() {
       // Vertical: determine target room based on Y offset
       let targetRoomId = dragState.origRoomId
       if (dragState.mode === 'move') {
-        const roomSteps = Math.round(deltaY / ROW_HEIGHT)
+        const roomSteps = Math.round(deltaY / rowHeight)
         const origIndex = allRoomRows.findIndex(r => r.id === dragState.origRoomId)
         if (origIndex >= 0) {
           const newIndex = Math.max(0, Math.min(allRoomRows.length - 1, origIndex + roomSteps))
@@ -315,7 +361,7 @@ export default function TimelinePage() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [dragState, dragPreview, allRoomRows, updateBookingMutation])
+  }, [dragState, dragPreview, allRoomRows, updateBookingMutation, rowHeight, checkOverlap, checkBeforeNow])
 
   // ── Build visible rows ──
   const visibleRows: Array<{ type: 'group'; label: string; key: string; count: number } | { type: 'room'; room: Room }> = []
@@ -334,7 +380,7 @@ export default function TimelinePage() {
   const nowLeft = (nowHour - HOUR_START) * PX_PER_HOUR
 
   return (
-    <div className="flex flex-col h-full select-none">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden select-none">
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0 bg-card">
         <div className="flex items-center gap-6">
@@ -354,10 +400,10 @@ export default function TimelinePage() {
               <span className="w-4 h-3 rounded-sm bg-sky-500" /> Đã nhận
             </span>
             <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="px-1 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-400 text-amber-950">
-                Online
+              <span className="w-4 h-3 rounded-sm bg-emerald-500 relative overflow-hidden">
+                <span className="absolute inset-y-0 left-0 w-1 bg-amber-300" />
               </span>
-              Đặt online
+              Đặt online (viền vàng)
             </span>
             {upcomingCount > 0 && (
               <span className="text-emerald-700 font-semibold tabular-nums">
@@ -398,72 +444,29 @@ export default function TimelinePage() {
         </div>
       </div>
 
-      {/* ── Timeline body ── */}
-      <div className="flex flex-1 min-h-0">
-        {/* ── Room labels (fixed left) ── */}
-        <div className="shrink-0 border-r border-border bg-card overflow-hidden" style={{ width: ROOM_LABEL_WIDTH }}>
-          {/* Corner: "PHÒNG/BÀN" */}
-          <div
-            className="flex items-center px-4 border-b border-border font-semibold text-xs text-muted-foreground uppercase tracking-wider"
-            style={{ height: HEADER_HEIGHT }}
-          >
-            Phòng / Bàn
-          </div>
-
-          {/* Room labels */}
-          {visibleRows.map((row, i) => {
-            if (row.type === 'group') {
-              return (
-                <div
-                  key={row.key}
-                  className="flex items-center justify-between px-4 bg-muted/40 border-b border-border cursor-pointer hover:bg-muted/60 transition-colors"
-                  style={{ height: GROUP_HEADER_HEIGHT }}
-                  onClick={() => toggleGroup(row.key)}
-                >
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    {row.label}
-                  </span>
-                  <ChevronDown className={cn(
-                    'w-3.5 h-3.5 text-muted-foreground transition-transform',
-                    collapsedGroups[row.key] && '-rotate-90'
-                  )} />
-                </div>
-              )
-            }
-            return (
-              <div
-                key={row.room.id}
-                className="flex items-center px-4 border-b border-border/50 hover:bg-muted/20 transition-colors"
-                style={{ height: ROW_HEIGHT }}
-              >
-                <span className="text-sm font-medium text-foreground">{row.room.name}</span>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* ── Scrollable timeline ── */}
-        <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="relative" style={{ width: TOTAL_HOURS * PX_PER_HOUR }}>
-
-            {/* Hour header */}
+      {/* ── Timeline body: one scroll for X+Y (labels stay aligned; scrollbar won't clip rows) ── */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden relative bg-card overscroll-contain">
+        <div style={{ width: ROOM_LABEL_WIDTH + TOTAL_HOURS * PX_PER_HOUR, minHeight: '100%' }}>
+          {/* Sticky header row */}
+          <div className="sticky top-0 z-30 flex bg-card border-b border-border">
             <div
-              className="sticky top-0 z-10 flex border-b border-border bg-card"
-              style={{ height: HEADER_HEIGHT }}
+              className="sticky left-0 z-40 flex items-center px-4 border-r border-border font-semibold text-xs text-muted-foreground uppercase tracking-wider bg-card shrink-0"
+              style={{ width: ROOM_LABEL_WIDTH, height: HEADER_HEIGHT }}
             >
+              Phòng / Bàn
+            </div>
+            <div className="flex shrink-0" style={{ height: HEADER_HEIGHT }}>
               {Array.from({ length: TOTAL_HOURS }).map((_, i) => {
                 const h = HOUR_START + i
                 return (
                   <div
                     key={h}
-                    className="flex-shrink-0 flex items-end"
+                    className="flex-shrink-0 flex items-end bg-card"
                     style={{ width: PX_PER_HOUR }}
                   >
-                    {/* Full hour cell */}
                     <div className="w-1/2 border-r border-border/50 h-full flex items-end pb-1 px-1.5">
                       <span className="text-xs font-bold text-foreground/70">{hourLabel(h)}</span>
                     </div>
-                    {/* Half hour cell */}
                     <div className="w-1/2 border-r border-dashed border-border/30 h-full flex items-end pb-1 px-1.5">
                       <span className="text-[10px] text-muted-foreground/40">30</span>
                     </div>
@@ -471,34 +474,63 @@ export default function TimelinePage() {
                 )
               })}
             </div>
+          </div>
 
-            {/* Rows */}
-            {visibleRows.map((row) => {
-              if (row.type === 'group') {
-                return (
-                  <div
-                    key={`grid-${row.key}`}
-                    className="bg-muted/20 border-b border-border"
-                    style={{ height: GROUP_HEADER_HEIGHT }}
-                  />
-                )
-              }
-
-              // Show bars for this room + any bar being dragged TO this room
-              const roomBars = bars.filter(b => {
-                if (dragState?.bar.id === b.id && dragPreview) {
-                  return dragPreview.roomId === row.room.id
-                }
-                return b.roomId === row.room.id
-              })
-
+          {/* Body rows */}
+          {visibleRows.map((row) => {
+            if (row.type === 'group') {
               return (
+                <div key={row.key} className="flex" style={{ height: groupHeaderHeight }}>
+                  <div
+                    className="sticky left-0 z-20 flex items-center justify-between px-4 bg-muted border-b border-r border-border cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
+                    style={{ width: ROOM_LABEL_WIDTH, height: groupHeaderHeight }}
+                    onClick={() => toggleGroup(row.key)}
+                  >
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {row.label}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'w-3.5 h-3.5 text-muted-foreground transition-transform',
+                        collapsedGroups[row.key] && '-rotate-90',
+                      )}
+                    />
+                  </div>
+                  <div
+                    className="bg-muted/30 border-b border-border shrink-0"
+                    style={{ width: TOTAL_HOURS * PX_PER_HOUR }}
+                  />
+                </div>
+              )
+            }
+
+            const roomBars = bars.filter((b) => {
+              if (dragState?.bar.id === b.id && dragPreview) {
+                return dragPreview.roomId === row.room.id
+              }
+              return b.roomId === row.room.id
+            })
+
+            return (
+              <div key={row.room.id} className="flex" style={{ height: rowHeight }}>
                 <div
-                  key={`grid-${row.room.id}`}
-                  className="relative border-b border-border/50 cursor-pointer flex"
-                  style={{ height: ROW_HEIGHT }}
+                  className="sticky left-0 z-10 flex items-center px-4 border-b border-r border-border/50 bg-card hover:bg-muted/20 transition-colors shrink-0"
+                  style={{ width: ROOM_LABEL_WIDTH, height: rowHeight }}
+                >
+                  <span
+                    className={cn(
+                      'font-medium text-foreground truncate',
+                      rowHeight < 36 ? 'text-xs' : 'text-sm',
+                    )}
+                  >
+                    {row.room.name}
+                  </span>
+                </div>
+
+                <div
+                  className="relative border-b border-border/50 cursor-pointer flex shrink-0"
+                  style={{ width: TOTAL_HOURS * PX_PER_HOUR, height: rowHeight }}
                   onClick={(e) => {
-                    // Don't open create dialog if we just finished dragging
                     if (justDraggedRef.current) return
                     const rect = e.currentTarget.getBoundingClientRect()
                     const x = e.clientX - rect.left
@@ -507,7 +539,6 @@ export default function TimelinePage() {
                     setCreateDialog({ roomId: row.room.id, hour })
                   }}
                 >
-                  {/* Half-hour cells background */}
                   {Array.from({ length: TOTAL_HOURS * 2 }).map((_, ci) => (
                     <div
                       key={ci}
@@ -515,18 +546,18 @@ export default function TimelinePage() {
                         'shrink-0 h-full hover:bg-primary/15 transition-colors',
                         ci % 2 === 0
                           ? 'border-r border-border/50'
-                          : 'border-r border-dashed border-border/30'
+                          : 'border-r border-dashed border-border/30',
                       )}
                       style={{ width: PX_PER_HOUR / 2 }}
                     />
                   ))}
-                  {/* Bars */}
-                  {roomBars.map(bar => {
+
+                  {roomBars.map((bar) => {
                     const isDragging = dragState?.bar.id === bar.id
                     const displayStart = isDragging && dragPreview ? dragPreview.startH : bar.startH
                     const displayEnd = isDragging && dragPreview ? dragPreview.endH : bar.endH
                     const left = (displayStart - HOUR_START) * PX_PER_HOUR
-                    const width = Math.max((displayEnd - displayStart) * PX_PER_HOUR, 40)
+                    const width = Math.max((displayEnd - displayStart) * PX_PER_HOUR, 48)
 
                     const isSession = bar.type === 'session'
                     const timeStr = timelineHourToTimeStr(displayStart)
@@ -537,6 +568,10 @@ export default function TimelinePage() {
                         : bar.isOnline && bar.campaignName
                           ? bar.campaignName
                           : null)
+                    const compact = rowHeight < 40
+                    const showMeta = !compact && width >= 140
+                    const showCombo = !compact && rowHeight >= 48 && !!comboHint && width >= 110
+                    const showNameLine = rowHeight >= 36
 
                     return (
                       <div
@@ -544,104 +579,119 @@ export default function TimelinePage() {
                         title={
                           [
                             bar.label,
+                            `${timeStr}${bar.guestCount ? ` · ${bar.guestCount} khách` : ''}`,
                             bar.isOnline ? 'Đặt online' : null,
-                            comboHint,
-                            bar.guestCount ? `${bar.guestCount} khách` : null,
+                            comboHint ? `Combo: ${comboHint}` : null,
                           ]
                             .filter(Boolean)
-                            .join(' · ')
+                            .join('\n')
                         }
                         className={cn(
-                          'absolute top-1 bottom-1 rounded-md flex items-center gap-1.5 px-2.5 overflow-hidden z-10 group',
+                          'absolute rounded-md z-10 group overflow-hidden',
+                          'flex flex-col justify-center gap-0 px-2 min-w-0',
                           'transition-shadow',
+                          compact ? 'top-0.5 bottom-0.5' : 'top-1 bottom-1',
                           isSession
                             ? 'bg-blue-500/90 cursor-default'
-                            : bar.isOnline
-                              ? 'bg-emerald-500/90 cursor-grab active:cursor-grabbing ring-1 ring-amber-300/70'
-                              : 'bg-emerald-500/90 cursor-grab active:cursor-grabbing',
-                          isDragging && !dragPreview?.hasConflict && 'opacity-80 shadow-lg ring-2 ring-white/30',
-                          isDragging && dragPreview?.hasConflict && 'opacity-80 shadow-lg ring-2 ring-red-500 bg-red-500/80'
+                            : 'bg-emerald-500/90 cursor-grab active:cursor-grabbing',
+                          bar.isOnline && !isSession && 'shadow-[inset_3px_0_0_0_#fbbf24]',
+                          isDragging &&
+                            !dragPreview?.hasConflict &&
+                            'opacity-80 shadow-lg ring-2 ring-white/30',
+                          isDragging &&
+                            dragPreview?.hasConflict &&
+                            'opacity-80 shadow-lg ring-2 ring-red-500 bg-red-500/80',
                         )}
                         style={{ left, width }}
-                        onClick={e => e.stopPropagation()}
-                        onMouseDown={e => {
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => {
                           e.stopPropagation()
                           if (bar.type === 'booking') handleDragStart(e, bar, 'move')
                         }}
                       >
-                        {/* Content */}
-                        <span className="text-[11px] font-semibold text-white whitespace-nowrap">
-                          {timeStr}
-                        </span>
-                        {bar.isOnline && (
-                          <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide bg-amber-300 text-amber-950">
-                            Online
-                          </span>
-                        )}
-                        <span className="text-[11px] text-white/90 truncate font-medium">
-                          {bar.label}
-                        </span>
-                        {comboHint && (
-                          <span className="hidden sm:inline text-[10px] text-white/85 truncate max-w-[9rem] font-medium">
-                            · {comboHint}
-                          </span>
-                        )}
-                        {bar.guestCount && (
-                          <span className="flex items-center gap-0.5 text-white/80 shrink-0">
-                            <Users className="w-3 h-3" />
-                            <span className="text-[10px]">{bar.guestCount}</span>
-                          </span>
+                        {showNameLine ? (
+                          <>
+                            <div className="flex items-center gap-1 min-w-0 leading-none">
+                              <span className="text-[10px] font-semibold text-white/90 tabular-nums shrink-0">
+                                {timeStr}
+                              </span>
+                              {bar.isOnline && showMeta && (
+                                <span className="text-[8px] font-bold uppercase tracking-wide text-amber-200 shrink-0">
+                                  online
+                                </span>
+                              )}
+                              {showMeta && bar.guestCount ? (
+                                <span className="flex items-center gap-0.5 text-white/75 shrink-0 ml-auto">
+                                  <Users className="w-2.5 h-2.5" />
+                                  <span className="text-[9px]">{bar.guestCount}</span>
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-1 min-w-0 leading-tight">
+                              <span
+                                className={cn(
+                                  'font-bold text-white truncate min-w-0 flex-1',
+                                  compact ? 'text-[11px]' : 'text-[12px]',
+                                )}
+                              >
+                                {bar.label}
+                              </span>
+                              {bar.type === 'booking' && (
+                                <button
+                                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (bar.booking) setSelectedBooking(bar.booking)
+                                  }}
+                                >
+                                  <Pencil className="w-3 h-3 text-white" />
+                                </button>
+                              )}
+                            </div>
+                            {showCombo && (
+                              <span className="text-[9px] text-amber-100/95 truncate leading-tight font-medium">
+                                {comboHint}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-1 min-w-0 leading-none">
+                            <span className="text-[9px] font-semibold text-white/90 tabular-nums shrink-0">
+                              {timeStr}
+                            </span>
+                            <span className="text-[10px] font-bold text-white truncate min-w-0 flex-1">
+                              {bar.label}
+                            </span>
+                          </div>
                         )}
 
-                        {/* Edit icon (booking only) */}
-                        {bar.type === 'booking' && (
-                          <button
-                            className="ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/20"
-                            onClick={e => {
-                              e.stopPropagation()
-                              if (bar.booking) setSelectedBooking(bar.booking)
-                            }}
-                          >
-                            <Pencil className="w-3 h-3 text-white" />
-                          </button>
-                        )}
-
-                        {/* Resize handle (booking only) */}
                         {bar.type === 'booking' && (
                           <div
                             className="absolute top-0 bottom-0 right-0 w-2 cursor-ew-resize hover:bg-white/20 transition-colors"
-                            onMouseDown={e => handleDragStart(e, bar, 'resize-end')}
+                            onMouseDown={(e) => handleDragStart(e, bar, 'resize-end')}
                           />
                         )}
                       </div>
                     )
                   })}
                 </div>
-              )
-            })}
-
-            {/* NOW line */}
-            {isToday && nowHour >= HOUR_START && nowHour <= HOUR_END && (
-              <div
-                className="absolute top-0 bottom-0 z-20 pointer-events-none"
-                style={{ left: nowLeft }}
-              >
-                {/* Triangle marker */}
-                <div className="absolute -top-0 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[7px] border-l-transparent border-r-transparent border-t-red-500" />
-                {/* Line */}
-                <div className="absolute top-1 bottom-0 left-0 w-px bg-red-500/70" style={{ left: -0.5 }} />
               </div>
-            )}
+            )
+          })}
 
-            {/* Vertical hour lines (stronger) */}
-            {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
-              <div
-                key={`vline-${i}`}
-                className="absolute border-l border-border/60 pointer-events-none"
-                style={{ left: i * PX_PER_HOUR, top: HEADER_HEIGHT, bottom: 0 }}
-              />
-            ))}
-          </div>
+          {isToday && nowHour >= HOUR_START && nowHour <= HOUR_END && (
+            <div
+              className="absolute z-20 pointer-events-none"
+              style={{
+                left: ROOM_LABEL_WIDTH + nowLeft,
+                top: HEADER_HEIGHT,
+                bottom: 0,
+              }}
+            >
+              <div className="absolute -top-0 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[7px] border-l-transparent border-r-transparent border-t-red-500" />
+              <div className="absolute top-0 bottom-0 w-px bg-red-500/70" style={{ left: -0.5 }} />
+            </div>
+          )}
         </div>
       </div>
 
