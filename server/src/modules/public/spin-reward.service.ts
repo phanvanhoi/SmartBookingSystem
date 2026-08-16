@@ -128,11 +128,14 @@ async function findActiveSessionForBooking(bookingId: number, tx: Tx = prisma) {
 }
 
 /** Session id chain: current → transferredFrom → … (max depth guard). */
-async function collectTransferAncestorIds(sessionId: number): Promise<number[]> {
+export async function collectTransferAncestorIds(
+  sessionId: number,
+  tx: Tx = prisma,
+): Promise<number[]> {
   const ids: number[] = [sessionId]
   let currentId: number | null = sessionId
   for (let i = 0; i < 10 && currentId != null; i++) {
-    const row: { transferredFromId: number | null } | null = await prisma.session.findUnique({
+    const row: { transferredFromId: number | null } | null = await tx.session.findUnique({
       where: { id: currentId },
       select: { transferredFromId: true },
     })
@@ -299,10 +302,23 @@ export async function rebindSpinTokenToSession(args: {
   tx?: Tx
 }) {
   const db = args.tx ?? prisma
+  const tokens = await db.spinToken.findMany({
+    where: { appliedSessionId: args.fromSessionId },
+    select: { id: true, appliedOrderId: true },
+  })
+
   await db.spinToken.updateMany({
     where: { appliedSessionId: args.fromSessionId },
     data: { appliedSessionId: args.toSessionId },
   })
+
+  const orderIds = tokens.map((t) => t.appliedOrderId).filter((id): id is number => id != null)
+  if (orderIds.length > 0) {
+    await db.order.updateMany({
+      where: { id: { in: orderIds }, status: { not: 'CANCELLED' } },
+      data: { sessionId: args.toSessionId },
+    })
+  }
 }
 
 /** Resolve spin voucher for checkout auto-apply (PERCENT/FIXED). Transfer-safe. */

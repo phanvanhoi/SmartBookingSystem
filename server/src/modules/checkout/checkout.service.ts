@@ -99,6 +99,19 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
     throw new AppError(400, 'SESSION_NOT_ACTIVE', 'Session không ở trạng thái ACTIVE')
   }
 
+  // Safety net: orders left on TRANSFERRED ancestors (pre-fix transfers) still bill + deduct stock
+  const { collectTransferAncestorIds } = await import('../public/spin-reward.service')
+  const transferChainIds = await collectTransferAncestorIds(sessionId)
+  const ancestorIds = transferChainIds.filter((id) => id !== sessionId)
+  const orphanOrders =
+    ancestorIds.length > 0
+      ? await prisma.order.findMany({
+          where: { sessionId: { in: ancestorIds }, status: { not: 'CANCELLED' } },
+          include: { items: true },
+        })
+      : []
+  const billableOrders = [...session.orders, ...orphanOrders]
+
   const now = new Date()
   const checkOutTime = resolveCheckoutTime(data.checkOutTime, session.checkInTime, now)
   if (data.checkOutTime && checkOutTime.getTime() === now.getTime()) {
@@ -119,7 +132,7 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   const surchargeAmount = priceBreakdown.surcharge
 
   // 3. Sum order totals (non-cancelled) — Decimal arithmetic, then round to VND
-  const orderTotal = sumVnd(session.orders.map((o) => o.totalAmount))
+  const orderTotal = sumVnd(billableOrders.map((o) => o.totalAmount))
 
   // 4. Subtotal = roomCharge + orderTotal
   const subtotal = roomCharge + orderTotal
@@ -273,7 +286,7 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
 
   // 12. Collect all order items for stock deduction
   const allOrderItems: Array<{ productId: number; quantity: number }> = []
-  for (const order of session.orders) {
+  for (const order of billableOrders) {
     for (const item of order.items) {
       if (item.productId !== null) {
         allOrderItems.push({ productId: item.productId, quantity: item.quantity })
@@ -286,6 +299,14 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
 
   // ─── Execute in transaction ───────────────────────────────────────────────
   const invoice = await prisma.$transaction(async (tx) => {
+    // Attach orphaned transfer-chain orders to the live session before invoicing
+    if (orphanOrders.length > 0) {
+      await tx.order.updateMany({
+        where: { id: { in: orphanOrders.map((o) => o.id) } },
+        data: { sessionId },
+      })
+    }
+
     // Create Invoice
     const newInvoice = await tx.invoice.create({
       data: {

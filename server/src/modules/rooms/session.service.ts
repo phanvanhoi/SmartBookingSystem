@@ -363,6 +363,12 @@ export async function transferSession(sessionId: number, data: TransferInput, us
       },
     })
 
+    // Move open orders (incl. FREE_ITEM KM) so checkout/stock follow the live session
+    await tx.order.updateMany({
+      where: { sessionId, status: { not: 'CANCELLED' } },
+      data: { sessionId: newSession.id },
+    })
+
     // Keep WIN-* / FREE_ITEM spin link on the live session after transfer
     const { rebindSpinTokenToSession } = await import('../public/spin-reward.service')
     await rebindSpinTokenToSession({
