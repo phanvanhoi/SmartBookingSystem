@@ -92,7 +92,14 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose }: Props) {
           <div className="p-4">
             {/* Summary header */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-              <Card label="Khách" value={invoice.session.customerName || '—'} />
+              <Card
+                label="Khách"
+                value={
+                  invoice.session.customerPhone
+                    ? `${invoice.session.customerName || '—'} · ${invoice.session.customerPhone}`
+                    : invoice.session.customerName || '—'
+                }
+              />
               <Card label="Phòng" value={invoice.session.room.name} />
               <Card label="Tổng" value={formatCurrency(invoice.grandTotal, true)} highlight />
               <Card
@@ -104,10 +111,19 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose }: Props) {
               />
             </div>
 
-            <Tabs defaultValue="discount">
-              <TabsList className="grid grid-cols-5 mb-3 w-full h-auto">
+            {invoice.status === 'VOID' && (
+              <div className="mb-3 px-3 py-2 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+                Hóa đơn đã hủy — chỉ xem, không chỉnh sửa.
+              </div>
+            )}
+
+            <Tabs defaultValue="overview">
+              <TabsList className="grid grid-cols-3 sm:grid-cols-6 mb-3 w-full h-auto gap-1">
+                <TabsTrigger value="overview" className="text-xs">
+                  Chi tiết
+                </TabsTrigger>
                 <TabsTrigger value="discount" className="text-xs">
-                  Giảm giá / Phụ thu
+                  Giảm giá
                 </TabsTrigger>
                 <TabsTrigger value="payments" className="text-xs">
                   Thanh toán
@@ -123,6 +139,9 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose }: Props) {
                 </TabsTrigger>
               </TabsList>
 
+              <TabsContent value="overview">
+                <OverviewTab invoice={invoice} />
+              </TabsContent>
               <TabsContent value="discount">
                 <DiscountTab invoice={invoice} />
               </TabsContent>
@@ -176,11 +195,127 @@ function Card({
   )
 }
 
-// ── Tab 1: Discount / Surcharge ────────────────────────────────────────────
+// ── Tab 0: Overview / bill breakdown ───────────────────────────────────────
 
 type Inv = ReturnType<typeof useInvoice>['data']
 
+function OverviewTab({ invoice }: { invoice: NonNullable<Inv> }) {
+  const isVoid = invoice.status === 'VOID'
+  const voidReason =
+    isVoid && invoice.discountReason?.startsWith('[HỦY]')
+      ? invoice.discountReason.replace(/^\[HỦY\]\s*/, '')
+      : null
+  // Void reuses discountReason for cancel metadata — don't show it as a discount line.
+  const showDiscount =
+    invoice.discountAmount > 0 && !(isVoid && invoice.discountReason?.startsWith('[HỦY]'))
+
+  const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
+    { label: 'Tiền phòng', value: formatCurrency(invoice.roomCharge, true) },
+    { label: 'Tiền món', value: formatCurrency(invoice.orderTotal, true) },
+    { label: 'Tạm tính', value: formatCurrency(invoice.subtotal, true) },
+  ]
+  if (showDiscount) {
+    rows.push({
+      label: invoice.discountReason
+        ? `Giảm giá (${invoice.discountReason})`
+        : 'Giảm giá',
+      value: `−${formatCurrency(invoice.discountAmount, true)}`,
+      muted: true,
+    })
+  }
+  if (invoice.voucherCode) {
+    rows.push({
+      label: 'Voucher',
+      value: invoice.voucherCode,
+      muted: true,
+    })
+  }
+  if (invoice.surchargeAmount > 0) {
+    rows.push({
+      label: 'Phụ thu',
+      value: `+${formatCurrency(invoice.surchargeAmount, true)}`,
+    })
+  }
+  if (invoice.depositApplied > 0) {
+    rows.push({
+      label: 'Cọc trừ',
+      value: `−${formatCurrency(invoice.depositApplied, true)}`,
+      muted: true,
+    })
+  }
+  rows.push({
+    label: 'Tổng thanh toán',
+    value: formatCurrency(invoice.grandTotal, true),
+    strong: true,
+  })
+
+  return (
+    <div className="space-y-4">
+      {voidReason && (
+        <div className="px-3 py-2 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+          Lý do hủy: {voidReason}
+        </div>
+      )}
+      <div className="rounded-md border border-border overflow-hidden">
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-border">
+            {rows.map((r) => (
+              <tr key={r.label} className={r.strong ? 'bg-muted/30' : ''}>
+                <td className="px-3 py-2 text-muted-foreground">{r.label}</td>
+                <td
+                  className={
+                    'px-3 py-2 text-right tabular-nums ' +
+                    (r.strong ? 'font-bold text-primary' : r.muted ? 'text-emerald-700' : 'font-medium')
+                  }
+                >
+                  {r.value}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div className="rounded-md border border-border px-3 py-2 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ca hát</p>
+          <p>
+            Vào: <span className="font-medium">{formatDateTime(invoice.session.checkInTime)}</span>
+          </p>
+          <p>
+            Ra:{' '}
+            <span className="font-medium">
+              {invoice.session.checkOutTime
+                ? formatDateTime(invoice.session.checkOutTime)
+                : '—'}
+            </span>
+          </p>
+        </div>
+        <div className="rounded-md border border-border px-3 py-2 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Thanh toán</p>
+          {invoice.payments.length === 0 ? (
+            <p className="text-muted-foreground italic">Chưa có</p>
+          ) : (
+            invoice.payments.map((p) => (
+              <p key={p.id} className="flex justify-between gap-2">
+                <span>{PAY_METHOD_LABEL[p.method] ?? p.method}</span>
+                <span className="font-medium tabular-nums">{formatCurrency(p.amount, true)}</span>
+              </p>
+            ))
+          )}
+          <p className="text-xs text-muted-foreground pt-1 border-t border-border">
+            Thu ngân: {invoice.createdBy.fullName}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tab 1: Discount / Surcharge ────────────────────────────────────────────
+
 function DiscountTab({ invoice }: { invoice: NonNullable<Inv> }) {
+  const locked = invoice.status === 'VOID'
   const [discount, setDiscount] = useState(String(invoice.discountAmount))
   const [discountReason, setDiscountReason] = useState(invoice.discountReason ?? '')
   const [surcharge, setSurcharge] = useState(String(invoice.surchargeAmount))
@@ -210,16 +345,39 @@ function DiscountTab({ invoice }: { invoice: NonNullable<Inv> }) {
 
   return (
     <div className="space-y-3">
+      {invoice.voucherCode && (
+        <div className="px-3 py-2 rounded-md border border-border bg-muted/30 text-sm">
+          Voucher gắn HĐ:{' '}
+          <span className="font-mono font-semibold">{invoice.voucherCode}</span>
+        </div>
+      )}
       <Field label="Giảm giá (VNĐ)">
-        <Input type="number" min={0} value={discount} onChange={(e) => setDiscount(e.target.value)} />
+        <Input
+          type="number"
+          min={0}
+          value={discount}
+          disabled={locked}
+          onChange={(e) => setDiscount(e.target.value)}
+        />
       </Field>
       <Field label="Lý do giảm giá">
-        <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="VD: Khách quen, sinh nhật..." />
+        <Input
+          value={discountReason}
+          disabled={locked}
+          onChange={(e) => setDiscountReason(e.target.value)}
+          placeholder="VD: Khách quen, sinh nhật..."
+        />
       </Field>
       <Field label="Phụ thu (VNĐ)">
-        <Input type="number" min={0} value={surcharge} onChange={(e) => setSurcharge(e.target.value)} />
+        <Input
+          type="number"
+          min={0}
+          value={surcharge}
+          disabled={locked}
+          onChange={(e) => setSurcharge(e.target.value)}
+        />
       </Field>
-      <Button onClick={save} disabled={adjust.isPending} className="w-full">
+      <Button onClick={save} disabled={locked || adjust.isPending} className="w-full">
         {adjust.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lưu thay đổi'}
       </Button>
     </div>
@@ -229,6 +387,7 @@ function DiscountTab({ invoice }: { invoice: NonNullable<Inv> }) {
 // ── Tab 2: Payments ────────────────────────────────────────────────────────
 
 function PaymentsTab({ invoice }: { invoice: NonNullable<Inv> }) {
+  const locked = invoice.status === 'VOID'
   const [debtAmount, setDebtAmount] = useState(String(invoice.debtAmount))
   const [debtMethod, setDebtMethod] = useState<'CASH' | 'QR_TRANSFER'>('CASH')
 
@@ -284,7 +443,7 @@ function PaymentsTab({ invoice }: { invoice: NonNullable<Inv> }) {
                   </span>
                   <span className="text-xs text-muted-foreground">{formatDateTime(p.createdAt)}</span>
                 </div>
-                {p.method !== 'DEBT' && (
+                {!locked && p.method !== 'DEBT' && (
                   <Select
                     value={p.method}
                     onValueChange={(v) =>
@@ -307,7 +466,7 @@ function PaymentsTab({ invoice }: { invoice: NonNullable<Inv> }) {
       </div>
 
       {/* Settle debt */}
-      {invoice.debtAmount > 0 && (
+      {!locked && invoice.debtAmount > 0 && (
         <div className="border-t border-border pt-3">
           <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
             Thu nợ
@@ -342,6 +501,7 @@ function PaymentsTab({ invoice }: { invoice: NonNullable<Inv> }) {
 // ── Tab 3: Items ───────────────────────────────────────────────────────────
 
 function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
+  const locked = invoice.status === 'VOID'
   const { data: menu } = useMenu()
   const [menuItemId, setMenuItemId] = useState<string>('')
   const [quantity, setQuantity] = useState('1')
@@ -409,7 +569,12 @@ function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
               <tbody className="divide-y divide-border">
                 {allItems.map((it) => (
                   <tr key={it.id}>
-                    <td className="px-3 py-1.5">{it.menuItem.name}</td>
+                    <td className="px-3 py-1.5">
+                      <div>{it.menuItem.name}</div>
+                      {it.notes && (
+                        <div className="text-[11px] text-muted-foreground">{it.notes}</div>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5 text-center tabular-nums">{it.quantity}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
                       {formatCurrency(it.unitPrice)}
@@ -418,15 +583,17 @@ function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
                       {formatCurrency(it.subtotal)}
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-rose-600"
-                        aria-label={`Xóa ${it.menuItem.name}`}
-                        onClick={() => handleRemove(it.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!locked && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+                          aria-label={`Xóa ${it.menuItem.name}`}
+                          onClick={() => handleRemove(it.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -437,38 +604,40 @@ function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
       </div>
 
       {/* Add new item */}
-      <div className="border-t border-border pt-3">
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Thêm món</h4>
-        <div className="grid grid-cols-[1fr_80px_120px] gap-2">
-          <Select value={menuItemId} onValueChange={setMenuItemId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Chọn món..." />
-            </SelectTrigger>
-            <SelectContent>
-              {flatMenu.map((m) => (
-                <SelectItem key={m.id} value={String(m.id)}>
-                  {m.name} — {formatCurrency(m.price)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-          <Button onClick={handleAdd} disabled={!menuItemId || addItem.isPending}>
-            {addItem.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Plus className="w-4 h-4 mr-1" /> Thêm
-              </>
-            )}
-          </Button>
+      {!locked && (
+        <div className="border-t border-border pt-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Thêm món</h4>
+          <div className="grid grid-cols-[1fr_80px_120px] gap-2">
+            <Select value={menuItemId} onValueChange={setMenuItemId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Chọn món..." />
+              </SelectTrigger>
+              <SelectContent>
+                {flatMenu.map((m) => (
+                  <SelectItem key={m.id} value={String(m.id)}>
+                    {m.name} — {formatCurrency(m.price)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+            <Button onClick={handleAdd} disabled={!menuItemId || addItem.isPending}>
+              {addItem.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-1" /> Thêm
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -476,6 +645,7 @@ function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
 // ── Tab 4: Times ───────────────────────────────────────────────────────────
 
 function TimesTab({ invoice }: { invoice: NonNullable<Inv> }) {
+  const locked = invoice.status === 'VOID'
   const [checkIn, setCheckIn] = useState(isoToLocalInput(invoice.session.checkInTime))
   const [checkOut, setCheckOut] = useState(isoToLocalInput(invoice.session.checkOutTime))
 
@@ -505,12 +675,22 @@ function TimesTab({ invoice }: { invoice: NonNullable<Inv> }) {
         Khi đổi thời gian, hệ thống sẽ tính lại tiền phòng theo bảng giá hiện tại.
       </p>
       <Field label="Check-in">
-        <Input type="datetime-local" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+        <Input
+          type="datetime-local"
+          value={checkIn}
+          disabled={locked}
+          onChange={(e) => setCheckIn(e.target.value)}
+        />
       </Field>
       <Field label="Check-out">
-        <Input type="datetime-local" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+        <Input
+          type="datetime-local"
+          value={checkOut}
+          disabled={locked}
+          onChange={(e) => setCheckOut(e.target.value)}
+        />
       </Field>
-      <Button onClick={save} disabled={editTimes.isPending} className="w-full">
+      <Button onClick={save} disabled={locked || editTimes.isPending} className="w-full">
         {editTimes.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lưu + tính lại'}
       </Button>
     </div>

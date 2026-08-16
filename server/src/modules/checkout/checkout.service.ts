@@ -536,6 +536,11 @@ export async function getInvoices(filters: InvoiceQueryInput) {
           customerName: { contains: search },
         },
       },
+      {
+        session: {
+          customerPhone: { contains: search },
+        },
+      },
     ]
   }
 

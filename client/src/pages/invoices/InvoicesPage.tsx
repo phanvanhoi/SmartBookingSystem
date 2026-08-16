@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   Receipt,
   Search,
@@ -9,6 +9,8 @@ import {
   Banknote,
   QrCode,
   CreditCard,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useInvoices } from '@/hooks/useCheckout'
-import { EMPTY_INVOICE_SUMMARY } from '@/services/checkoutService'
+import { EMPTY_INVOICE_SUMMARY, type Invoice } from '@/services/checkoutService'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime } from '@/utils/formatTime'
 import InvoiceEditDialog from './InvoiceEditDialog'
@@ -46,11 +48,22 @@ const PAYMENT_LABEL: Record<PaymentKey, string> = {
   DEBT: 'Ghi nợ',
 }
 
+const PAY_BADGE: Record<string, { text: string; cls: string }> = {
+  CASH: { text: 'TM', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  QR_TRANSFER: { text: 'QR', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+  DEBT: { text: 'Nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+}
+
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   PAID: { text: 'Đã trả', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   PARTIAL: { text: 'Còn nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   PENDING: { text: 'Chờ', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
   VOID: { text: 'Đã hủy', cls: 'bg-rose-50 text-rose-700 border-rose-200 line-through' },
+}
+
+function paymentMethodsOf(inv: Invoice): string[] {
+  const methods = [...new Set(inv.payments.map((p) => p.method))]
+  return methods.length > 0 ? methods : []
 }
 
 function SummaryCard({
@@ -84,20 +97,28 @@ function SummaryCard({
 }
 
 export default function InvoicesPage() {
+  const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StatusKey>('all')
   const [period, setPeriod] = useState<PeriodKey>('day')
   const [paymentMethod, setPaymentMethod] = useState<PaymentKey>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
   const [editingId, setEditingId] = useState<number | null>(null)
 
-  // Cần cả 2 mốc để filter — tránh user nhập 1 mốc rồi tưởng đã lọc.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchInput])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, status, period, paymentMethod, dateFrom, dateTo])
+
   const hasCustomRange = dateFrom !== '' && dateTo !== ''
   const partialRange = (dateFrom !== '') !== (dateTo !== '')
 
-  // Server đã ưu tiên period > custom range — UI mirror để rõ ràng:
-  // chọn period quick → bỏ custom range; nhập custom range → period='all'.
   function handlePeriodChange(next: PeriodKey) {
     setPeriod(next)
     if (next !== 'all') {
@@ -112,17 +133,26 @@ export default function InvoicesPage() {
   }
 
   const { data, isLoading } = useInvoices({
-    search: search.trim() || undefined,
+    search: search || undefined,
     status: status === 'all' ? undefined : status,
     period: hasCustomRange || period === 'all' ? undefined : period,
     dateFrom: hasCustomRange ? dateFrom || undefined : undefined,
     dateTo: hasCustomRange ? dateTo || undefined : undefined,
     paymentMethod: paymentMethod === 'all' ? undefined : paymentMethod,
+    page,
     limit: 50,
   })
 
   const invoices = data?.data ?? []
   const summary = data?.summary ?? EMPTY_INVOICE_SUMMARY
+  const pagination = data?.pagination
+
+  // Clamp page when result set shrinks (e.g. filter still same but fewer matches).
+  useEffect(() => {
+    if (!pagination) return
+    const maxPage = Math.max(1, pagination.totalPages)
+    if (page > maxPage) setPage(maxPage)
+  }, [pagination, page])
 
   const revenueLabel = hasCustomRange
     ? 'Doanh thu (khoảng đã chọn)'
@@ -132,7 +162,6 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -150,9 +179,9 @@ export default function InvoicesPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm theo số hóa đơn hoặc tên khách..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm số HĐ, tên khách hoặc SĐT..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9 h-10"
             />
           </div>
@@ -163,7 +192,9 @@ export default function InvoicesPage() {
             </SelectTrigger>
             <SelectContent>
               {(Object.entries(PERIOD_LABEL) as [PeriodKey, string][]).map(([key, label]) => (
-                <SelectItem key={key} value={key}>{label}</SelectItem>
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -221,7 +252,9 @@ export default function InvoicesPage() {
             </SelectTrigger>
             <SelectContent>
               {(Object.entries(PAYMENT_LABEL) as [PaymentKey, string][]).map(([key, label]) => (
-                <SelectItem key={key} value={key}>{label}</SelectItem>
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -265,7 +298,6 @@ export default function InvoicesPage() {
         />
       </div>
 
-      {/* Table */}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -274,6 +306,7 @@ export default function InvoicesPage() {
                 <th className="text-left px-4 py-2.5 font-medium">Số HĐ</th>
                 <th className="text-left px-4 py-2.5 font-medium">Khách</th>
                 <th className="text-left px-4 py-2.5 font-medium">Phòng</th>
+                <th className="text-left px-4 py-2.5 font-medium">Thanh toán</th>
                 <th className="text-left px-4 py-2.5 font-medium">Thời gian</th>
                 <th className="text-right px-4 py-2.5 font-medium">Tổng</th>
                 <th className="text-right px-4 py-2.5 font-medium">Còn nợ</th>
@@ -285,7 +318,7 @@ export default function InvoicesPage() {
               {isLoading &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 8 }).map((__, j) => (
+                    {Array.from({ length: 9 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton className="h-4 w-full" />
                       </td>
@@ -294,7 +327,7 @@ export default function InvoicesPage() {
                 ))}
               {!isLoading && invoices.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                  <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground text-sm">
                     Không có hóa đơn phù hợp
                   </td>
                 </tr>
@@ -302,6 +335,7 @@ export default function InvoicesPage() {
               {!isLoading &&
                 invoices.map((inv) => {
                   const st = STATUS_LABEL[inv.status] ?? { text: inv.status, cls: '' }
+                  const methods = paymentMethodsOf(inv)
                   return (
                     <tr key={inv.id} className="hover:bg-muted/30">
                       <td className="px-4 py-2 font-mono text-xs">{inv.invoiceNumber}</td>
@@ -316,6 +350,22 @@ export default function InvoicesPage() {
                         )}
                       </td>
                       <td className="px-4 py-2">{inv.session.room.name}</td>
+                      <td className="px-4 py-2">
+                        {methods.length === 0 ? (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {methods.map((m) => {
+                              const b = PAY_BADGE[m] ?? { text: m, cls: '' }
+                              return (
+                                <Badge key={m} variant="outline" className={`text-[10px] ${b.cls}`}>
+                                  {b.text}
+                                </Badge>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-xs text-muted-foreground">
                         {formatDateTime(inv.createdAt)}
                       </td>
@@ -343,7 +393,7 @@ export default function InvoicesPage() {
                           className="h-8"
                           onClick={() => setEditingId(inv.id)}
                         >
-                          Sửa
+                          {inv.status === 'VOID' ? 'Xem' : 'Sửa'}
                         </Button>
                       </td>
                     </tr>
@@ -354,7 +404,40 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Edit dialog */}
+      {pagination && pagination.total > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Tổng: {pagination.total} hóa đơn
+            {pagination.totalPages > 1
+              ? ` · trang ${pagination.page}/${pagination.totalPages}`
+              : ''}
+          </p>
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || isLoading}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-sm tabular-nums">
+                {page} / {pagination.totalPages}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                disabled={page >= pagination.totalPages || isLoading}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       <InvoiceEditDialog
         invoiceId={editingId}
         open={editingId !== null}
