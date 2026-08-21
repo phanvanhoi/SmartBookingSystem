@@ -342,7 +342,11 @@ export default function InvoicesPage() {
                   const st = STATUS_LABEL[inv.status] ?? { text: inv.status, cls: '' }
                   const methods = paymentMethodsOf(inv)
                   return (
-                    <tr key={inv.id} className="hover:bg-muted/30">
+                    <tr
+                      key={inv.id}
+                      className="hover:bg-muted/30 cursor-pointer"
+                      onClick={() => setEditingId(inv.id)}
+                    >
                       <td className="px-4 py-2 font-mono text-xs">{inv.invoiceNumber}</td>
                       <td className="px-4 py-2">
                         <div className="font-medium truncate max-w-[180px]">
@@ -391,7 +395,7 @@ export default function InvoicesPage() {
                           {st.text}
                         </Badge>
                       </td>
-                      <td className="px-4 py-2 text-right">
+                      <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="ghost"
                           size="sm"

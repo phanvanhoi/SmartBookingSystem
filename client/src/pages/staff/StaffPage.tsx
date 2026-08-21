@@ -492,7 +492,8 @@ function StaffTab() {
               filteredStaff.map((staff) => (
                 <tr
                   key={staff.id}
-                  className="border-b border-border hover:bg-muted transition-colors"
+                  className="border-b border-border hover:bg-muted transition-colors cursor-pointer"
+                  onClick={() => setEditingStaff(staff)}
                 >
                   <td className="px-4 py-3 font-mono text-foreground">{staff.username}</td>
                   <td className="px-4 py-3 text-foreground font-medium">{staff.fullName}</td>
@@ -513,7 +514,7 @@ function StaffTab() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => setEditingStaff(staff)}

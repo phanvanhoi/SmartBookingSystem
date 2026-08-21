@@ -159,7 +159,11 @@ export default function SupplierPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {suppliers.map((supplier) => (
-                <tr key={supplier.id} className="hover:bg-secondary/20 transition-colors">
+                <tr
+                  key={supplier.id}
+                  className="hover:bg-secondary/20 transition-colors cursor-pointer"
+                  onClick={() => openEdit(supplier)}
+                >
                   <td className="px-4 py-3">
                     <span className="text-foreground font-medium">{supplier.name}</span>
                     {supplier.notes && (
@@ -171,7 +175,7 @@ export default function SupplierPage() {
                     <span className="truncate max-w-[180px] block">{supplier.address ?? '—'}</span>
                   </td>
                   <td className="px-4 py-3 text-right text-foreground tabular-nums">{supplier.productCount ?? 0}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"

@@ -98,9 +98,10 @@ interface ProductDialogProps {
   open: boolean
   onClose: () => void
   product?: Product | null
+  readOnly?: boolean
 }
 
-function ProductDialog({ open, onClose, product }: ProductDialogProps) {
+function ProductDialog({ open, onClose, product, readOnly = false }: ProductDialogProps) {
   const isMobile = useIsMobile()
   const { data: suppliersData } = useSuppliers()
   const suppliers = suppliersData?.data ?? []
@@ -122,6 +123,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
   const isSaving = createProduct.isPending || updateProduct.isPending
 
   const handleSave = async () => {
+    if (readOnly) return
     const payload = {
       name: form.name,
       sku: form.sku || undefined,
@@ -149,15 +151,34 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className={cn('max-w-lg', isMobile && 'dialog-mobile-full max-h-[100dvh]')}>
         <DialogHeader>
-          <DialogTitle>{product ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}</DialogTitle>
+          <DialogTitle>
+            {readOnly ? 'Chi tiết sản phẩm' : product ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="p-6 space-y-3">
+          {readOnly && product && (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-baseline justify-between gap-2">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Tồn hiện tại</span>
+              <span
+                className={cn(
+                  'text-2xl font-bold tabular-nums',
+                  product.isLowStock ? 'text-rose-600' : 'text-foreground',
+                )}
+              >
+                {product.stockQuantity}{' '}
+                <span className="text-sm font-normal text-muted-foreground">{product.unit}</span>
+              </span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="text-sm text-muted-foreground mb-1.5 block">Tên sản phẩm <span className="text-destructive">*</span></label>
+              <label className="text-sm text-muted-foreground mb-1.5 block">
+                Tên sản phẩm {!readOnly && <span className="text-destructive">*</span>}
+              </label>
               <Input
                 value={form.name}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Bia Tiger, Coca Cola..."
               />
@@ -166,6 +187,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
               <label className="text-sm text-muted-foreground mb-1.5 block">SKU</label>
               <Input
                 value={form.sku}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, sku: e.target.value })}
                 placeholder="BEER-TGR-01"
               />
@@ -174,6 +196,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
               <label className="text-sm text-muted-foreground mb-1.5 block">Danh mục</label>
               <Input
                 value={form.category}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 placeholder="Bia, Nước ngọt..."
               />
@@ -182,6 +205,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
               <label className="text-sm text-muted-foreground mb-1.5 block">Đơn vị</label>
               <Input
                 value={form.unit}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, unit: e.target.value })}
                 placeholder="lon, chai, hộp..."
               />
@@ -192,6 +216,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
                 type="number"
                 min={1}
                 value={form.packSize}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, packSize: e.target.value })}
               />
             </div>
@@ -201,6 +226,7 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
                 type="number"
                 min={0}
                 value={form.costPrice}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
               />
             </div>
@@ -210,12 +236,17 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
                 type="number"
                 min={0}
                 value={form.minStock}
+                disabled={readOnly}
                 onChange={(e) => setForm({ ...form, minStock: e.target.value })}
               />
             </div>
             <div className="col-span-2">
               <label className="text-sm text-muted-foreground mb-1.5 block">Nhà cung cấp</label>
-              <Select value={form.supplierId} onValueChange={(v) => setForm({ ...form, supplierId: v })}>
+              <Select
+                value={form.supplierId}
+                disabled={readOnly}
+                onValueChange={(v) => setForm({ ...form, supplierId: v })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn NCC..." />
                 </SelectTrigger>
@@ -233,10 +264,16 @@ function ProductDialog({ open, onClose, product }: ProductDialogProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Hủy</Button>
-          <Button onClick={handleSave} disabled={!form.name.trim() || isSaving}>
-            {isSaving ? 'Đang lưu...' : 'Lưu'}
-          </Button>
+          {readOnly ? (
+            <Button onClick={onClose}>Đóng</Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>Hủy</Button>
+              <Button onClick={handleSave} disabled={!form.name.trim() || isSaving}>
+                {isSaving ? 'Đang lưu...' : 'Lưu'}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -311,8 +348,13 @@ export default function StockPage() {
   const totalEntryPages = entriesData?.pagination?.totalPages ?? Math.ceil(totalEntries / ITEMS_PER_PAGE)
 
   const openEditProduct = (product: Product) => {
-    if (!canManageProducts) return
     setEditProduct(product)
+    setProductDialogOpen(true)
+  }
+
+  const openAddProduct = () => {
+    if (!canManageProducts) return
+    setEditProduct(null)
     setProductDialogOpen(true)
   }
 
@@ -423,7 +465,7 @@ export default function StockPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setProductDialogOpen(true)}
+                  onClick={openAddProduct}
                   className="shrink-0 min-h-[44px] md:min-h-9"
                 >
                   <Plus className="h-4 w-4" />
@@ -449,13 +491,13 @@ export default function StockPage() {
                 {products.map((product) => (
                   <div
                     key={product.id}
-                    role={canManageProducts ? 'button' : undefined}
-                    tabIndex={canManageProducts ? 0 : undefined}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openEditProduct(product)}
-                    onKeyDown={(e) => canManageProducts && e.key === 'Enter' && openEditProduct(product)}
+                    onKeyDown={(e) => e.key === 'Enter' && openEditProduct(product)}
                     className={cn(
-                      'rounded-xl border border-border bg-card p-4 shadow-card transition-colors',
-                      product.isLowStock ? 'border-rose-200 bg-rose-50' : canManageProducts && 'hover:border-primary/30',
+                      'rounded-xl border border-border bg-card p-4 shadow-card transition-colors cursor-pointer',
+                      product.isLowStock ? 'border-rose-200 bg-rose-50' : 'hover:border-primary/30',
                     )}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -519,9 +561,8 @@ export default function StockPage() {
                       <tr
                         key={product.id}
                         className={cn(
-                          'hover:bg-secondary/20 transition-colors',
+                          'hover:bg-secondary/20 transition-colors cursor-pointer',
                           product.isLowStock && 'bg-rose-50',
-                          canManageProducts && 'cursor-pointer',
                         )}
                         onClick={() => openEditProduct(product)}
                       >
@@ -823,39 +864,37 @@ export default function StockPage() {
         <StockEntryForm open={stockEntryOpen} onClose={() => setStockEntryOpen(false)} />
       )}
 
-      {canManageProducts && (
-        <>
-          <ProductDialog
-            open={productDialogOpen}
-            onClose={() => { setProductDialogOpen(false); setEditProduct(null) }}
-            product={editProduct}
-          />
+      <ProductDialog
+        open={productDialogOpen}
+        onClose={() => { setProductDialogOpen(false); setEditProduct(null) }}
+        product={editProduct}
+        readOnly={!canManageProducts}
+      />
 
-          {/* Delete product confirm */}
-          <Dialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
-            <DialogContent className="max-w-sm">
-              <DialogHeader>
-                <DialogTitle>Xóa sản phẩm</DialogTitle>
-              </DialogHeader>
-              <div className="px-6 py-4">
-                <p className="text-muted-foreground text-sm">
-                  Bạn có chắc muốn xóa <span className="text-foreground font-medium">{deleteConfirm?.name}</span>?
-                  Hành động này không thể hoàn tác.
-                </p>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Hủy</Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteProduct}
-                  disabled={deleteProduct.isPending}
-                >
-                  {deleteProduct.isPending ? 'Đang xóa...' : 'Xóa'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </>
+      {canManageProducts && (
+        <Dialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Xóa sản phẩm</DialogTitle>
+            </DialogHeader>
+            <div className="px-6 py-4">
+              <p className="text-muted-foreground text-sm">
+                Bạn có chắc muốn xóa <span className="text-foreground font-medium">{deleteConfirm?.name}</span>?
+                Hành động này không thể hoàn tác.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Hủy</Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteProduct}
+                disabled={deleteProduct.isPending}
+              >
+                {deleteProduct.isPending ? 'Đang xóa...' : 'Xóa'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

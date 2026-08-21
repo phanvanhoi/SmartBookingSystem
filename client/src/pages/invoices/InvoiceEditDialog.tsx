@@ -1,22 +1,26 @@
 /**
- * Owner-only invoice edit dialog. Five tabs, each calling a separate
- * mutation hook so the most common ops (settle a debt, void) can be done
- * with a single click and the rarer ones (recompute room charge) live
- * behind their own tab to avoid cluttering the primary path.
- *
- * Every action shows a toast on success/failure and re-uses the existing
- * useInvoice query to refresh the displayed invoice automatically.
+ * Full invoice on one scrollable dialog (no tabs).
+ * OWNER can edit times/items/discount/payments/void inline;
+ * other roles get the same layout read-only.
  */
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Loader2, AlertTriangle, Trash2, Plus } from 'lucide-react'
+import {
+  Loader2,
+  AlertTriangle,
+  Trash2,
+  Plus,
+  Clock,
+  User,
+  DoorOpen,
+  Receipt,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,7 +50,7 @@ interface Props {
   invoiceId: number | null
   open: boolean
   onClose: () => void
-  /** Non-OWNER: view breakdown only, no mutate tabs. */
+  /** Non-OWNER: view breakdown only, no mutate controls. */
   readOnly?: boolean
 }
 
@@ -56,7 +60,13 @@ const PAY_METHOD_LABEL: Record<string, string> = {
   DEBT: 'Ghi nợ',
 }
 
-// HTML <input type="datetime-local"> wants "yyyy-MM-ddTHH:mm" in LOCAL time.
+const STATUS_BADGE: Record<string, { text: string; cls: string }> = {
+  PAID: { text: 'Đã trả', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  PARTIAL: { text: 'Còn nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  PENDING: { text: 'Chờ', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+  VOID: { text: 'Đã hủy', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+}
+
 function isoToLocalInput(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -69,20 +79,31 @@ function localInputToISO(local: string): string | undefined {
   return new Date(local).toISOString()
 }
 
+type Inv = NonNullable<ReturnType<typeof useInvoice>['data']>
+
 export default function InvoiceEditDialog({ invoiceId, open, onClose, readOnly = false }: Props) {
   const { data: invoice, isLoading } = useInvoice(invoiceId)
 
   if (!open || !invoiceId) return null
 
+  const status = invoice ? STATUS_BADGE[invoice.status] : null
+  const canEdit = !readOnly && invoice?.status !== 'VOID'
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl w-full max-h-[92vh] overflow-y-auto !p-0">
-        <DialogHeader className="px-5 py-3 border-b border-border">
-          <DialogTitle className="text-base">
-            {readOnly ? 'Chi tiết hóa đơn' : 'Sửa hóa đơn'}{' '}
-            <span className="font-mono text-muted-foreground font-normal">
+      <DialogContent className="max-w-3xl w-full max-h-[92vh] overflow-hidden !p-0 flex flex-col gap-0">
+        <DialogHeader className="px-5 py-3 border-b border-border shrink-0">
+          <DialogTitle className="text-base flex flex-wrap items-center gap-2">
+            <Receipt className="w-4 h-4 text-muted-foreground" />
+            <span>{readOnly ? 'Chi tiết hóa đơn' : 'Hóa đơn'}</span>
+            <span className="font-mono text-muted-foreground font-normal text-sm">
               {invoice?.invoiceNumber ?? '...'}
             </span>
+            {status && (
+              <Badge variant="outline" className={status.cls}>
+                {status.text}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -91,88 +112,33 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose, readOnly =
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="p-4">
-            {/* Summary header */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-              <Card
-                label="Khách"
-                value={
-                  invoice.session.customerPhone
-                    ? `${invoice.session.customerName || '—'} · ${invoice.session.customerPhone}`
-                    : invoice.session.customerName || '—'
-                }
-              />
-              <Card label="Phòng" value={invoice.session.room.name} />
-              <Card label="Tổng" value={formatCurrency(invoice.grandTotal, true)} highlight />
-              <Card
-                label="Còn nợ"
-                value={
-                  invoice.debtAmount > 0 ? formatCurrency(invoice.debtAmount, true) : '—'
-                }
-                danger={invoice.debtAmount > 0}
-              />
+          <div className="overflow-y-auto flex-1 min-h-0">
+            <div className="p-4 sm:p-5 space-y-5">
+              {(readOnly || invoice.status === 'VOID') && (
+                <Banner
+                  tone={invoice.status === 'VOID' ? 'danger' : 'muted'}
+                  text={
+                    invoice.status === 'VOID'
+                      ? 'Hóa đơn đã hủy — chỉ xem, không chỉnh sửa.'
+                      : 'Chế độ xem — chỉ chủ quán mới được sửa hóa đơn.'
+                  }
+                />
+              )}
+
+              <MetaBlock invoice={invoice} />
+
+              <TimesBlock invoice={invoice} canEdit={!!canEdit} />
+
+              <ItemsBlock invoice={invoice} canEdit={!!canEdit} />
+
+              <TotalsBlock invoice={invoice} />
+
+              <DiscountBlock invoice={invoice} canEdit={!!canEdit} />
+
+              <PaymentsBlock invoice={invoice} canEdit={!!canEdit} />
+
+              {canEdit && <VoidBlock invoice={invoice} onClose={onClose} />}
             </div>
-
-            {(readOnly || invoice.status === 'VOID') && (
-              <div
-                className={
-                  'mb-3 px-3 py-2 rounded-md border text-sm ' +
-                  (invoice.status === 'VOID'
-                    ? 'bg-rose-50 border-rose-200 text-rose-700'
-                    : 'bg-muted/40 border-border text-muted-foreground')
-                }
-              >
-                {invoice.status === 'VOID'
-                  ? 'Hóa đơn đã hủy — chỉ xem, không chỉnh sửa.'
-                  : 'Chế độ xem — chỉ chủ quán mới được sửa hóa đơn.'}
-              </div>
-            )}
-
-            {readOnly ? (
-              <OverviewTab invoice={invoice} />
-            ) : (
-              <Tabs defaultValue="overview">
-                <TabsList className="grid grid-cols-3 sm:grid-cols-6 mb-3 w-full h-auto gap-1">
-                  <TabsTrigger value="overview" className="text-xs">
-                    Chi tiết
-                  </TabsTrigger>
-                  <TabsTrigger value="discount" className="text-xs">
-                    Giảm giá
-                  </TabsTrigger>
-                  <TabsTrigger value="payments" className="text-xs">
-                    Thanh toán
-                  </TabsTrigger>
-                  <TabsTrigger value="items" className="text-xs">
-                    Món
-                  </TabsTrigger>
-                  <TabsTrigger value="times" className="text-xs">
-                    Thời gian
-                  </TabsTrigger>
-                  <TabsTrigger value="void" className="text-xs text-rose-600 data-[state=active]:bg-rose-50">
-                    Hủy HĐ
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="overview">
-                  <OverviewTab invoice={invoice} />
-                </TabsContent>
-                <TabsContent value="discount">
-                  <DiscountTab invoice={invoice} />
-                </TabsContent>
-                <TabsContent value="payments">
-                  <PaymentsTab invoice={invoice} />
-                </TabsContent>
-                <TabsContent value="items">
-                  <ItemsTab invoice={invoice} />
-                </TabsContent>
-                <TabsContent value="times">
-                  <TimesTab invoice={invoice} />
-                </TabsContent>
-                <TabsContent value="void">
-                  <VoidTab invoice={invoice} onClose={onClose} />
-                </TabsContent>
-              </Tabs>
-            )}
           </div>
         )}
       </DialogContent>
@@ -180,22 +146,101 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose, readOnly =
   )
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── Shared bits ────────────────────────────────────────────────────────────
 
-function Card({
+function Banner({ tone, text }: { tone: 'danger' | 'muted' | 'warn'; text: string }) {
+  const cls =
+    tone === 'danger'
+      ? 'bg-rose-50 border-rose-200 text-rose-700'
+      : tone === 'warn'
+        ? 'bg-amber-50 border-amber-200 text-amber-800'
+        : 'bg-muted/40 border-border text-muted-foreground'
+  return <div className={`px-3 py-2 rounded-md border text-sm ${cls}`}>{text}</div>
+}
+
+function Section({
+  title,
+  children,
+  action,
+}: {
+  title: string
+  children: React.ReactNode
+  action?: React.ReactNode
+}) {
+  return (
+    <section className="space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+// ── Meta ───────────────────────────────────────────────────────────────────
+
+function MetaBlock({ invoice }: { invoice: Inv }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <MetaCard
+        icon={<User className="w-3.5 h-3.5" />}
+        label="Khách"
+        value={
+          invoice.session.customerPhone
+            ? `${invoice.session.customerName || '—'} · ${invoice.session.customerPhone}`
+            : invoice.session.customerName || '—'
+        }
+      />
+      <MetaCard
+        icon={<DoorOpen className="w-3.5 h-3.5" />}
+        label="Phòng"
+        value={invoice.session.room.name}
+      />
+      <MetaCard
+        icon={<Receipt className="w-3.5 h-3.5" />}
+        label="Tổng"
+        value={formatCurrency(invoice.grandTotal, true)}
+        highlight
+      />
+      <MetaCard
+        icon={<Clock className="w-3.5 h-3.5" />}
+        label="Còn nợ"
+        value={invoice.debtAmount > 0 ? formatCurrency(invoice.debtAmount, true) : '—'}
+        danger={invoice.debtAmount > 0}
+      />
+    </div>
+  )
+}
+
+function MetaCard({
+  icon,
   label,
   value,
   highlight,
   danger,
 }: {
+  icon: React.ReactNode
   label: string
   value: string
   highlight?: boolean
   danger?: boolean
 }) {
   return (
-    <div className="px-2 py-1.5 rounded-md border border-border bg-muted/30">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground leading-none">
+    <div className="px-2.5 py-2 rounded-md border border-border bg-muted/30 min-w-0">
+      <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground leading-none mb-1">
+        {icon}
         {label}
       </p>
       <p
@@ -210,92 +255,63 @@ function Card({
   )
 }
 
-// ── Tab 0: Overview / bill breakdown ───────────────────────────────────────
+// ── Times ──────────────────────────────────────────────────────────────────
 
-type Inv = ReturnType<typeof useInvoice>['data']
+function TimesBlock({ invoice, canEdit }: { invoice: Inv; canEdit: boolean }) {
+  const [checkIn, setCheckIn] = useState(isoToLocalInput(invoice.session.checkInTime))
+  const [checkOut, setCheckOut] = useState(isoToLocalInput(invoice.session.checkOutTime))
+  const editTimes = useEditInvoiceTimes()
 
-function OverviewTab({ invoice }: { invoice: NonNullable<Inv> }) {
-  const isVoid = invoice.status === 'VOID'
-  const voidReason =
-    isVoid && invoice.discountReason?.startsWith('[HỦY]')
-      ? invoice.discountReason.replace(/^\[HỦY\]\s*/, '')
-      : null
-  // Void reuses discountReason for cancel metadata — don't show it as a discount line.
-  const showDiscount =
-    invoice.discountAmount > 0 && !(isVoid && invoice.discountReason?.startsWith('[HỦY]'))
+  useEffect(() => {
+    setCheckIn(isoToLocalInput(invoice.session.checkInTime))
+    setCheckOut(isoToLocalInput(invoice.session.checkOutTime))
+  }, [invoice.session.checkInTime, invoice.session.checkOutTime])
 
-  const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
-    { label: 'Tiền phòng', value: formatCurrency(invoice.roomCharge, true) },
-    { label: 'Tiền món', value: formatCurrency(invoice.orderTotal, true) },
-    { label: 'Tạm tính', value: formatCurrency(invoice.subtotal, true) },
-  ]
-  if (showDiscount) {
-    rows.push({
-      label: invoice.discountReason
-        ? `Giảm giá (${invoice.discountReason})`
-        : 'Giảm giá',
-      value: `−${formatCurrency(invoice.discountAmount, true)}`,
-      muted: true,
-    })
+  async function save() {
+    try {
+      await editTimes.mutateAsync({
+        id: invoice.id,
+        checkInTime: localInputToISO(checkIn),
+        checkOutTime: localInputToISO(checkOut),
+      })
+      toast.success('Đã cập nhật thời gian + tính lại tiền phòng')
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Cập nhật thất bại'))
+    }
   }
-  if (invoice.voucherCode) {
-    rows.push({
-      label: 'Voucher',
-      value: invoice.voucherCode,
-      muted: true,
-    })
-  }
-  if (invoice.surchargeAmount > 0) {
-    rows.push({
-      label: 'Phụ thu',
-      value: `+${formatCurrency(invoice.surchargeAmount, true)}`,
-    })
-  }
-  if (invoice.depositApplied > 0) {
-    rows.push({
-      label: 'Cọc trừ',
-      value: `−${formatCurrency(invoice.depositApplied, true)}`,
-      muted: true,
-    })
-  }
-  rows.push({
-    label: 'Tổng thanh toán',
-    value: formatCurrency(invoice.grandTotal, true),
-    strong: true,
-  })
 
   return (
-    <div className="space-y-4">
-      {voidReason && (
-        <div className="px-3 py-2 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-sm">
-          Lý do hủy: {voidReason}
+    <Section title="Ca hát">
+      {canEdit ? (
+        <div className="rounded-md border border-border p-3 space-y-3 bg-card">
+          <p className="text-xs text-muted-foreground">
+            Đổi giờ sẽ tính lại tiền phòng theo bảng giá hiện tại.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+            <Field label="Check-in">
+              <Input
+                type="datetime-local"
+                value={checkIn}
+                onChange={(e) => setCheckIn(e.target.value)}
+              />
+            </Field>
+            <Field label="Check-out">
+              <Input
+                type="datetime-local"
+                value={checkOut}
+                onChange={(e) => setCheckOut(e.target.value)}
+              />
+            </Field>
+            <Button onClick={save} disabled={editTimes.isPending} className="sm:mb-0.5">
+              {editTimes.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lưu giờ'}
+            </Button>
+          </div>
         </div>
-      )}
-      <div className="rounded-md border border-border overflow-hidden">
-        <table className="w-full text-sm">
-          <tbody className="divide-y divide-border">
-            {rows.map((r) => (
-              <tr key={r.label} className={r.strong ? 'bg-muted/30' : ''}>
-                <td className="px-3 py-2 text-muted-foreground">{r.label}</td>
-                <td
-                  className={
-                    'px-3 py-2 text-right tabular-nums ' +
-                    (r.strong ? 'font-bold text-primary' : r.muted ? 'text-emerald-700' : 'font-medium')
-                  }
-                >
-                  {r.value}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-        <div className="rounded-md border border-border px-3 py-2 space-y-1">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ca hát</p>
+      ) : (
+        <div className="rounded-md border border-border px-3 py-2.5 text-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
           <p>
-            Vào: <span className="font-medium">{formatDateTime(invoice.session.checkInTime)}</span>
+            Vào:{' '}
+            <span className="font-medium">{formatDateTime(invoice.session.checkInTime)}</span>
           </p>
           <p>
             Ra:{' '}
@@ -306,223 +322,26 @@ function OverviewTab({ invoice }: { invoice: NonNullable<Inv> }) {
             </span>
           </p>
         </div>
-        <div className="rounded-md border border-border px-3 py-2 space-y-1">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Thanh toán</p>
-          {invoice.payments.length === 0 ? (
-            <p className="text-muted-foreground italic">Chưa có</p>
-          ) : (
-            invoice.payments.map((p) => (
-              <p key={p.id} className="flex justify-between gap-2">
-                <span>{PAY_METHOD_LABEL[p.method] ?? p.method}</span>
-                <span className="font-medium tabular-nums">{formatCurrency(p.amount, true)}</span>
-              </p>
-            ))
-          )}
-          <p className="text-xs text-muted-foreground pt-1 border-t border-border">
-            Thu ngân: {invoice.createdBy.fullName}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Tab 1: Discount / Surcharge ────────────────────────────────────────────
-
-function DiscountTab({ invoice }: { invoice: NonNullable<Inv> }) {
-  const locked = invoice.status === 'VOID'
-  const [discount, setDiscount] = useState(String(invoice.discountAmount))
-  const [discountReason, setDiscountReason] = useState(invoice.discountReason ?? '')
-  const [surcharge, setSurcharge] = useState(String(invoice.surchargeAmount))
-
-  // Re-init when invoice updates (after a save)
-  useEffect(() => {
-    setDiscount(String(invoice.discountAmount))
-    setDiscountReason(invoice.discountReason ?? '')
-    setSurcharge(String(invoice.surchargeAmount))
-  }, [invoice.discountAmount, invoice.discountReason, invoice.surchargeAmount])
-
-  const adjust = useAdjustDiscount()
-
-  async function save() {
-    try {
-      await adjust.mutateAsync({
-        id: invoice.id,
-        discountAmount: Number(discount) || 0,
-        discountReason: discountReason || undefined,
-        surchargeAmount: Number(surcharge) || 0,
-      })
-      toast.success('Đã cập nhật giảm giá / phụ thu')
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Cập nhật thất bại'))
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      {invoice.voucherCode && (
-        <div className="px-3 py-2 rounded-md border border-border bg-muted/30 text-sm">
-          Voucher gắn HĐ:{' '}
-          <span className="font-mono font-semibold">{invoice.voucherCode}</span>
-        </div>
       )}
-      <Field label="Giảm giá (VNĐ)">
-        <Input
-          type="number"
-          min={0}
-          value={discount}
-          disabled={locked}
-          onChange={(e) => setDiscount(e.target.value)}
-        />
-      </Field>
-      <Field label="Lý do giảm giá">
-        <Input
-          value={discountReason}
-          disabled={locked}
-          onChange={(e) => setDiscountReason(e.target.value)}
-          placeholder="VD: Khách quen, sinh nhật..."
-        />
-      </Field>
-      <Field label="Phụ thu (VNĐ)">
-        <Input
-          type="number"
-          min={0}
-          value={surcharge}
-          disabled={locked}
-          onChange={(e) => setSurcharge(e.target.value)}
-        />
-      </Field>
-      <Button onClick={save} disabled={locked || adjust.isPending} className="w-full">
-        {adjust.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lưu thay đổi'}
-      </Button>
-    </div>
+    </Section>
   )
 }
 
-// ── Tab 2: Payments ────────────────────────────────────────────────────────
+// ── Items ──────────────────────────────────────────────────────────────────
 
-function PaymentsTab({ invoice }: { invoice: NonNullable<Inv> }) {
-  const locked = invoice.status === 'VOID'
-  const [debtAmount, setDebtAmount] = useState(String(invoice.debtAmount))
-  const [debtMethod, setDebtMethod] = useState<'CASH' | 'QR_TRANSFER'>('CASH')
-
-  useEffect(() => {
-    setDebtAmount(String(invoice.debtAmount))
-  }, [invoice.debtAmount])
-
-  const settle = useSettleDebt()
-  const changeMethod = useChangePaymentMethod()
-
-  async function handleSettle() {
-    try {
-      await settle.mutateAsync({
-        id: invoice.id,
-        amount: Number(debtAmount),
-        method: debtMethod,
-      })
-      toast.success('Đã ghi nhận trả nợ')
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Ghi nợ thất bại'))
-    }
-  }
-
-  async function handleChangeMethod(paymentId: number, newMethod: 'CASH' | 'QR_TRANSFER') {
-    try {
-      await changeMethod.mutateAsync({ id: invoice.id, paymentId, method: newMethod })
-      toast.success('Đã đổi phương thức')
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Đổi phương thức thất bại'))
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Existing payments */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
-          Lịch sử thanh toán
-        </h4>
-        {invoice.payments.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">Chưa có ghi nhận</p>
-        ) : (
-          <div className="space-y-1.5">
-            {invoice.payments.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between gap-2 px-3 py-2 rounded-md border border-border bg-muted/20"
-              >
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{PAY_METHOD_LABEL[p.method]}</Badge>
-                  <span className="text-sm font-bold tabular-nums">
-                    {formatCurrency(p.amount, true)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{formatDateTime(p.createdAt)}</span>
-                </div>
-                {!locked && p.method !== 'DEBT' && (
-                  <Select
-                    value={p.method}
-                    onValueChange={(v) =>
-                      v !== p.method && handleChangeMethod(p.id, v as 'CASH' | 'QR_TRANSFER')
-                    }
-                  >
-                    <SelectTrigger className="h-7 text-xs w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CASH">Tiền mặt</SelectItem>
-                      <SelectItem value="QR_TRANSFER">QR</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Settle debt */}
-      {!locked && invoice.debtAmount > 0 && (
-        <div className="border-t border-border pt-3">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
-            Thu nợ
-          </h4>
-          <div className="grid grid-cols-[1fr_120px_120px] gap-2">
-            <Input
-              type="number"
-              min={0}
-              value={debtAmount}
-              onChange={(e) => setDebtAmount(e.target.value)}
-              placeholder="Số tiền"
-            />
-            <Select value={debtMethod} onValueChange={(v) => setDebtMethod(v as 'CASH' | 'QR_TRANSFER')}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">Tiền mặt</SelectItem>
-                <SelectItem value="QR_TRANSFER">QR</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSettle} disabled={settle.isPending}>
-              {settle.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ghi nhận'}
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Tab 3: Items ───────────────────────────────────────────────────────────
-
-function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
-  const locked = invoice.status === 'VOID'
+function ItemsBlock({ invoice, canEdit }: { invoice: Inv; canEdit: boolean }) {
   const { data: menu } = useMenu()
-  const [menuItemId, setMenuItemId] = useState<string>('')
+  const [menuItemId, setMenuItemId] = useState('')
   const [quantity, setQuantity] = useState('1')
-
   const addItem = useAddInvoiceItem()
   const removeItem = useRemoveInvoiceItem()
+
+  const allItems = (invoice.session.orders ?? []).flatMap((o) =>
+    o.items.map((i) => ({ ...i, orderId: o.id })),
+  )
+  const flatMenu = (menu ?? []).flatMap((c) =>
+    c.items.map((i) => ({ id: i.id, name: i.name, price: i.price })),
+  )
 
   async function handleAdd() {
     if (!menuItemId) return
@@ -550,174 +369,361 @@ function ItemsTab({ invoice }: { invoice: NonNullable<Inv> }) {
     }
   }
 
-  // Flatten all items from all orders
-  const allItems = (invoice.session.orders ?? []).flatMap((o) =>
-    o.items.map((i) => ({ ...i, orderId: o.id })),
-  )
-
-  // Flat menu items list for the picker
-  const flatMenu = (menu ?? []).flatMap((c) =>
-    c.items.map((i) => ({ id: i.id, name: i.name, price: i.price, category: c.name })),
-  )
-
   return (
-    <div className="space-y-4">
-      {/* Item list */}
-      <div>
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
-          Món trong hóa đơn ({allItems.length})
-        </h4>
+    <Section title={`Món (${allItems.length})`}>
+      <div className="rounded-md border border-border overflow-hidden">
         {allItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">Chưa có món</p>
+          <p className="px-3 py-4 text-sm text-muted-foreground italic">Chưa có món</p>
         ) : (
-          <div className="rounded-md border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="text-left px-3 py-1.5 font-medium">Món</th>
-                  <th className="text-center px-2 py-1.5 font-medium">SL</th>
-                  <th className="text-right px-3 py-1.5 font-medium">Đơn giá</th>
-                  <th className="text-right px-3 py-1.5 font-medium">Thành tiền</th>
-                  <th className="px-2" />
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Món</th>
+                <th className="text-center px-2 py-2 font-medium w-12">SL</th>
+                <th className="text-right px-3 py-2 font-medium hidden sm:table-cell">Đơn giá</th>
+                <th className="text-right px-3 py-2 font-medium">Thành tiền</th>
+                {canEdit && <th className="w-10" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {allItems.map((it) => (
+                <tr key={it.id}>
+                  <td className="px-3 py-2">
+                    <div className="font-medium">{it.menuItem.name}</div>
+                    {it.notes && (
+                      <div className="text-[11px] text-muted-foreground">{it.notes}</div>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-center tabular-nums">{it.quantity}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+                    {formatCurrency(it.unitPrice)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">
+                    {formatCurrency(it.subtotal)}
+                  </td>
+                  {canEdit && (
+                    <td className="px-1 py-2 text-right">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+                        aria-label={`Xóa ${it.menuItem.name}`}
+                        onClick={() => handleRemove(it.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
+                  )}
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {allItems.map((it) => (
-                  <tr key={it.id}>
-                    <td className="px-3 py-1.5">
-                      <div>{it.menuItem.name}</div>
-                      {it.notes && (
-                        <div className="text-[11px] text-muted-foreground">{it.notes}</div>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5 text-center tabular-nums">{it.quantity}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                      {formatCurrency(it.unitPrice)}
-                    </td>
-                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">
-                      {formatCurrency(it.subtotal)}
-                    </td>
-                    <td className="px-2 py-1.5 text-right">
-                      {!locked && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-muted-foreground hover:text-rose-600"
-                          aria-label={`Xóa ${it.menuItem.name}`}
-                          onClick={() => handleRemove(it.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* Add new item */}
-      {!locked && (
-        <div className="border-t border-border pt-3">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Thêm món</h4>
-          <div className="grid grid-cols-[1fr_80px_120px] gap-2">
-            <Select value={menuItemId} onValueChange={setMenuItemId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Chọn món..." />
-              </SelectTrigger>
-              <SelectContent>
-                {flatMenu.map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.name} — {formatCurrency(m.price)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-            />
-            <Button onClick={handleAdd} disabled={!menuItemId || addItem.isPending}>
-              {addItem.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-1" /> Thêm
-                </>
-              )}
-            </Button>
-          </div>
+      {canEdit && (
+        <div className="grid grid-cols-[1fr_72px_auto] gap-2">
+          <Select value={menuItemId} onValueChange={setMenuItemId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Thêm món..." />
+            </SelectTrigger>
+            <SelectContent>
+              {flatMenu.map((m) => (
+                <SelectItem key={m.id} value={String(m.id)}>
+                  {m.name} — {formatCurrency(m.price)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            min={1}
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            aria-label="Số lượng"
+          />
+          <Button onClick={handleAdd} disabled={!menuItemId || addItem.isPending}>
+            {addItem.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-1" /> Thêm
+              </>
+            )}
+          </Button>
         </div>
       )}
-    </div>
+    </Section>
   )
 }
 
-// ── Tab 4: Times ───────────────────────────────────────────────────────────
+// ── Totals ─────────────────────────────────────────────────────────────────
 
-function TimesTab({ invoice }: { invoice: NonNullable<Inv> }) {
-  const locked = invoice.status === 'VOID'
-  const [checkIn, setCheckIn] = useState(isoToLocalInput(invoice.session.checkInTime))
-  const [checkOut, setCheckOut] = useState(isoToLocalInput(invoice.session.checkOutTime))
+function TotalsBlock({ invoice }: { invoice: Inv }) {
+  const isVoid = invoice.status === 'VOID'
+  const voidReason =
+    isVoid && invoice.discountReason?.startsWith('[HỦY]')
+      ? invoice.discountReason.replace(/^\[HỦY\]\s*/, '')
+      : null
+  const showDiscount =
+    invoice.discountAmount > 0 && !(isVoid && invoice.discountReason?.startsWith('[HỦY]'))
+
+  const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
+    { label: 'Tiền phòng', value: formatCurrency(invoice.roomCharge, true) },
+    { label: 'Tiền món', value: formatCurrency(invoice.orderTotal, true) },
+    { label: 'Tạm tính', value: formatCurrency(invoice.subtotal, true) },
+  ]
+  if (showDiscount) {
+    rows.push({
+      label: invoice.discountReason
+        ? `Giảm giá (${invoice.discountReason})`
+        : 'Giảm giá',
+      value: `−${formatCurrency(invoice.discountAmount, true)}`,
+      muted: true,
+    })
+  }
+  if (invoice.voucherCode) {
+    rows.push({ label: 'Voucher', value: invoice.voucherCode, muted: true })
+  }
+  if (invoice.surchargeAmount > 0) {
+    rows.push({
+      label: 'Phụ thu',
+      value: `+${formatCurrency(invoice.surchargeAmount, true)}`,
+    })
+  }
+  if (invoice.depositApplied > 0) {
+    rows.push({
+      label: 'Cọc trừ',
+      value: `−${formatCurrency(invoice.depositApplied, true)}`,
+      muted: true,
+    })
+  }
+  rows.push({
+    label: 'Tổng thanh toán',
+    value: formatCurrency(invoice.grandTotal, true),
+    strong: true,
+  })
+
+  return (
+    <Section title="Tổng kết">
+      {voidReason && (
+        <Banner tone="danger" text={`Lý do hủy: ${voidReason}`} />
+      )}
+      <div className="rounded-md border border-border overflow-hidden">
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-border">
+            {rows.map((r) => (
+              <tr key={r.label} className={r.strong ? 'bg-muted/30' : ''}>
+                <td className="px-3 py-2 text-muted-foreground">{r.label}</td>
+                <td
+                  className={
+                    'px-3 py-2 text-right tabular-nums ' +
+                    (r.strong
+                      ? 'font-bold text-primary text-base'
+                      : r.muted
+                        ? 'text-emerald-700'
+                        : 'font-medium')
+                  }
+                >
+                  {r.value}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted-foreground">Thu ngân: {invoice.createdBy.fullName}</p>
+    </Section>
+  )
+}
+
+// ── Discount / surcharge ───────────────────────────────────────────────────
+
+function DiscountBlock({ invoice, canEdit }: { invoice: Inv; canEdit: boolean }) {
+  const [discount, setDiscount] = useState(String(invoice.discountAmount))
+  const [discountReason, setDiscountReason] = useState(invoice.discountReason ?? '')
+  const [surcharge, setSurcharge] = useState(String(invoice.surchargeAmount))
+  const adjust = useAdjustDiscount()
 
   useEffect(() => {
-    setCheckIn(isoToLocalInput(invoice.session.checkInTime))
-    setCheckOut(isoToLocalInput(invoice.session.checkOutTime))
-  }, [invoice.session.checkInTime, invoice.session.checkOutTime])
+    setDiscount(String(invoice.discountAmount))
+    setDiscountReason(invoice.discountReason ?? '')
+    setSurcharge(String(invoice.surchargeAmount))
+  }, [invoice.discountAmount, invoice.discountReason, invoice.surchargeAmount])
 
-  const editTimes = useEditInvoiceTimes()
+  if (!canEdit) return null
 
   async function save() {
     try {
-      await editTimes.mutateAsync({
+      await adjust.mutateAsync({
         id: invoice.id,
-        checkInTime: localInputToISO(checkIn),
-        checkOutTime: localInputToISO(checkOut),
+        discountAmount: Number(discount) || 0,
+        discountReason: discountReason || undefined,
+        surchargeAmount: Number(surcharge) || 0,
       })
-      toast.success('Đã cập nhật thời gian + tính lại tiền phòng')
+      toast.success('Đã cập nhật giảm giá / phụ thu')
     } catch (err) {
       toast.error(getErrorMessage(err, 'Cập nhật thất bại'))
     }
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Khi đổi thời gian, hệ thống sẽ tính lại tiền phòng theo bảng giá hiện tại.
-      </p>
-      <Field label="Check-in">
-        <Input
-          type="datetime-local"
-          value={checkIn}
-          disabled={locked}
-          onChange={(e) => setCheckIn(e.target.value)}
-        />
-      </Field>
-      <Field label="Check-out">
-        <Input
-          type="datetime-local"
-          value={checkOut}
-          disabled={locked}
-          onChange={(e) => setCheckOut(e.target.value)}
-        />
-      </Field>
-      <Button onClick={save} disabled={locked || editTimes.isPending} className="w-full">
-        {editTimes.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lưu + tính lại'}
-      </Button>
-    </div>
+    <Section title="Giảm giá / phụ thu">
+      {invoice.voucherCode && (
+        <div className="px-3 py-2 rounded-md border border-border bg-muted/30 text-sm">
+          Voucher: <span className="font-mono font-semibold">{invoice.voucherCode}</span>
+        </div>
+      )}
+      <div className="rounded-md border border-border p-3 space-y-3 bg-card">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <Field label="Giảm giá (VNĐ)">
+            <Input
+              type="number"
+              min={0}
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+            />
+          </Field>
+          <Field label="Lý do">
+            <Input
+              value={discountReason}
+              onChange={(e) => setDiscountReason(e.target.value)}
+              placeholder="Khách quen, sinh nhật..."
+            />
+          </Field>
+          <Field label="Phụ thu (VNĐ)">
+            <Input
+              type="number"
+              min={0}
+              value={surcharge}
+              onChange={(e) => setSurcharge(e.target.value)}
+            />
+          </Field>
+        </div>
+        <Button onClick={save} disabled={adjust.isPending} size="sm">
+          {adjust.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lưu giảm giá / phụ thu'}
+        </Button>
+      </div>
+    </Section>
   )
 }
 
-// ── Tab 5: Void ────────────────────────────────────────────────────────────
+// ── Payments ───────────────────────────────────────────────────────────────
 
-function VoidTab({ invoice, onClose }: { invoice: NonNullable<Inv>; onClose: () => void }) {
+function PaymentsBlock({ invoice, canEdit }: { invoice: Inv; canEdit: boolean }) {
+  const [debtAmount, setDebtAmount] = useState(String(invoice.debtAmount))
+  const [debtMethod, setDebtMethod] = useState<'CASH' | 'QR_TRANSFER'>('CASH')
+  const settle = useSettleDebt()
+  const changeMethod = useChangePaymentMethod()
+
+  useEffect(() => {
+    setDebtAmount(String(invoice.debtAmount))
+  }, [invoice.debtAmount])
+
+  async function handleSettle() {
+    try {
+      await settle.mutateAsync({
+        id: invoice.id,
+        amount: Number(debtAmount),
+        method: debtMethod,
+      })
+      toast.success('Đã ghi nhận trả nợ')
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Ghi nợ thất bại'))
+    }
+  }
+
+  async function handleChangeMethod(paymentId: number, newMethod: 'CASH' | 'QR_TRANSFER') {
+    try {
+      await changeMethod.mutateAsync({ id: invoice.id, paymentId, method: newMethod })
+      toast.success('Đã đổi phương thức')
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Đổi phương thức thất bại'))
+    }
+  }
+
+  return (
+    <Section title="Thanh toán">
+      {invoice.payments.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic px-1">Chưa có ghi nhận</p>
+      ) : (
+        <div className="space-y-1.5">
+          {invoice.payments.map((p) => (
+            <div
+              key={p.id}
+              className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md border border-border bg-muted/20"
+            >
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <Badge variant="outline">{PAY_METHOD_LABEL[p.method] ?? p.method}</Badge>
+                <span className="text-sm font-bold tabular-nums">
+                  {formatCurrency(p.amount, true)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDateTime(p.createdAt)}
+                </span>
+              </div>
+              {canEdit && p.method !== 'DEBT' && (
+                <Select
+                  value={p.method}
+                  onValueChange={(v) =>
+                    v !== p.method && handleChangeMethod(p.id, v as 'CASH' | 'QR_TRANSFER')
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Tiền mặt</SelectItem>
+                    <SelectItem value="QR_TRANSFER">QR</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canEdit && invoice.debtAmount > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">
+            Thu nợ · còn {formatCurrency(invoice.debtAmount, true)}
+          </p>
+          <div className="grid grid-cols-[1fr_120px_auto] gap-2">
+            <Input
+              type="number"
+              min={0}
+              value={debtAmount}
+              onChange={(e) => setDebtAmount(e.target.value)}
+              placeholder="Số tiền"
+            />
+            <Select
+              value={debtMethod}
+              onValueChange={(v) => setDebtMethod(v as 'CASH' | 'QR_TRANSFER')}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CASH">Tiền mặt</SelectItem>
+                <SelectItem value="QR_TRANSFER">QR</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={handleSettle} disabled={settle.isPending}>
+              {settle.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ghi nhận'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+// ── Void (danger zone) ─────────────────────────────────────────────────────
+
+function VoidBlock({ invoice, onClose }: { invoice: Inv; onClose: () => void }) {
+  const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const voidInvoice = useVoidInvoice()
-  const isVoid = invoice.status === 'VOID'
 
   async function handleVoid() {
     if (!confirm('Hủy hóa đơn này? Kho sẽ được hoàn lại. Hành động này không thể đảo ngược.'))
@@ -731,57 +737,61 @@ function VoidTab({ invoice, onClose }: { invoice: NonNullable<Inv>; onClose: () 
     }
   }
 
-  if (isVoid) {
-    return (
-      <div className="p-4 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-sm">
-        Hóa đơn này đã bị hủy.
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-3">
-      <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-sm flex gap-2">
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-        <div>
-          Hủy hóa đơn sẽ:
-          <ul className="list-disc list-inside mt-1 space-y-0.5">
-            <li>Đặt trạng thái về VOID — không tính vào doanh thu</li>
-            <li>Hoàn lại kho cho mọi sản phẩm trong hóa đơn</li>
-            <li>Ghi audit log với lý do</li>
-          </ul>
+    <Section
+      title="Vùng nguy hiểm"
+      action={
+        !open ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-7 text-xs"
+            onClick={() => setOpen(true)}
+          >
+            Hủy hóa đơn…
+          </Button>
+        ) : null
+      }
+    >
+      {open && (
+        <div className="rounded-md border border-rose-200 bg-rose-50/40 p-3 space-y-3">
+          <div className="text-sm text-rose-800 flex gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              Hủy sẽ đặt VOID (không tính doanh thu), hoàn kho, và ghi audit log.
+            </div>
+          </div>
+          <Field label="Lý do hủy (≥ 3 ký tự)">
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="VD: Tính nhầm tiền, khách trả lại..."
+            />
+          </Field>
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              onClick={handleVoid}
+              disabled={reason.trim().length < 3 || voidInvoice.isPending}
+            >
+              {voidInvoice.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                'Xác nhận hủy'
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setOpen(false)
+                setReason('')
+              }}
+            >
+              Đóng
+            </Button>
+          </div>
         </div>
-      </div>
-      <Field label="Lý do hủy (bắt buộc, ≥ 3 ký tự)">
-        <Input
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="VD: Tính nhầm tiền, khách trả lại..."
-        />
-      </Field>
-      <Button
-        variant="destructive"
-        onClick={handleVoid}
-        disabled={reason.trim().length < 3 || voidInvoice.isPending}
-        className="w-full"
-      >
-        {voidInvoice.isPending ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          'Xác nhận hủy hóa đơn'
-        )}
-      </Button>
-    </div>
-  )
-}
-
-// ── Field wrapper ─────────────────────────────────────────────────────────
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-foreground">{label}</label>
-      {children}
-    </div>
+      )}
+    </Section>
   )
 }
