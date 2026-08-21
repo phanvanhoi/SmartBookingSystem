@@ -171,7 +171,7 @@ export default function App() {
           <Route
             path="/stock"
             element={
-              <RequireRole roles={MANAGEMENT}>
+              <RequireRole roles={CASHIER_UP}>
                 <StockPage />
               </RequireRole>
             }
@@ -211,7 +211,7 @@ export default function App() {
           <Route
             path="/invoices"
             element={
-              <RequireRole roles={OWNER_ONLY}>
+              <RequireRole roles={CASHIER_UP}>
                 <InvoicesPage />
               </RequireRole>
             }

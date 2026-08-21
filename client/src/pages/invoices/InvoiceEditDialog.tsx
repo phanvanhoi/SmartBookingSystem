@@ -46,6 +46,8 @@ interface Props {
   invoiceId: number | null
   open: boolean
   onClose: () => void
+  /** Non-OWNER: view breakdown only, no mutate tabs. */
+  readOnly?: boolean
 }
 
 const PAY_METHOD_LABEL: Record<string, string> = {
@@ -67,7 +69,7 @@ function localInputToISO(local: string): string | undefined {
   return new Date(local).toISOString()
 }
 
-export default function InvoiceEditDialog({ invoiceId, open, onClose }: Props) {
+export default function InvoiceEditDialog({ invoiceId, open, onClose, readOnly = false }: Props) {
   const { data: invoice, isLoading } = useInvoice(invoiceId)
 
   if (!open || !invoiceId) return null
@@ -77,7 +79,7 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose }: Props) {
       <DialogContent className="max-w-3xl w-full max-h-[92vh] overflow-y-auto !p-0">
         <DialogHeader className="px-5 py-3 border-b border-border">
           <DialogTitle className="text-base">
-            Sửa hóa đơn{' '}
+            {readOnly ? 'Chi tiết hóa đơn' : 'Sửa hóa đơn'}{' '}
             <span className="font-mono text-muted-foreground font-normal">
               {invoice?.invoiceNumber ?? '...'}
             </span>
@@ -111,53 +113,66 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose }: Props) {
               />
             </div>
 
-            {invoice.status === 'VOID' && (
-              <div className="mb-3 px-3 py-2 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-sm">
-                Hóa đơn đã hủy — chỉ xem, không chỉnh sửa.
+            {(readOnly || invoice.status === 'VOID') && (
+              <div
+                className={
+                  'mb-3 px-3 py-2 rounded-md border text-sm ' +
+                  (invoice.status === 'VOID'
+                    ? 'bg-rose-50 border-rose-200 text-rose-700'
+                    : 'bg-muted/40 border-border text-muted-foreground')
+                }
+              >
+                {invoice.status === 'VOID'
+                  ? 'Hóa đơn đã hủy — chỉ xem, không chỉnh sửa.'
+                  : 'Chế độ xem — chỉ chủ quán mới được sửa hóa đơn.'}
               </div>
             )}
 
-            <Tabs defaultValue="overview">
-              <TabsList className="grid grid-cols-3 sm:grid-cols-6 mb-3 w-full h-auto gap-1">
-                <TabsTrigger value="overview" className="text-xs">
-                  Chi tiết
-                </TabsTrigger>
-                <TabsTrigger value="discount" className="text-xs">
-                  Giảm giá
-                </TabsTrigger>
-                <TabsTrigger value="payments" className="text-xs">
-                  Thanh toán
-                </TabsTrigger>
-                <TabsTrigger value="items" className="text-xs">
-                  Món
-                </TabsTrigger>
-                <TabsTrigger value="times" className="text-xs">
-                  Thời gian
-                </TabsTrigger>
-                <TabsTrigger value="void" className="text-xs text-rose-600 data-[state=active]:bg-rose-50">
-                  Hủy HĐ
-                </TabsTrigger>
-              </TabsList>
+            {readOnly ? (
+              <OverviewTab invoice={invoice} />
+            ) : (
+              <Tabs defaultValue="overview">
+                <TabsList className="grid grid-cols-3 sm:grid-cols-6 mb-3 w-full h-auto gap-1">
+                  <TabsTrigger value="overview" className="text-xs">
+                    Chi tiết
+                  </TabsTrigger>
+                  <TabsTrigger value="discount" className="text-xs">
+                    Giảm giá
+                  </TabsTrigger>
+                  <TabsTrigger value="payments" className="text-xs">
+                    Thanh toán
+                  </TabsTrigger>
+                  <TabsTrigger value="items" className="text-xs">
+                    Món
+                  </TabsTrigger>
+                  <TabsTrigger value="times" className="text-xs">
+                    Thời gian
+                  </TabsTrigger>
+                  <TabsTrigger value="void" className="text-xs text-rose-600 data-[state=active]:bg-rose-50">
+                    Hủy HĐ
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="overview">
-                <OverviewTab invoice={invoice} />
-              </TabsContent>
-              <TabsContent value="discount">
-                <DiscountTab invoice={invoice} />
-              </TabsContent>
-              <TabsContent value="payments">
-                <PaymentsTab invoice={invoice} />
-              </TabsContent>
-              <TabsContent value="items">
-                <ItemsTab invoice={invoice} />
-              </TabsContent>
-              <TabsContent value="times">
-                <TimesTab invoice={invoice} />
-              </TabsContent>
-              <TabsContent value="void">
-                <VoidTab invoice={invoice} onClose={onClose} />
-              </TabsContent>
-            </Tabs>
+                <TabsContent value="overview">
+                  <OverviewTab invoice={invoice} />
+                </TabsContent>
+                <TabsContent value="discount">
+                  <DiscountTab invoice={invoice} />
+                </TabsContent>
+                <TabsContent value="payments">
+                  <PaymentsTab invoice={invoice} />
+                </TabsContent>
+                <TabsContent value="items">
+                  <ItemsTab invoice={invoice} />
+                </TabsContent>
+                <TabsContent value="times">
+                  <TimesTab invoice={invoice} />
+                </TabsContent>
+                <TabsContent value="void">
+                  <VoidTab invoice={invoice} onClose={onClose} />
+                </TabsContent>
+              </Tabs>
+            )}
           </div>
         )}
       </DialogContent>

@@ -30,11 +30,11 @@ export const navItems: NavItem[] = [
   { icon: DoorOpen, label: 'Phòng', href: '/rooms', roles: ALL },
   { icon: CalendarDays, label: 'Lịch', href: '/timeline', roles: CASHIER_UP },
   { icon: UtensilsCrossed, label: 'Order', href: '/orders', roles: ALL },
-  { icon: Package, label: 'Kho hàng', href: '/stock', roles: MANAGEMENT },
+  { icon: Package, label: 'Kho hàng', href: '/stock', roles: CASHIER_UP },
   { icon: Users, label: 'Khách hàng', href: '/customers', roles: CASHIER_UP },
   { icon: MessageSquare, label: 'Facebook', href: '/facebook', roles: MANAGEMENT },
   { icon: BarChart3, label: 'Báo cáo', href: '/reports', roles: MANAGEMENT },
-  { icon: Receipt, label: 'Hóa đơn', href: '/invoices', roles: ['OWNER'] },
+  { icon: Receipt, label: 'Hóa đơn', href: '/invoices', roles: CASHIER_UP },
   { icon: UserCog, label: 'Nhân viên', href: '/staff', roles: MANAGEMENT },
   { icon: Settings, label: 'Cài đặt', href: '/settings', roles: ['OWNER'] },
 ]
@@ -42,7 +42,7 @@ export const navItems: NavItem[] = [
 /** Bottom nav tabs — the rest live under "Thêm". */
 export const PRIMARY_TAB_HREFS: Record<UserRole, string[]> = {
   STAFF: ['/rooms', '/orders'],
-  CASHIER: ['/rooms', '/orders', '/customers'],
+  CASHIER: ['/rooms', '/orders', '/invoices', '/stock'],
   MANAGER: ['/rooms', '/orders', '/timeline', '/dashboard'],
   OWNER: ['/rooms', '/orders', '/timeline', '/dashboard'],
 }

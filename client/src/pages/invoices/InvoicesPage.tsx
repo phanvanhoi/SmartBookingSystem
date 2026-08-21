@@ -27,6 +27,7 @@ import { useInvoices } from '@/hooks/useCheckout'
 import { EMPTY_INVOICE_SUMMARY, type Invoice } from '@/services/checkoutService'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDateTime } from '@/utils/formatTime'
+import { useAuthStore } from '@/stores/authStore'
 import InvoiceEditDialog from './InvoiceEditDialog'
 
 type PeriodKey = 'day' | 'yesterday' | 'week' | 'month' | 'all'
@@ -97,6 +98,8 @@ function SummaryCard({
 }
 
 export default function InvoicesPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  const canEdit = role === 'OWNER'
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StatusKey>('all')
@@ -169,7 +172,9 @@ export default function InvoicesPage() {
             Hóa đơn
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Xem và chỉnh sửa hóa đơn (chỉ chủ quán)
+            {canEdit
+              ? 'Xem và chỉnh sửa hóa đơn (chỉnh sửa chỉ chủ quán)'
+              : 'Xem hóa đơn đã thanh toán'}
           </p>
         </div>
       </div>
@@ -393,7 +398,7 @@ export default function InvoicesPage() {
                           className="h-8"
                           onClick={() => setEditingId(inv.id)}
                         >
-                          {inv.status === 'VOID' ? 'Xem' : 'Sửa'}
+                          {!canEdit || inv.status === 'VOID' ? 'Xem' : 'Sửa'}
                         </Button>
                       </td>
                     </tr>
@@ -441,6 +446,7 @@ export default function InvoicesPage() {
       <InvoiceEditDialog
         invoiceId={editingId}
         open={editingId !== null}
+        readOnly={!canEdit}
         onClose={() => setEditingId(null)}
       />
     </div>

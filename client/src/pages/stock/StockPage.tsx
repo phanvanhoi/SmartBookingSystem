@@ -47,6 +47,7 @@ import StockEntryForm from './StockEntryForm'
 import InventoryCheckPage from './InventoryCheckPage'
 import SupplierPage from './SupplierPage'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/utils/cn'
 
 // ─── Product Form Dialog ──────────────────────────────────────────────────────
@@ -257,6 +258,10 @@ const ITEMS_PER_PAGE = 20
 
 export default function StockPage() {
   const isMobile = useIsMobile()
+  const role = useAuthStore((s) => s.user?.role)
+  // CASHIER: view qty only. MANAGER+: nhập/xuất + kiểm kê. OWNER: CRUD SP + NCC.
+  const canMutateStock = role === 'OWNER' || role === 'MANAGER'
+  const canManageProducts = role === 'OWNER'
   const [activeTab, setActiveTab] = useState('inventory')
   const [stockEntryOpen, setStockEntryOpen] = useState(false)
 
@@ -306,9 +311,15 @@ export default function StockPage() {
   const totalEntryPages = entriesData?.pagination?.totalPages ?? Math.ceil(totalEntries / ITEMS_PER_PAGE)
 
   const openEditProduct = (product: Product) => {
+    if (!canManageProducts) return
     setEditProduct(product)
     setProductDialogOpen(true)
   }
+
+  useEffect(() => {
+    if (!canMutateStock && activeTab === 'check') setActiveTab('inventory')
+    if (!canManageProducts && activeTab === 'suppliers') setActiveTab('inventory')
+  }, [canMutateStock, canManageProducts, activeTab])
 
   const handleDeleteProduct = async () => {
     if (!deleteConfirm) return
@@ -330,14 +341,18 @@ export default function StockPage() {
           <div className="min-w-0">
             <h1 className="text-lg md:text-xl font-bold text-foreground tracking-tight truncate">Kho hàng</h1>
             {!isMobile && (
-              <p className="text-xs text-muted-foreground">Quản lý tồn kho & nhập xuất</p>
+              <p className="text-xs text-muted-foreground">
+                {canMutateStock ? 'Quản lý tồn kho & nhập xuất' : 'Xem số lượng tồn kho'}
+              </p>
             )}
           </div>
         </div>
-        <Button onClick={() => setStockEntryOpen(true)} className="shrink-0 min-h-[44px]" size={isMobile ? 'sm' : 'default'}>
-          <Plus className="h-4 w-4" />
-          {isMobile ? 'Nhập' : 'Nhập kho'}
-        </Button>
+        {canMutateStock && (
+          <Button onClick={() => setStockEntryOpen(true)} className="shrink-0 min-h-[44px]" size={isMobile ? 'sm' : 'default'}>
+            <Plus className="h-4 w-4" />
+            {isMobile ? 'Nhập' : 'Nhập kho'}
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -347,8 +362,12 @@ export default function StockPage() {
             <TabsList className={cn(isMobile && 'inline-flex w-max min-w-full')}>
               <TabsTrigger value="inventory" className={cn(isMobile && 'text-xs px-3')}>Tồn kho</TabsTrigger>
               <TabsTrigger value="history" className={cn(isMobile && 'text-xs px-3')}>N/X kho</TabsTrigger>
-              <TabsTrigger value="check" className={cn(isMobile && 'text-xs px-3')}>Kiểm kê</TabsTrigger>
-              <TabsTrigger value="suppliers" className={cn(isMobile && 'text-xs px-3')}>NCC</TabsTrigger>
+              {canMutateStock && (
+                <TabsTrigger value="check" className={cn(isMobile && 'text-xs px-3')}>Kiểm kê</TabsTrigger>
+              )}
+              {canManageProducts && (
+                <TabsTrigger value="suppliers" className={cn(isMobile && 'text-xs px-3')}>NCC</TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -400,15 +419,17 @@ export default function StockPage() {
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 Sắp hết
               </label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setProductDialogOpen(true)}
-                className="shrink-0 min-h-[44px] md:min-h-9"
-              >
-                <Plus className="h-4 w-4" />
-                Thêm SP
-              </Button>
+              {canManageProducts && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setProductDialogOpen(true)}
+                  className="shrink-0 min-h-[44px] md:min-h-9"
+                >
+                  <Plus className="h-4 w-4" />
+                  Thêm SP
+                </Button>
+              )}
             </div>
 
             {/* List */}
@@ -428,13 +449,13 @@ export default function StockPage() {
                 {products.map((product) => (
                   <div
                     key={product.id}
-                    role="button"
-                    tabIndex={0}
+                    role={canManageProducts ? 'button' : undefined}
+                    tabIndex={canManageProducts ? 0 : undefined}
                     onClick={() => openEditProduct(product)}
-                    onKeyDown={(e) => e.key === 'Enter' && openEditProduct(product)}
+                    onKeyDown={(e) => canManageProducts && e.key === 'Enter' && openEditProduct(product)}
                     className={cn(
                       'rounded-xl border border-border bg-card p-4 shadow-card transition-colors',
-                      product.isLowStock ? 'border-rose-200 bg-rose-50' : 'hover:border-primary/30',
+                      product.isLowStock ? 'border-rose-200 bg-rose-50' : canManageProducts && 'hover:border-primary/30',
                     )}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -466,14 +487,16 @@ export default function StockPage() {
                     {product.isLowStock && (
                       <p className="text-xs text-rose-600 mt-2">Dưới mức tối thiểu: {product.minStock}</p>
                     )}
-                    <div className="flex items-center gap-1 mt-3 pt-2 border-t border-border/60" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" className="min-h-[44px] flex-1" onClick={() => openEditProduct(product)}>
-                        <Pencil className="h-4 w-4 mr-1" /> Sửa
-                      </Button>
-                      <Button variant="ghost" size="sm" className="min-h-[44px] text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(product)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {canManageProducts && (
+                      <div className="flex items-center gap-1 mt-3 pt-2 border-t border-border/60" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="sm" className="min-h-[44px] flex-1" onClick={() => openEditProduct(product)}>
+                          <Pencil className="h-4 w-4 mr-1" /> Sửa
+                        </Button>
+                        <Button variant="ghost" size="sm" className="min-h-[44px] text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(product)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -488,14 +511,18 @@ export default function StockPage() {
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Đ.vị</th>
                       <th className="text-right px-4 py-3 text-muted-foreground font-medium">Giá nhập</th>
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">NCC</th>
-                      <th className="w-20 px-4 py-3" />
+                      {canManageProducts && <th className="w-20 px-4 py-3" />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {products.map((product) => (
                       <tr
                         key={product.id}
-                        className={`hover:bg-secondary/20 transition-colors cursor-pointer ${product.isLowStock ? 'bg-rose-50' : ''}`}
+                        className={cn(
+                          'hover:bg-secondary/20 transition-colors',
+                          product.isLowStock && 'bg-rose-50',
+                          canManageProducts && 'cursor-pointer',
+                        )}
                         onClick={() => openEditProduct(product)}
                       >
                         <td className="px-4 py-3">
@@ -533,28 +560,30 @@ export default function StockPage() {
                         <td className="px-4 py-3 text-muted-foreground text-sm">
                           {product.supplier?.name ?? '—'}
                         </td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                              aria-label={`Sửa ${product.name}`}
-                              onClick={() => openEditProduct(product)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              aria-label={`Xóa ${product.name}`}
-                              onClick={() => setDeleteConfirm(product)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </td>
+                        {canManageProducts && (
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                aria-label={`Sửa ${product.name}`}
+                                onClick={() => openEditProduct(product)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                aria-label={`Xóa ${product.name}`}
+                                onClick={() => setDeleteConfirm(product)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -774,50 +803,60 @@ export default function StockPage() {
           </TabsContent>
 
           {/* ── Tab: Kiểm kê ────────────────────────────────── */}
-          <TabsContent value="check" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
-            <InventoryCheckPage />
-          </TabsContent>
+          {canMutateStock && (
+            <TabsContent value="check" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
+              <InventoryCheckPage />
+            </TabsContent>
+          )}
 
           {/* ── Tab: Nhà cung cấp ───────────────────────────── */}
-          <TabsContent value="suppliers" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
-            <SupplierPage />
-          </TabsContent>
+          {canManageProducts && (
+            <TabsContent value="suppliers" className="flex-1 overflow-auto px-4 md:px-6 pb-6 mt-3 md:mt-4">
+              <SupplierPage />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
       {/* Modals */}
-      <StockEntryForm open={stockEntryOpen} onClose={() => setStockEntryOpen(false)} />
+      {canMutateStock && (
+        <StockEntryForm open={stockEntryOpen} onClose={() => setStockEntryOpen(false)} />
+      )}
 
-      <ProductDialog
-        open={productDialogOpen}
-        onClose={() => { setProductDialogOpen(false); setEditProduct(null) }}
-        product={editProduct}
-      />
+      {canManageProducts && (
+        <>
+          <ProductDialog
+            open={productDialogOpen}
+            onClose={() => { setProductDialogOpen(false); setEditProduct(null) }}
+            product={editProduct}
+          />
 
-      {/* Delete product confirm */}
-      <Dialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Xóa sản phẩm</DialogTitle>
-          </DialogHeader>
-          <div className="px-6 py-4">
-            <p className="text-muted-foreground text-sm">
-              Bạn có chắc muốn xóa <span className="text-foreground font-medium">{deleteConfirm?.name}</span>?
-              Hành động này không thể hoàn tác.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Hủy</Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteProduct}
-              disabled={deleteProduct.isPending}
-            >
-              {deleteProduct.isPending ? 'Đang xóa...' : 'Xóa'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Delete product confirm */}
+          <Dialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Xóa sản phẩm</DialogTitle>
+              </DialogHeader>
+              <div className="px-6 py-4">
+                <p className="text-muted-foreground text-sm">
+                  Bạn có chắc muốn xóa <span className="text-foreground font-medium">{deleteConfirm?.name}</span>?
+                  Hành động này không thể hoàn tác.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Hủy</Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteProduct}
+                  disabled={deleteProduct.isPending}
+                >
+                  {deleteProduct.isPending ? 'Đang xóa...' : 'Xóa'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   )
 }
