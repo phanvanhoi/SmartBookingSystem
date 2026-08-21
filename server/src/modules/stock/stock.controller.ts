@@ -22,10 +22,15 @@ export async function getProductsHandler(
   try {
     const filters = req.query as unknown as ProductQueryInput
     const result = await stockService.getProducts(filters)
+    // Giá nhập chỉ OWNER được xem.
+    const data =
+      req.user?.role === 'OWNER'
+        ? result.data
+        : result.data.map(({ costPrice: _cost, ...rest }) => rest)
 
     res.status(200).json({
       success: true,
-      data: result.data,
+      data,
       pagination: result.pagination,
     })
   } catch (err) {
@@ -124,10 +129,14 @@ export async function getStockEntriesHandler(
   try {
     const filters = req.query as unknown as StockEntryQueryInput
     const result = await stockService.getStockEntries(filters)
+    const data =
+      req.user?.role === 'OWNER'
+        ? result.data
+        : result.data.map(({ unitCost: _u, totalCost: _t, ...rest }) => rest)
 
     res.status(200).json({
       success: true,
-      data: result.data,
+      data,
       pagination: result.pagination,
     })
   } catch (err) {

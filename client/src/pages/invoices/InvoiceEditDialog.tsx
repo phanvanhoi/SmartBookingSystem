@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatCurrency } from '@/utils/formatCurrency'
-import { formatDateTime } from '@/utils/formatTime'
+import { formatDateTime, formatDuration } from '@/utils/formatTime'
 import { getErrorMessage } from '@/utils/error'
 import {
   useInvoice,
@@ -459,6 +459,14 @@ function ItemsBlock({ invoice, canEdit }: { invoice: Inv; canEdit: boolean }) {
 
 // ── Totals ─────────────────────────────────────────────────────────────────
 
+function formatHoursLabel(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const mins = Math.round(minutes % 60)
+  if (hours === 0) return `${mins} phút`
+  if (mins === 0) return `${hours} giờ`
+  return `${hours} giờ ${mins} phút`
+}
+
 function TotalsBlock({ invoice }: { invoice: Inv }) {
   const isVoid = invoice.status === 'VOID'
   const voidReason =
@@ -468,8 +476,9 @@ function TotalsBlock({ invoice }: { invoice: Inv }) {
   const showDiscount =
     invoice.discountAmount > 0 && !(isVoid && invoice.discountReason?.startsWith('[HỦY]'))
 
+  const roomSegments = invoice.roomChargeBreakdown?.segments ?? []
+
   const rows: Array<{ label: string; value: string; muted?: boolean; strong?: boolean }> = [
-    { label: 'Tiền phòng', value: formatCurrency(invoice.roomCharge, true) },
     { label: 'Tiền món', value: formatCurrency(invoice.orderTotal, true) },
     { label: 'Tạm tính', value: formatCurrency(invoice.subtotal, true) },
   ]
@@ -512,6 +521,54 @@ function TotalsBlock({ invoice }: { invoice: Inv }) {
       <div className="rounded-md border border-border overflow-hidden">
         <table className="w-full text-sm">
           <tbody className="divide-y divide-border">
+            <tr>
+              <td className="px-3 py-2 align-top" colSpan={2}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Tiền phòng</span>
+                  {roomSegments.length === 0 && (
+                    <span className="font-medium tabular-nums">
+                      {formatCurrency(invoice.roomCharge, true)}
+                    </span>
+                  )}
+                </div>
+                {roomSegments.length > 0 && (
+                  <div className="mt-2 space-y-1.5 text-xs">
+                    {roomSegments.map((seg, i) => (
+                      <div
+                        key={`${seg.start}-${seg.end}-${i}`}
+                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5"
+                      >
+                        <span>
+                          <span className="font-medium text-foreground">
+                            {seg.start} → {seg.end}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {' '}
+                            · {formatHoursLabel(seg.minutes)} × {formatCurrency(seg.pricePerHour)}đ/giờ
+                          </span>
+                        </span>
+                        <span className="tabular-nums font-medium text-foreground">
+                          = {formatCurrency(seg.amount, true)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-border/60 text-sm">
+                      <span className="text-muted-foreground">
+                        Tổng phòng
+                        {roomSegments.length > 1
+                          ? ` (${formatDuration(
+                              roomSegments.reduce((s, seg) => s + seg.minutes, 0),
+                            )})`
+                          : ''}
+                      </span>
+                      <span className="font-medium tabular-nums text-foreground">
+                        {formatCurrency(invoice.roomCharge, true)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </td>
+            </tr>
             {rows.map((r) => (
               <tr key={r.label} className={r.strong ? 'bg-muted/30' : ''}>
                 <td className="px-3 py-2 text-muted-foreground">{r.label}</td>

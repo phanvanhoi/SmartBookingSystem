@@ -617,7 +617,7 @@ export async function getInvoiceById(id: number) {
     include: {
       session: {
         include: {
-          room: { select: { id: true, name: true } },
+          room: { select: { id: true, name: true, roomTypeId: true } },
           orders: {
             where: { status: { not: 'CANCELLED' } },
             include: {
@@ -639,7 +639,84 @@ export async function getInvoiceById(id: number) {
     throw new AppError(404, 'INVOICE_NOT_FOUND', 'Hóa đơn không tồn tại')
   }
 
-  return mapInvoiceDetail(invoice)
+  const mapped = mapInvoiceDetail(invoice)
+  const roomChargeBreakdown = await buildRoomChargeBreakdown(
+    invoice.session.checkInTime,
+    invoice.session.checkOutTime,
+    invoice.session.room.roomTypeId,
+    toPlainNumber(invoice.roomCharge),
+  )
+
+  return { ...mapped, roomChargeBreakdown }
+}
+
+function toPlainNumber(v: { toNumber(): number } | number | null | undefined): number {
+  if (v === null || v === undefined) return 0
+  return typeof v === 'number' ? v : v.toNumber()
+}
+
+/** Rebuild hour × rate lines for invoice UI. Prefer live pricing segments when
+ *  they still match the stored roomCharge; otherwise one average-rate line. */
+async function buildRoomChargeBreakdown(
+  checkInTime: Date,
+  checkOutTime: Date | null,
+  roomTypeId: number,
+  storedRoomCharge: number,
+) {
+  if (!checkOutTime || checkOutTime <= checkInTime) {
+    return { segments: [] as Array<{
+      start: string
+      end: string
+      slotName: string
+      minutes: number
+      pricePerHour: number
+      amount: number
+    }> }
+  }
+
+  const actualMinutes = Math.max(
+    1,
+    Math.round((checkOutTime.getTime() - checkInTime.getTime()) / 60_000),
+  )
+
+  try {
+    const breakdown = await calculateRoomPrice(checkInTime, checkOutTime, roomTypeId)
+    if (
+      breakdown.segments.length > 0 &&
+      Math.abs(breakdown.total - storedRoomCharge) <= 1
+    ) {
+      return {
+        segments: breakdown.segments.map((s) => ({
+          start: s.start,
+          end: s.end,
+          slotName: s.slotName,
+          minutes: s.minutes,
+          pricePerHour: s.pricePerHour,
+          amount: s.amount,
+        })),
+      }
+    }
+  } catch {
+    // Fall through to average-rate line from stored amount.
+  }
+
+  const hours = actualMinutes / 60
+  const pricePerHour = hours > 0 ? Math.round(storedRoomCharge / hours) : storedRoomCharge
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const fmtClock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
+
+  return {
+    segments: [
+      {
+        start: fmtClock(checkInTime),
+        end: fmtClock(checkOutTime),
+        slotName: 'Tiền phòng',
+        minutes: actualMinutes,
+        pricePerHour,
+        amount: storedRoomCharge,
+      },
+    ],
+  }
 }
 
 // ─── Mappers ──────────────────────────────────────────────────────────────────
@@ -733,7 +810,7 @@ type InvoiceDetailRecord = {
     customerPhone: string | null
     checkInTime: Date
     checkOutTime: Date | null
-    room: { id: number; name: string }
+    room: { id: number; name: string; roomTypeId?: number }
     orders: Array<{
       id: number
       status: string
@@ -790,7 +867,7 @@ function mapInvoiceDetail(invoice: InvoiceDetailRecord) {
       customerPhone: invoice.session.customerPhone,
       checkInTime: invoice.session.checkInTime,
       checkOutTime: invoice.session.checkOutTime,
-      room: invoice.session.room,
+      room: { id: invoice.session.room.id, name: invoice.session.room.name },
       orders: invoice.session.orders.map((o) => ({
         id: o.id,
         status: o.status,

@@ -60,7 +60,7 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
     if (field === 'productId' && value !== null) {
       const product = products.find((p) => p.id === value)
       if (product) {
-        updated[index].unitCost = product.costPrice
+        updated[index].unitCost = product.costPrice ?? 0
       }
     }
     setItems(updated)

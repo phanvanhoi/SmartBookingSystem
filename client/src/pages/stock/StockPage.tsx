@@ -87,7 +87,7 @@ function productToForm(product: Product): ProductFormData {
     category: product.category ?? '',
     unit: product.unit,
     packSize: String(product.packSize),
-    costPrice: String(product.costPrice),
+    costPrice: String(product.costPrice ?? 0),
     minStock: String(product.minStock),
     supplierId: product.supplier ? String(product.supplier.id) : NO_SUPPLIER,
     isActive: product.isActive,
@@ -220,16 +220,17 @@ function ProductDialog({ open, onClose, product, readOnly = false }: ProductDial
                 onChange={(e) => setForm({ ...form, packSize: e.target.value })}
               />
             </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1.5 block">Giá nhập (VNĐ)</label>
-              <Input
-                type="number"
-                min={0}
-                value={form.costPrice}
-                disabled={readOnly}
-                onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
-              />
-            </div>
+            {!readOnly && (
+              <div>
+                <label className="text-sm text-muted-foreground mb-1.5 block">Giá nhập (VNĐ)</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.costPrice}
+                  onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+                />
+              </div>
+            )}
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Tồn kho tối thiểu</label>
               <Input
@@ -523,7 +524,11 @@ export default function StockPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Giá nhập: {formatCurrency(product.costPrice)}</span>
+                      {canManageProducts ? (
+                        <span>Giá nhập: {formatCurrency(product.costPrice)}</span>
+                      ) : (
+                        <span />
+                      )}
                       {product.supplier?.name && <span className="truncate ml-2">{product.supplier.name}</span>}
                     </div>
                     {product.isLowStock && (
@@ -551,7 +556,9 @@ export default function StockPage() {
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Loại</th>
                       <th className="text-right px-4 py-3 text-muted-foreground font-medium">Tồn kho</th>
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Đ.vị</th>
-                      <th className="text-right px-4 py-3 text-muted-foreground font-medium">Giá nhập</th>
+                      {canManageProducts && (
+                        <th className="text-right px-4 py-3 text-muted-foreground font-medium">Giá nhập</th>
+                      )}
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">NCC</th>
                       {canManageProducts && <th className="w-20 px-4 py-3" />}
                     </tr>
@@ -595,9 +602,11 @@ export default function StockPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{product.unit}</td>
-                        <td className="px-4 py-3 text-right text-foreground">
-                          {formatCurrency(product.costPrice)}
-                        </td>
+                        {canManageProducts && (
+                          <td className="px-4 py-3 text-right text-foreground">
+                            {formatCurrency(product.costPrice)}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-muted-foreground text-sm">
                           {product.supplier?.name ?? '—'}
                         </td>
@@ -740,7 +749,7 @@ export default function StockPage() {
                         <span className={cn('font-bold tabular-nums', entry.quantity > 0 ? 'text-emerald-700' : 'text-rose-700')}>
                           {entry.quantity > 0 ? '+' : ''}{entry.quantity}
                         </span>
-                        {entry.unitCost != null && (
+                        {canManageProducts && entry.unitCost != null && (
                           <span className="text-muted-foreground">{formatCurrency(entry.unitCost)}/đv</span>
                         )}
                       </div>
@@ -761,7 +770,9 @@ export default function StockPage() {
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Sản phẩm</th>
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Loại</th>
                       <th className="text-right px-4 py-3 text-muted-foreground font-medium">Số lượng</th>
-                      <th className="text-right px-4 py-3 text-muted-foreground font-medium">Đơn giá</th>
+                      {canManageProducts && (
+                        <th className="text-right px-4 py-3 text-muted-foreground font-medium">Đơn giá</th>
+                      )}
                       <th className="text-left px-4 py-3 text-muted-foreground font-medium">Người thực hiện</th>
                     </tr>
                   </thead>
@@ -787,9 +798,11 @@ export default function StockPage() {
                           <td className="px-4 py-3 text-right text-foreground font-medium">
                             {entry.quantity > 0 ? '+' : ''}{entry.quantity}
                           </td>
-                          <td className="px-4 py-3 text-right text-muted-foreground">
-                            {entry.unitCost ? formatCurrency(entry.unitCost) : '—'}
-                          </td>
+                          {canManageProducts && (
+                            <td className="px-4 py-3 text-right text-muted-foreground">
+                              {entry.unitCost ? formatCurrency(entry.unitCost) : '—'}
+                            </td>
+                          )}
                           <td className="px-4 py-3 text-muted-foreground">
                             {entry.createdBy.fullName}
                           </td>

@@ -60,6 +60,15 @@ export interface InvoiceSession {
   orders?: OrderRecord[]
 }
 
+export interface RoomChargeSegment {
+  start: string
+  end: string
+  slotName: string
+  minutes: number
+  pricePerHour: number
+  amount: number
+}
+
 export interface Invoice {
   id: number
   invoiceNumber: string
@@ -78,6 +87,8 @@ export interface Invoice {
   session: InvoiceSession
   payments: PaymentRecord[]
   createdBy: { id: number; fullName: string }
+  /** Cách tính tiền phòng: từng khung giờ × đơn giá. */
+  roomChargeBreakdown?: { segments: RoomChargeSegment[] }
 }
 
 export interface QRCodeInfo {

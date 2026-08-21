@@ -5,7 +5,7 @@ export interface Product {
   category?: string
   unit: string
   packSize: number
-  costPrice: number
+  costPrice?: number
   stockQuantity: number
   minStock: number
   isLowStock: boolean
