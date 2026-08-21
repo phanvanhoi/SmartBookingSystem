@@ -114,14 +114,10 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose, readOnly =
         ) : (
           <div className="overflow-y-auto flex-1 min-h-0">
             <div className="p-4 sm:p-5 space-y-5">
-              {(readOnly || invoice.status === 'VOID') && (
+              {invoice.status === 'VOID' && (
                 <Banner
-                  tone={invoice.status === 'VOID' ? 'danger' : 'muted'}
-                  text={
-                    invoice.status === 'VOID'
-                      ? 'Hóa đơn đã hủy — chỉ xem, không chỉnh sửa.'
-                      : 'Chế độ xem — chỉ chủ quán mới được sửa hóa đơn.'
-                  }
+                  tone="danger"
+                  text="Hóa đơn đã hủy — chỉ xem, không chỉnh sửa."
                 />
               )}
 
@@ -589,7 +585,6 @@ function TotalsBlock({ invoice }: { invoice: Inv }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">Thu ngân: {invoice.createdBy.fullName}</p>
     </Section>
   )
 }
