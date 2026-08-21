@@ -47,8 +47,13 @@ export function useConfirmBooking() {
 export function useUpdateBooking() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { roomId?: number; bookingTime?: string; durationHours?: number } }) =>
-      bookingService.updateBooking(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number
+      data: { roomId?: number; bookingDate?: string; bookingTime?: string; durationHours?: number }
+    }) => bookingService.updateBooking(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       toast.success('Cập nhật booking thành công')

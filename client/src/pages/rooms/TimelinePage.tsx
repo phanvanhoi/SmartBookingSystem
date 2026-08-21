@@ -45,6 +45,17 @@ function toTimelineHour(dt: Date | string): number {
   return fractional < HOUR_START ? fractional + 24 : fractional
 }
 
+/** Business day for a check-in (timeline day starts at HOUR_START). */
+function businessDateISO(dt: Date | string): string {
+  const d = new Date(dt)
+  if (d.getHours() < HOUR_START) d.setDate(d.getDate() - 1)
+  return formatDateISO(d)
+}
+
+function bookingDateLocalISO(bookingDate: string): string {
+  return formatDateISO(new Date(bookingDate))
+}
+
 function timelineHourToTimeStr(h: number): string {
   const actual = h >= 24 ? h - 24 : h
   const hours = Math.floor(actual)
@@ -176,13 +187,13 @@ export default function TimelinePage() {
     return () => ro.disconnect()
   }, [collapsedGroups, smallRooms.length, largeRooms.length])
 
-  // Build bars
+  // Build bars — chỉ hiện session/booking thuộc ngày đang xem
   const bars = useMemo(() => {
     const result: BarData[] = []
-    // Sessions (đang hát)
     for (const room of rooms) {
       if (room.currentSession) {
         const s = room.currentSession
+        if (businessDateISO(s.checkInTime) !== dateStr) continue
         const startH = toTimelineHour(s.checkInTime)
         const endH = s.estimatedEnd ? toTimelineHour(s.estimatedEnd) : Math.max(startH + 1, nowHour + 0.5)
         result.push({
@@ -195,9 +206,9 @@ export default function TimelinePage() {
         })
       }
     }
-    // Bookings (đặt trước)
     for (const b of bookings) {
       if (b.status !== 'PENDING') continue
+      if (bookingDateLocalISO(b.bookingDate) !== dateStr) continue
       const startH = toTimelineHour(b.bookingTime)
       const duration = b.durationHours ? Number(b.durationHours) : 0
       const endH = duration > 0 ? startH + duration : startH + 1
@@ -218,7 +229,11 @@ export default function TimelinePage() {
       })
     }
     return result
-  }, [rooms, bookings, nowHour])
+  }, [rooms, bookings, nowHour, dateStr])
+
+  const upcomingCount = bookings.filter(
+    (b) => b.status === 'PENDING' && bookingDateLocalISO(b.bookingDate) === dateStr,
+  ).length
 
   const isToday = formatDateISO(new Date()) === dateStr
   const prevDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
@@ -226,9 +241,6 @@ export default function TimelinePage() {
 
   const toggleGroup = (group: string) =>
     setCollapsedGroups(prev => ({ ...prev, [group]: !prev[group] }))
-
-  // Upcoming bookings count
-  const upcomingCount = bookings.filter(b => b.status === 'PENDING').length
 
   // Get all room rows for vertical drag mapping
   const allRoomRows = useMemo(() => {
@@ -699,6 +711,7 @@ export default function TimelinePage() {
       {selectedBooking && (
         <BookingDetailDialog
           booking={selectedBooking}
+          rooms={[...smallRooms, ...largeRooms]}
           open={!!selectedBooking}
           onClose={() => setSelectedBooking(null)}
         />
@@ -717,30 +730,121 @@ export default function TimelinePage() {
   )
 }
 
-// ── Booking Detail Dialog ────────────────────────────────────────────────────
-function BookingDetailDialog({ booking, open, onClose }: { booking: Booking; open: boolean; onClose: () => void }) {
+// ── Booking Detail / Edit Dialog ─────────────────────────────────────────────
+function BookingDetailDialog({
+  booking,
+  rooms,
+  open,
+  onClose,
+}: {
+  booking: Booking
+  rooms: Room[]
+  open: boolean
+  onClose: () => void
+}) {
   const confirmMutation = useConfirmBooking()
   const cancelMutation = useCancelBooking()
+  const updateMutation = useUpdateBooking()
+  const canEdit = booking.status === 'PENDING'
 
   const bookingTime = new Date(booking.bookingTime)
-  const timeStr = `${String(bookingTime.getHours()).padStart(2, '0')}:${String(bookingTime.getMinutes()).padStart(2, '0')}`
+  const initialTime = `${String(bookingTime.getHours()).padStart(2, '0')}:${String(bookingTime.getMinutes()).padStart(2, '0')}`
+  const initialDate = bookingDateLocalISO(booking.bookingDate)
+
+  const [roomId, setRoomId] = useState(booking.roomId)
+  const [date, setDate] = useState(initialDate)
+  const [time, setTime] = useState(initialTime)
+  const [durationHours, setDurationHours] = useState(booking.durationHours ? Number(booking.durationHours) : 2)
+
+  useEffect(() => {
+    if (!open) return
+    setRoomId(booking.roomId)
+    setDate(bookingDateLocalISO(booking.bookingDate))
+    const t = new Date(booking.bookingTime)
+    setTime(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`)
+    setDurationHours(booking.durationHours ? Number(booking.durationHours) : 2)
+  }, [open, booking])
+
+  const dirty =
+    roomId !== booking.roomId ||
+    date !== initialDate ||
+    time !== initialTime ||
+    durationHours !== (booking.durationHours ? Number(booking.durationHours) : 2)
+
+  const handleSave = () => {
+    const data: { roomId?: number; bookingDate?: string; bookingTime?: string; durationHours?: number } = {}
+    if (roomId !== booking.roomId) data.roomId = roomId
+    if (date !== initialDate) data.bookingDate = date
+    if (time !== initialTime) data.bookingTime = time
+    if (durationHours !== (booking.durationHours ? Number(booking.durationHours) : 2)) {
+      data.durationHours = durationHours
+    }
+    // Changing date without time still needs bookingTime rebuilt on server — send time too
+    if (data.bookingDate && data.bookingTime === undefined) data.bookingTime = time
+    updateMutation.mutate({ id: booking.id, data }, { onSuccess: onClose })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Chi tiết đặt phòng</DialogTitle>
+          <DialogTitle>{canEdit ? 'Sửa đặt phòng' : 'Chi tiết đặt phòng'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
-          <Row label="Phòng" value={booking.room.name} />
-          {booking.room.roomType?.name && (
-            <Row label="Loại phòng" value={booking.room.roomType.name} />
+          {canEdit ? (
+            <>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Phòng</label>
+                <select
+                  className="w-full h-9 rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
+                  value={roomId}
+                  onChange={(e) => setRoomId(Number(e.target.value))}
+                >
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.roomType.name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Row label="Khách" value={booking.customerName} bold />
+              {booking.customerPhone && <Row label="SĐT" value={booking.customerPhone} />}
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Ngày</label>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Giờ đến</label>
+                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Thời lượng (giờ)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={durationHours}
+                    onChange={(e) => setDurationHours(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <Row label="Phòng" value={booking.room.name} />
+              {booking.room.roomType?.name && (
+                <Row label="Loại phòng" value={booking.room.roomType.name} />
+              )}
+              <Row label="Khách" value={booking.customerName} bold />
+              {booking.customerPhone && <Row label="SĐT" value={booking.customerPhone} />}
+              <Row label="Ngày" value={initialDate.split('-').reverse().join('/')} />
+              <Row label="Giờ đến" value={initialTime} bold />
+              {booking.durationHours && <Row label="Thời lượng" value={`${booking.durationHours}h`} />}
+            </>
           )}
-          <Row label="Khách" value={booking.customerName} bold />
-          {booking.customerPhone && <Row label="SĐT" value={booking.customerPhone} />}
-          <Row label="Giờ đến" value={timeStr} bold />
-          {booking.durationHours && <Row label="Thời lượng" value={`${booking.durationHours}h`} />}
+
           {booking.depositAmount > 0 && (
             <Row label="Đặt cọc" value={formatCurrency(booking.depositAmount, true)} className="text-emerald-600" />
           )}
@@ -777,22 +881,42 @@ function BookingDetailDialog({ booking, open, onClose }: { booking: Booking; ope
           </div>
         </div>
 
-        {booking.status === 'PENDING' && (
-          <DialogFooter className="gap-2 sm:gap-2">
+        {canEdit && (
+          <DialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <Button
-              variant="destructive" size="sm"
-              onClick={() => { cancelMutation.mutate({ id: booking.id }); onClose() }}
-              disabled={cancelMutation.isPending}
-            >
-              Hủy
-            </Button>
-            <Button
+              variant="destructive"
               size="sm"
-              onClick={() => { confirmMutation.mutate(booking.id); onClose() }}
-              disabled={confirmMutation.isPending}
+              onClick={() => {
+                cancelMutation.mutate({ id: booking.id })
+                onClose()
+              }}
+              disabled={cancelMutation.isPending || updateMutation.isPending}
             >
-              Nhận khách
+              Hủy đơn
             </Button>
+            <div className="flex gap-2 ml-auto">
+              {dirty && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleSave}
+                  disabled={updateMutation.isPending}
+                >
+                  <Pencil className="w-3.5 h-3.5 mr-1" />
+                  Lưu
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  confirmMutation.mutate(booking.id)
+                  onClose()
+                }}
+                disabled={confirmMutation.isPending || updateMutation.isPending || dirty}
+              >
+                Nhận khách
+              </Button>
+            </div>
           </DialogFooter>
         )}
       </DialogContent>
@@ -875,17 +999,21 @@ function CreateBookingDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Ngày</label>
+              <Input type="date" value={form.bookingDate} onChange={e => set('bookingDate', e.target.value)} />
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground mb-1 block">Giờ đến</label>
               <Input type="time" value={form.bookingTime} onChange={e => set('bookingTime', e.target.value)} />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Thời lượng (giờ)</label>
-              <Input
-                type="number" min={1} max={12}
-                value={form.durationHours}
-                onChange={e => set('durationHours', Number(e.target.value))}
-              />
-            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Thời lượng (giờ)</label>
+            <Input
+              type="number" min={1} max={12}
+              value={form.durationHours}
+              onChange={e => set('durationHours', Number(e.target.value))}
+            />
           </div>
 
           <div>

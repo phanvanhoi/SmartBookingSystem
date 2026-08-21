@@ -18,6 +18,15 @@ function effectiveEnd(start: Date, durationHours: number | null | undefined): Da
   return new Date(start.getTime() + hours * HOUR_MS)
 }
 
+/** Parse YYYY-MM-DD as local calendar midnight (avoid UTC shift from `new Date('YYYY-MM-DD')`). */
+function parseDateOnly(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) throw createError('Ngày không hợp lệ', 400, 'INVALID_DATE')
+  const dt = new Date(y, m - 1, d)
+  dt.setHours(0, 0, 0, 0)
+  return dt
+}
+
 /**
  * Check if a new/updated booking conflicts with existing bookings on the same room+date.
  * Standard interval-overlap formula: existingStart < newEnd AND newStart < existingEnd.
@@ -60,8 +69,7 @@ export async function createBooking(data: BookingInput, userId: number) {
 
   if (!room) throw createError('Phòng không tồn tại', 404, 'ROOM_NOT_FOUND')
 
-  const bookingDate = new Date(data.bookingDate)
-  bookingDate.setHours(0, 0, 0, 0)
+  const bookingDate = parseDateOnly(data.bookingDate)
 
   const [bookingHour, bookingMin] = data.bookingTime.split(':').map(Number)
   const bookingTime = new Date(bookingDate)
@@ -100,10 +108,10 @@ export async function createBooking(data: BookingInput, userId: number) {
   return booking
 }
 
-// ─── updateBooking (kéo thả) ────────────────────────────────────────────────
+// ─── updateBooking (kéo thả / sửa ngày giờ) ─────────────────────────────────
 export async function updateBooking(
   bookingId: number,
-  data: { roomId?: number; bookingTime?: string; durationHours?: number }
+  data: { roomId?: number; bookingDate?: string; bookingTime?: string; durationHours?: number },
 ) {
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
   if (!booking) throw createError('Booking không tồn tại', 404, 'BOOKING_NOT_FOUND')
@@ -111,13 +119,17 @@ export async function updateBooking(
     throw createError('Chỉ có thể sửa booking đang chờ', 400, 'BOOKING_NOT_PENDING')
   }
 
-  // Compute target room/time/duration after the proposed update
   const targetRoomId = data.roomId ?? booking.roomId
+  const targetDate =
+    data.bookingDate !== undefined ? parseDateOnly(data.bookingDate) : booking.bookingDate
 
   let targetStart = booking.bookingTime
-  if (data.bookingTime !== undefined) {
-    const [h, m] = data.bookingTime.split(':').map(Number)
-    targetStart = new Date(booking.bookingDate)
+  if (data.bookingTime !== undefined || data.bookingDate !== undefined) {
+    const timeSource = data.bookingTime !== undefined
+      ? data.bookingTime
+      : `${String(booking.bookingTime.getHours()).padStart(2, '0')}:${String(booking.bookingTime.getMinutes()).padStart(2, '0')}`
+    const [h, m] = timeSource.split(':').map(Number)
+    targetStart = new Date(targetDate)
     targetStart.setHours(h, m, 0, 0)
   }
 
@@ -130,16 +142,14 @@ export async function updateBooking(
 
   const targetEnd = effectiveEnd(targetStart, targetDuration)
 
-  // Validate target room
   if (data.roomId !== undefined) {
     const room = await prisma.room.findFirst({ where: { id: targetRoomId, isActive: true } })
     if (!room) throw createError('Phòng không tồn tại', 404, 'ROOM_NOT_FOUND')
   }
 
-  // Check overlap with other bookings (excluding self)
   const conflict = await findConflictingBooking({
     roomId: targetRoomId,
-    bookingDate: booking.bookingDate,
+    bookingDate: targetDate,
     newStart: targetStart,
     newEnd: targetEnd,
     excludeBookingId: bookingId,
@@ -150,7 +160,10 @@ export async function updateBooking(
 
   const updateData: Record<string, unknown> = {}
   if (data.roomId !== undefined) updateData.roomId = data.roomId
-  if (data.bookingTime !== undefined) updateData.bookingTime = targetStart
+  if (data.bookingDate !== undefined) updateData.bookingDate = targetDate
+  if (data.bookingTime !== undefined || data.bookingDate !== undefined) {
+    updateData.bookingTime = targetStart
+  }
   if (data.durationHours !== undefined) updateData.durationHours = data.durationHours
 
   const updated = await prisma.booking.update({
@@ -170,9 +183,7 @@ export async function getBookings(filters: BookingQueryInput) {
   const where: Record<string, unknown> = {}
 
   if (date) {
-    const d = new Date(date)
-    d.setHours(0, 0, 0, 0)
-    where.bookingDate = d
+    where.bookingDate = parseDateOnly(date)
   } else {
     const today = new Date()
     today.setHours(0, 0, 0, 0)

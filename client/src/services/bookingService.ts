@@ -67,7 +67,10 @@ export async function confirmBooking(bookingId: number) {
   return data.data
 }
 
-export async function updateBooking(bookingId: number, payload: { roomId?: number; bookingTime?: string; durationHours?: number }) {
+export async function updateBooking(
+  bookingId: number,
+  payload: { roomId?: number; bookingDate?: string; bookingTime?: string; durationHours?: number },
+) {
   const { data } = await api.patch(`/bookings/${bookingId}`, payload)
   return data.data
 }

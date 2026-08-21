@@ -275,8 +275,13 @@ export async function updateBooking(
 ) {
   try {
     const bookingId = parseParam(req.params.bookingId)
-    const { roomId, bookingTime, durationHours } = req.body
-    const booking = await bookingService.updateBooking(bookingId, { roomId, bookingTime, durationHours })
+    const { roomId, bookingDate, bookingTime, durationHours } = req.body
+    const booking = await bookingService.updateBooking(bookingId, {
+      roomId,
+      bookingDate,
+      bookingTime,
+      durationHours,
+    })
     res.json({ success: true, data: booking, message: 'Cập nhật booking thành công' })
   } catch (err) {
     next(err)
