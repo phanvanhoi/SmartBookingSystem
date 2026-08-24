@@ -9,6 +9,7 @@ import type {
   ProductQueryInput,
   StockEntryQueryInput,
 } from './stock.validation'
+import { allocateFromPool, poolKeyForSku, skusForPool } from './stock-pools'
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -256,43 +257,7 @@ export async function deductStockForOrder(
 
   const run = async (client: Prisma.TransactionClient) => {
     for (const item of itemsWithProduct) {
-      // Atomic conditional decrement: only succeeds if enough stock exists.
-      // updateMany returns count=0 if the WHERE clause doesn't match.
-      const result = await client.product.updateMany({
-        where: {
-          id: item.productId,
-          isActive: true,
-          stockQuantity: { gte: item.quantity },
-        },
-        data: { stockQuantity: { decrement: item.quantity } },
-      })
-
-      if (result.count === 0) {
-        // Either product is inactive, removed, or stock insufficient.
-        // Look up which to give a useful error.
-        const product = await client.product.findUnique({
-          where: { id: item.productId },
-          select: { name: true, stockQuantity: true, isActive: true },
-        })
-        if (!product || !product.isActive) {
-          // Soft-skip: product gone, nothing to deduct
-          continue
-        }
-        throw new AppError(
-          409,
-          'INSUFFICIENT_STOCK',
-          `Sản phẩm "${product.name}" không đủ tồn kho (còn ${product.stockQuantity}, cần ${item.quantity})`,
-        )
-      }
-
-      await client.stockEntry.create({
-        data: {
-          productId: item.productId,
-          type: 'OUT_SALE',
-          quantity: -item.quantity,
-          createdById: userId,
-        },
-      })
+      await deductOneLine(client, item.productId, item.quantity, userId)
     }
   }
 
@@ -300,6 +265,100 @@ export async function deductStockForOrder(
     await run(tx)
   } else {
     await prisma.$transaction(run)
+  }
+}
+
+async function deductOneLine(
+  client: Prisma.TransactionClient,
+  productId: number,
+  quantity: number,
+  userId: number,
+): Promise<void> {
+  if (quantity <= 0) return
+
+  // Prefer the productId frozen on the order line.
+  const direct = await client.product.updateMany({
+    where: {
+      id: productId,
+      isActive: true,
+      stockQuantity: { gte: quantity },
+    },
+    data: { stockQuantity: { decrement: quantity } },
+  })
+
+  if (direct.count === 1) {
+    await client.stockEntry.create({
+      data: {
+        productId,
+        type: 'OUT_SALE',
+        quantity: -quantity,
+        createdById: userId,
+      },
+    })
+    return
+  }
+
+  const product = await client.product.findUnique({
+    where: { id: productId },
+    select: { id: true, name: true, sku: true, stockQuantity: true, isActive: true },
+  })
+  if (!product || !product.isActive) {
+    // Soft-skip: product gone, nothing to deduct
+    return
+  }
+
+  const poolKey = poolKeyForSku(product.sku)
+  if (!poolKey) {
+    throw new AppError(
+      409,
+      'INSUFFICIENT_STOCK',
+      `Sản phẩm "${product.name}" không đủ tồn kho (còn ${product.stockQuantity}, cần ${quantity})`,
+    )
+  }
+
+  // Stale SKU at checkout — re-allocate across the pool (Snack / Khô).
+  const poolProducts = await client.product.findMany({
+    where: { sku: { in: [...skusForPool(poolKey)] }, isActive: true },
+    select: { id: true, sku: true, stockQuantity: true, isActive: true },
+  })
+  const live = poolProducts.map((p) => ({ ...p }))
+  const alloc = allocateFromPool(live, poolKey, quantity)
+  if (!alloc || alloc.length === 0) {
+    throw new AppError(
+      409,
+      'INSUFFICIENT_STOCK',
+      `Không đủ tồn kho nhóm "${product.name}" (cần ${quantity})`,
+    )
+  }
+
+  for (const a of alloc) {
+    const result = await client.product.updateMany({
+      where: {
+        id: a.productId,
+        isActive: true,
+        stockQuantity: { gte: a.quantity },
+      },
+      data: { stockQuantity: { decrement: a.quantity } },
+    })
+    if (result.count === 0) {
+      const cur = await client.product.findUnique({
+        where: { id: a.productId },
+        select: { name: true, stockQuantity: true },
+      })
+      throw new AppError(
+        409,
+        'INSUFFICIENT_STOCK',
+        `Sản phẩm "${cur?.name ?? a.productId}" không đủ tồn kho (còn ${cur?.stockQuantity ?? 0}, cần ${a.quantity})`,
+      )
+    }
+    await client.stockEntry.create({
+      data: {
+        productId: a.productId,
+        type: 'OUT_SALE',
+        quantity: -a.quantity,
+        createdById: userId,
+      },
+    })
   }
 }
 
