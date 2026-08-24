@@ -73,15 +73,9 @@ async function main() {
   // ════════════════════════════════════════════
 
   const menuItems = [
-    // ── Đồ ăn (giá bán 20,000) ──
-    { name: 'Snack Pinattsu', price: 20000, categoryId: catDoAn.id, sku: 'PINATTSU', sortOrder: 1 },
-    { name: 'Snack Pillows', price: 20000, categoryId: catDoAn.id, sku: 'PILLOWS', sortOrder: 2 },
-    { name: 'Snack Swing', price: 20000, categoryId: catDoAn.id, sku: 'SWING', sortOrder: 3 },
-    { name: 'Snack Ostar', price: 20000, categoryId: catDoAn.id, sku: 'OSTAR', sortOrder: 4 },
-    { name: 'Snack Lays', price: 20000, categoryId: catDoAn.id, sku: 'LAYS', sortOrder: 5 },
-    { name: 'Khô Gà', price: 20000, categoryId: catDoAn.id, sku: 'KHO GA', sortOrder: 6 },
-    { name: 'Snack que Thái', price: 20000, categoryId: catDoAn.id, sku: 'DORKBUA', sortOrder: 7 },
-    { name: 'Khô bò', price: 20000, categoryId: catDoAn.id, sku: 'KHO BO', sortOrder: 8 },
+    // ── Đồ ăn (giá bán 20,000) — gộp snack / khô trên menu ──
+    { name: 'Snack', price: 20000, categoryId: catDoAn.id, sku: 'LAYS', sortOrder: 1 },
+    { name: 'Khô gà bò', price: 20000, categoryId: catDoAn.id, sku: 'KHO GA', sortOrder: 2 },
 
     // ── Đồ uống ──
     { name: 'Nước trái cây Strongbow', price: 30000, categoryId: catDoUong.id, sku: 'STRONGBOW', sortOrder: 1 },
@@ -94,6 +88,21 @@ async function main() {
     { name: 'Coca cola', price: 15000, categoryId: catDoUong.id, sku: 'COCA COLA', sortOrder: 8 },
     { name: 'Nước suối', price: 10000, categoryId: catDoUong.id, sku: 'LAVIE', sortOrder: 9 },
   ]
+
+  const legacyFoodNames = [
+    'Snack Pinattsu',
+    'Snack Pillows',
+    'Snack Swing',
+    'Snack Ostar',
+    'Snack Lays',
+    'Snack que Thái',
+    'Khô Gà',
+    'Khô bò',
+  ]
+  await prisma.menuItem.updateMany({
+    where: { categoryId: catDoAn.id, name: { in: legacyFoodNames } },
+    data: { isAvailable: false },
+  })
 
   for (const item of menuItems) {
     // Find linked product

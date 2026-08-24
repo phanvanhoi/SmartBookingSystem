@@ -4,6 +4,12 @@ import { AppError } from '../../middleware/error.middleware'
 import { emitOrderNew, emitOrderStatusChanged } from '../../socket/socketManager'
 import logger from '../../utils/logger'
 import { CreateOrderInput } from './order.validation'
+import {
+  allocateFromPool,
+  poolAvailableQty,
+  poolKeyForSku,
+  skusForPool,
+} from '../stock/stock-pools'
 
 // ── Valid status transitions ───────────────────────────────────────────────
 
@@ -45,7 +51,7 @@ export async function createOrder(data: CreateOrderInput, userId: number) {
       price: true,
       isAvailable: true,
       productId: true,
-      product: { select: { stockQuantity: true } },
+      product: { select: { sku: true, stockQuantity: true, isActive: true } },
     },
   })
 
@@ -61,39 +67,106 @@ export async function createOrder(data: CreateOrderInput, userId: number) {
 
   const menuItemMap = new Map(menuItems.map((m) => [m.id, m]))
 
+  const poolKeys = [
+    ...new Set(
+      menuItems
+        .map((m) => poolKeyForSku(m.product?.sku))
+        .filter((k): k is NonNullable<typeof k> => k != null),
+    ),
+  ]
+  const poolSkuList = poolKeys.flatMap((k) => [...skusForPool(k)])
+  const poolProducts =
+    poolSkuList.length > 0
+      ? await prisma.product.findMany({
+          where: { sku: { in: [...poolSkuList] }, isActive: true },
+          select: { id: true, sku: true, stockQuantity: true, isActive: true },
+        })
+      : []
+
   for (const item of data.items) {
     const menuItem = menuItemMap.get(item.menuItemId)!
+    const poolKey = poolKeyForSku(menuItem.product?.sku)
 
-    // Auto-check stock availability
-    const outOfStock =
-      menuItem.product !== null && menuItem.product.stockQuantity <= 0
-
-    if (!menuItem.isAvailable || outOfStock) {
+    if (!menuItem.isAvailable) {
       throw new AppError(
         400,
         'MENU_ITEM_UNAVAILABLE',
-        `Món "${menuItem.name}" hiện không còn phục vụ`
+        `Món "${menuItem.name}" hiện không còn phục vụ`,
       )
+    }
+
+    if (poolKey) {
+      if (poolAvailableQty(poolProducts, poolKey) < item.quantity) {
+        throw new AppError(
+          400,
+          'MENU_ITEM_UNAVAILABLE',
+          `Món "${menuItem.name}" không đủ tồn kho`,
+        )
+      }
+    } else {
+      const outOfStock =
+        menuItem.product !== null && menuItem.product.stockQuantity <= 0
+      if (outOfStock) {
+        throw new AppError(
+          400,
+          'MENU_ITEM_UNAVAILABLE',
+          `Món "${menuItem.name}" hiện không còn phục vụ`,
+        )
+      }
     }
   }
 
-  // 5. Compute totalAmount
+  // 5. Compute totalAmount + resolve pooled productId (may split across SKUs)
+  const livePool = poolProducts.map((p) => ({ ...p }))
   let totalAmount = new Prisma.Decimal(0)
-  const orderItemsData = data.items.map((item) => {
+  const orderItemsData: Array<{
+    menuItemId: number
+    productId: number | null
+    quantity: number
+    unitPrice: Prisma.Decimal
+    subtotal: Prisma.Decimal
+    notes: string | null
+  }> = []
+
+  for (const item of data.items) {
     const menuItem = menuItemMap.get(item.menuItemId)!
     const unitPrice = menuItem.price
-    const subtotal = unitPrice.mul(item.quantity)
-    totalAmount = totalAmount.add(subtotal)
+    const poolKey = poolKeyForSku(menuItem.product?.sku)
 
-    return {
-      menuItemId: item.menuItemId,
-      productId: menuItem.productId ?? null,
-      quantity: item.quantity,
-      unitPrice,
-      subtotal,
-      notes: item.notes ?? null,
+    if (poolKey) {
+      const alloc = allocateFromPool(livePool, poolKey, item.quantity)
+      if (!alloc) {
+        throw new AppError(
+          400,
+          'MENU_ITEM_UNAVAILABLE',
+          `Món "${menuItem.name}" không đủ tồn kho`,
+        )
+      }
+      for (const a of alloc) {
+        const subtotal = unitPrice.mul(a.quantity)
+        totalAmount = totalAmount.add(subtotal)
+        orderItemsData.push({
+          menuItemId: item.menuItemId,
+          productId: a.productId,
+          quantity: a.quantity,
+          unitPrice,
+          subtotal,
+          notes: item.notes ?? null,
+        })
+      }
+    } else {
+      const subtotal = unitPrice.mul(item.quantity)
+      totalAmount = totalAmount.add(subtotal)
+      orderItemsData.push({
+        menuItemId: item.menuItemId,
+        productId: menuItem.productId ?? null,
+        quantity: item.quantity,
+        unitPrice,
+        subtotal,
+        notes: item.notes ?? null,
+      })
     }
-  })
+  }
 
   // 6. Create Order + OrderItems in a transaction
   const order = await prisma.$transaction(async (tx) => {

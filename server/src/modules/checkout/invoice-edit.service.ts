@@ -19,6 +19,12 @@ import { AppError } from '../../middleware/error.middleware'
 import logger from '../../utils/logger'
 import { calculateRoomPrice, roundBillUp, getBillRoundAmount } from '../rooms/pricing.service'
 import { deductStockForOrder } from '../stock/stock.service'
+import {
+  allocateFromPool,
+  poolAvailableQty,
+  poolKeyForSku,
+  skusForPool,
+} from '../stock/stock-pools'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -452,9 +458,31 @@ export async function addInvoiceItem(
     throw new AppError(400, 'INVOICE_VOID', 'Không thể sửa hóa đơn đã hủy')
   }
 
-  const menuItem = await prisma.menuItem.findUnique({ where: { id: data.menuItemId } })
+  const menuItem = await prisma.menuItem.findUnique({
+    where: { id: data.menuItemId },
+    include: { product: { select: { sku: true, stockQuantity: true } } },
+  })
   if (!menuItem) {
     throw new AppError(404, 'MENU_ITEM_NOT_FOUND', 'Không tìm thấy món')
+  }
+
+  const poolKey = poolKeyForSku(menuItem.product?.sku)
+  let stockAlloc: Array<{ productId: number; quantity: number }> = []
+  if (poolKey) {
+    const poolProducts = await prisma.product.findMany({
+      where: { sku: { in: [...skusForPool(poolKey)] }, isActive: true },
+      select: { id: true, sku: true, stockQuantity: true, isActive: true },
+    })
+    if (poolAvailableQty(poolProducts, poolKey) < data.quantity) {
+      throw new AppError(400, 'INSUFFICIENT_STOCK', `Món "${menuItem.name}" không đủ tồn kho`)
+    }
+    const alloc = allocateFromPool(poolProducts, poolKey, data.quantity)
+    if (!alloc) {
+      throw new AppError(400, 'INSUFFICIENT_STOCK', `Món "${menuItem.name}" không đủ tồn kho`)
+    }
+    stockAlloc = alloc
+  } else if (menuItem.productId) {
+    stockAlloc = [{ productId: menuItem.productId, quantity: data.quantity }]
   }
 
   const unitPrice = menuItem.price
@@ -489,21 +517,34 @@ export async function addInvoiceItem(
       orderId = newOrder.id
     }
 
-    await tx.orderItem.create({
-      data: {
-        orderId,
-        menuItemId: menuItem.id,
-        productId: menuItem.productId ?? null,
-        quantity: data.quantity,
-        unitPrice,
-        subtotal: subtotalDecimal,
-        notes: data.notes ?? null,
-      },
-    })
-
-    // Deduct stock for the new item (atomic, throws on insufficient stock)
-    if (menuItem.productId) {
-      await deductStockForOrder([{ productId: menuItem.productId, quantity: data.quantity }], actorUserId, tx)
+    if (stockAlloc.length === 0) {
+      await tx.orderItem.create({
+        data: {
+          orderId,
+          menuItemId: menuItem.id,
+          productId: null,
+          quantity: data.quantity,
+          unitPrice,
+          subtotal: subtotalDecimal,
+          notes: data.notes ?? null,
+        },
+      })
+    } else {
+      for (const a of stockAlloc) {
+        const lineSub = unitPrice.mul(a.quantity)
+        await tx.orderItem.create({
+          data: {
+            orderId,
+            menuItemId: menuItem.id,
+            productId: a.productId,
+            quantity: a.quantity,
+            unitPrice,
+            subtotal: lineSub,
+            notes: data.notes ?? null,
+          },
+        })
+      }
+      await deductStockForOrder(stockAlloc, actorUserId, tx)
     }
 
     // Recompute invoice totals

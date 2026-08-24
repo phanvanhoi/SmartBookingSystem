@@ -1,6 +1,7 @@
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
 import { CategoryInput, MenuItemInput } from './menu.validation'
+import { poolAvailableQty, poolKeyForSku } from '../stock/stock-pools'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ interface CategoryWithItems {
  * Get full menu grouped by category (only active categories).
  * Soft-deleted items (isAvailable=false) are hidden.
  * Items linked to a product with stockQuantity <= 0 stay visible but are marked unavailable.
+ * Pooled items (Snack / Khô) are available if any SKU in the pool has stock.
  */
 export async function getMenu(): Promise<CategoryWithItems[]> {
   const categories = await prisma.menuCategory.findMany({
@@ -48,30 +50,50 @@ export async function getMenu(): Promise<CategoryWithItems[]> {
           sortOrder: true,
           productId: true,
           product: {
-            select: { stockQuantity: true },
+            select: { sku: true, stockQuantity: true, isActive: true },
           },
         },
       },
     },
   })
 
+  const poolKeysNeeded = new Set(
+    categories
+      .flatMap((c) => c.items)
+      .map((i) => poolKeyForSku(i.product?.sku))
+      .filter((k): k is NonNullable<typeof k> => k != null),
+  )
+
+  const poolProducts =
+    poolKeysNeeded.size > 0
+      ? await prisma.product.findMany({
+          where: { isActive: true },
+          select: { sku: true, stockQuantity: true, isActive: true },
+        })
+      : []
+
   return categories.map((cat) => ({
     id: cat.id,
     name: cat.name,
     sortOrder: cat.sortOrder,
-    items: cat.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      price: Number(item.price),
-      image: item.image,
-      sortOrder: item.sortOrder,
-      productId: item.productId,
-      // Auto-mark as unavailable when linked product has no stock
-      isAvailable:
-        item.product !== null && item.product.stockQuantity <= 0
-          ? false
-          : item.isAvailable,
-    })),
+    items: cat.items.map((item) => {
+      const poolKey = poolKeyForSku(item.product?.sku)
+      let isAvailable = item.isAvailable
+      if (poolKey) {
+        isAvailable = item.isAvailable && poolAvailableQty(poolProducts, poolKey) > 0
+      } else if (item.product !== null && item.product.stockQuantity <= 0) {
+        isAvailable = false
+      }
+      return {
+        id: item.id,
+        name: item.name,
+        price: Number(item.price),
+        image: item.image,
+        sortOrder: item.sortOrder,
+        productId: item.productId,
+        isAvailable,
+      }
+    }),
   }))
 }
 
