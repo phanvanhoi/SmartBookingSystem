@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate.middleware'
 import {
   checkinSchema,
   extendSchema,
+  updateCheckInTimeSchema,
   transferSchema,
   mergeSchema,
   sessionQuerySchema,
@@ -13,6 +14,7 @@ import {
   checkin,
   checkout,
   extendSession,
+  updateCheckInTime,
   transferSession,
   mergeSessions,
   getSessions,
@@ -39,6 +41,15 @@ router.patch(
   authorize('CASHIER'),
   validate(extendSchema),
   extendSession,
+)
+
+// PATCH /api/v1/sessions/:sessionId/checkin-time — sửa giờ vào (MANAGER+, ảnh hưởng tiền giờ)
+router.patch(
+  '/:sessionId/checkin-time',
+  authenticate,
+  authorize('MANAGER'),
+  validate(updateCheckInTimeSchema),
+  updateCheckInTime,
 )
 
 // POST /api/v1/sessions/:sessionId/transfer — chuyển phòng (CASHIER+)

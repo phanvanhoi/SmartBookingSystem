@@ -16,6 +16,12 @@ export const extendSchema = z.object({
     .min(15, 'Tối thiểu gia hạn 15 phút'),
 })
 
+export const updateCheckInTimeSchema = z.object({
+  checkInTime: z
+    .string({ required_error: 'checkInTime là bắt buộc' })
+    .datetime({ offset: true, message: 'checkInTime không hợp lệ' }),
+})
+
 export const transferSchema = z.object({
   targetRoomId: z.number({ required_error: 'targetRoomId là bắt buộc' }).int().positive(),
 })
@@ -105,6 +111,7 @@ export const queueQuerySchema = z.object({
 })
 
 export type CheckinInput = z.infer<typeof checkinSchema>
+export type UpdateCheckInTimeInput = z.infer<typeof updateCheckInTimeSchema>
 export type ExtendInput = z.infer<typeof extendSchema>
 export type TransferInput = z.infer<typeof transferSchema>
 export type MergeInput = z.infer<typeof mergeSchema>

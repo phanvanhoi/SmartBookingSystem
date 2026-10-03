@@ -56,6 +56,18 @@ export function useExtendSession() {
   })
 }
 
+export function useUpdateCheckInTime() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ sessionId, checkInTime }: { sessionId: number; checkInTime: string }) =>
+      roomService.updateCheckInTime(sessionId, checkInTime),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['room'] })
+    },
+  })
+}
+
 export function useMergeSessions() {
   const queryClient = useQueryClient()
   return useMutation({

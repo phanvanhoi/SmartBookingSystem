@@ -38,6 +38,15 @@ export const roomService = {
       .then((res) => res.data.data)
   },
 
+  updateCheckInTime(
+    sessionId: number,
+    checkInTime: string
+  ): Promise<{ sessionId: number; checkInTime: string; estimatedEnd: string | null }> {
+    return api
+      .patch(`/sessions/${sessionId}/checkin-time`, { checkInTime })
+      .then((res) => res.data.data)
+  },
+
   transferSession(
     sessionId: number,
     targetRoomId: number

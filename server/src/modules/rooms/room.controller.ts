@@ -3,6 +3,7 @@ import { ApiResponse } from '../../types'
 import type {
   CheckinInput,
   ExtendInput,
+  UpdateCheckInTimeInput,
   TransferInput,
   MergeInput,
   BookingInput,
@@ -133,6 +134,21 @@ export async function extendSession(
       data: result,
       message: `Gia hạn thêm ${data.additionalMinutes} phút thành công`,
     })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateCheckInTime(
+  req: Request,
+  res: Response<ApiResponse>,
+  next: NextFunction,
+) {
+  try {
+    const sessionId = parseParam(req.params.sessionId)
+    const data = req.body as UpdateCheckInTimeInput
+    const result = await sessionService.updateCheckInTime(sessionId, data, req.user!.id)
+    res.json({ success: true, data: result, message: 'Đã cập nhật giờ vào phòng' })
   } catch (err) {
     next(err)
   }

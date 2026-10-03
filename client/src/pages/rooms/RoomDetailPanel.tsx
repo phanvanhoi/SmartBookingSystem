@@ -12,6 +12,7 @@ import {
   Plus,
   Minus,
   Trash2,
+  Pencil,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -39,8 +40,10 @@ import { useUpdateOrderItem } from '@/hooks/useOrders'
 import { getErrorMessage } from '@/utils/error'
 import CountdownTimer from '@/components/CountdownTimer'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useAuthStore } from '@/stores/authStore'
 import CheckoutDialog from './CheckoutDialog'
 import ExtendDialog from './ExtendDialog'
+import EditCheckInDialog from './EditCheckInDialog'
 import TransferDialog from './TransferDialog'
 import MergeDialog from './MergeDialog'
 import OrderDialog from '../orders/OrderDialog'
@@ -62,6 +65,8 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
   const isMobile = useIsMobile()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isExtendOpen, setIsExtendOpen] = useState(false)
+  const [isEditCheckInOpen, setIsEditCheckInOpen] = useState(false)
+  const canEditCheckIn = useAuthStore((s) => s.user?.role === 'OWNER' || s.user?.role === 'MANAGER')
   const [isTransferOpen, setIsTransferOpen] = useState(false)
   const [isMergeOpen, setIsMergeOpen] = useState(false)
   const [isOrderOpen, setIsOrderOpen] = useState(false)
@@ -208,7 +213,19 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
                   <div className="grid grid-cols-2 gap-3 w-full text-[11px] text-center">
                     <div>
                       <p className="text-muted-foreground leading-none">Check-in</p>
-                      <p className="text-foreground font-semibold tabular-nums">{formatTime(session.checkInTime)}</p>
+                      <p className="text-foreground font-semibold tabular-nums inline-flex items-center gap-1">
+                        {formatTime(session.checkInTime)}
+                        {canEditCheckIn && (
+                          <button
+                            type="button"
+                            aria-label="Sửa giờ vào"
+                            className="text-muted-foreground hover:text-foreground p-0.5 max-md:p-2.5 max-md:-m-2"
+                            onClick={() => setIsEditCheckInOpen(true)}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                      </p>
                     </div>
                     {session.estimatedEnd && (
                       <div>
@@ -404,6 +421,14 @@ export default function RoomDetailPanel({ roomId, open, onClose }: RoomDetailPan
         onClose={() => setIsExtendOpen(false)}
       />
 
+      {/* Edit check-in time dialog */}
+      <EditCheckInDialog
+        sessionId={session?.id ?? null}
+        checkInTime={session?.checkInTime ?? null}
+        open={isEditCheckInOpen}
+        onClose={() => setIsEditCheckInOpen(false)}
+      />
+
       {/* Transfer dialog */}
       <TransferDialog
         sessionId={session?.id ?? null}
@@ -497,7 +522,7 @@ function ItemQtyControls({
         disabled={busy || quantity <= 1}
         aria-label={quantity <= 1 ? 'Dùng nút xóa để xóa món' : 'Giảm số lượng'}
         title={quantity <= 1 ? 'Dùng nút xóa' : 'Giảm số lượng'}
-        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="w-6 h-6 max-md:w-10 max-md:h-10 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         <Minus className="w-3 h-3" />
       </button>
@@ -508,7 +533,7 @@ function ItemQtyControls({
         disabled={busy || !canIncrement}
         aria-label="Tăng số lượng"
         title={canIncrement ? 'Tăng số lượng' : 'Đã đạt mức tối đa'}
-        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="w-6 h-6 max-md:w-10 max-md:h-10 flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         <Plus className="w-3 h-3" />
       </button>
@@ -519,7 +544,7 @@ function ItemQtyControls({
         disabled={busy}
         aria-label="Xóa món"
         title="Xóa món"
-        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-rose-50 hover:text-rose-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="w-6 h-6 max-md:w-10 max-md:h-10 flex items-center justify-center text-muted-foreground hover:bg-rose-50 hover:text-rose-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         <Trash2 className="w-3 h-3" />
       </button>

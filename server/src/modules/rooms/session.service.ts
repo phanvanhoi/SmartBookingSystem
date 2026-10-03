@@ -1,6 +1,6 @@
 import { prisma } from '../../lib/prisma'
 import { calculateRoomPrice, roundBillUp, getBillRoundAmount } from './pricing.service'
-import { CheckinInput, ExtendInput, TransferInput, MergeInput } from './room.validation'
+import { CheckinInput, ExtendInput, UpdateCheckInTimeInput, TransferInput, MergeInput } from './room.validation'
 
 // ─── Typed error helper ───────────────────────────────────────────────────────
 function createError(message: string, statusCode: number, code: string): Error {
@@ -297,6 +297,53 @@ export async function extendSession(sessionId: number, data: ExtendInput) {
   }
 
   return result
+}
+
+// ─── updateCheckInTime ────────────────────────────────────────────────────────
+export async function updateCheckInTime(
+  sessionId: number,
+  data: UpdateCheckInTimeInput,
+  userId: number,
+) {
+  const session = await prisma.session.findUnique({ where: { id: sessionId } })
+
+  if (!session) throw createError('Session không tồn tại', 404, 'SESSION_NOT_FOUND')
+  if (session.status !== 'ACTIVE') {
+    throw createError('Session không ở trạng thái ACTIVE', 400, 'SESSION_NOT_ACTIVE')
+  }
+
+  const newCheckIn = new Date(data.checkInTime)
+  const now = Date.now()
+  if (newCheckIn.getTime() > now) {
+    throw createError('Giờ vào không được ở tương lai', 400, 'CHECKIN_IN_FUTURE')
+  }
+
+  // Keep the planned duration: shift estimatedEnd by the same delta.
+  const deltaMs = newCheckIn.getTime() - session.checkInTime.getTime()
+  const newEstimatedEnd = session.estimatedEnd
+    ? new Date(session.estimatedEnd.getTime() + deltaMs)
+    : null
+
+  await prisma.$transaction([
+    prisma.session.update({
+      where: { id: sessionId },
+      data: { checkInTime: newCheckIn, estimatedEnd: newEstimatedEnd },
+    }),
+    prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'UPDATE_CHECKIN_TIME',
+        entityType: 'Session',
+        entityId: sessionId,
+        details: {
+          from: session.checkInTime.toISOString(),
+          to: newCheckIn.toISOString(),
+        },
+      },
+    }),
+  ])
+
+  return { sessionId, checkInTime: newCheckIn, estimatedEnd: newEstimatedEnd }
 }
 
 // ─── transferSession ──────────────────────────────────────────────────────────
