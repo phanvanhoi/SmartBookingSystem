@@ -104,3 +104,15 @@ export const topUpCoinSchema = z.object({
 
 export type SetMembershipInput = z.infer<typeof setMembershipSchema>
 export type TopUpCoinInput = z.infer<typeof topUpCoinSchema>
+
+// ── Messaging export / consent ──
+export const exportQuerySchema = z.object({
+  segment: z.enum(['all', 'frequent', 'recent', 'lapsed', 'members', 'nonMembers', 'birthdayMonth']).default('all'),
+})
+
+export const marketingOptOutSchema = z.object({
+  optOut: z.boolean({ required_error: 'optOut là bắt buộc' }),
+})
+
+export type ExportQuery = z.infer<typeof exportQuerySchema>
+export type MarketingOptOutInput = z.infer<typeof marketingOptOutSchema>

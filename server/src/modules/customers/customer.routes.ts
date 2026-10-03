@@ -9,6 +9,8 @@ import {
   redeemPointsSchema,
   setMembershipSchema,
   topUpCoinSchema,
+  exportQuerySchema,
+  marketingOptOutSchema,
   lookupQuerySchema,
   getCustomersQuerySchema,
   paginationQuerySchema,
@@ -27,6 +29,8 @@ import {
   setMembershipHandler,
   topUpCoinHandler,
   getCoinHistoryHandler,
+  exportCustomersHandler,
+  setMarketingOptOutHandler,
 } from './customer.controller'
 
 const router = Router()
@@ -49,6 +53,10 @@ router.get(
   validate(lookupQuerySchema, 'query'),
   lookupByPhoneHandler
 )
+
+// GET /customers/export?segment=... — danh sách SĐT để gửi tin (MANAGER+)
+// NOTE: phải đặt trước /:id
+router.get('/export', authenticate, authorize('MANAGER'), validate(exportQuerySchema, 'query'), exportCustomersHandler)
 
 // GET /customers/birthdays - Khách có sinh nhật hôm nay
 router.get(
@@ -139,6 +147,15 @@ router.post(
   authorize('MANAGER'),
   validate(topUpCoinSchema),
   topUpCoinHandler
+)
+
+// PATCH /customers/:id/marketing-opt-out — ghi nhận khách từ chối/đồng ý nhận tin QC (CASHIER+)
+router.patch(
+  '/:id/marketing-opt-out',
+  authenticate,
+  authorize('CASHIER'),
+  validate(marketingOptOutSchema),
+  setMarketingOptOutHandler
 )
 
 export default router

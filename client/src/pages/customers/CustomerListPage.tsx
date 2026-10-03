@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Crown, Plus, Search, Users } from 'lucide-react'
+import { Crown, Download, Plus, Search, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +25,8 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { formatRelative } from '@/utils/formatTime'
 import type { CustomerTier, CreateCustomerForm } from '@/types/customer'
 import { cn } from '@/utils/cn'
+import { useAuthStore } from '@/stores/authStore'
+import ExportCustomersDialog from './ExportCustomersDialog'
 
 const TIER_LABELS: Record<CustomerTier, string> = {
   REGULAR: 'Thường',
@@ -49,6 +51,9 @@ export default function CustomerListPage() {
   const [tier, setTier] = useState<CustomerTier | ''>('')
   const [page, setPage] = useState(1)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const role = useAuthStore((s) => s.user?.role)
+  const canExport = role === 'OWNER' || role === 'MANAGER'
 
   const [form, setForm] = useState<CreateCustomerForm>({ name: '', phone: '', birthday: '', notes: '' })
   const [formErrors, setFormErrors] = useState<Partial<CreateCustomerForm>>({})
@@ -109,6 +114,18 @@ export default function CustomerListPage() {
             Khách hàng
           </h1>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {canExport && (
+            <Button
+              variant="outline"
+              onClick={() => setShowExportDialog(true)}
+              className="gap-2 min-h-[44px]"
+              size={isMobile ? 'sm' : 'default'}
+            >
+              <Download className="h-4 w-4" />
+              {isMobile ? 'Xuất' : 'Xuất danh sách'}
+            </Button>
+          )}
         <Button
           onClick={() => setShowCreateDialog(true)}
           className="gap-2 shrink-0 min-h-[44px]"
@@ -117,6 +134,7 @@ export default function CustomerListPage() {
           <Plus className="h-4 w-4" />
           {isMobile ? 'Thêm' : 'Thêm khách'}
         </Button>
+        </div>
       </div>
 
       {/* Filters — sticky on mobile */}
@@ -318,6 +336,10 @@ export default function CustomerListPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {canExport && (
+        <ExportCustomersDialog open={showExportDialog} onClose={() => setShowExportDialog(false)} />
       )}
 
       {/* Create Customer Dialog */}

@@ -16,6 +16,7 @@ export interface Customer {
   isMember?: boolean
   coinBalance?: number
   memberSince?: string | null
+  marketingOptOut?: boolean
   blacklistReason?: string
   createdAt: string
 }
@@ -65,4 +66,33 @@ export interface CoinWallet {
   coinBalance: number
   transactions: CoinTransaction[]
   pagination: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export type ExportSegment =
+  | 'all'
+  | 'frequent'
+  | 'recent'
+  | 'lapsed'
+  | 'members'
+  | 'nonMembers'
+  | 'birthdayMonth'
+
+export interface ExportRow {
+  name: string
+  phone: string
+  phone84: string
+  tier: CustomerTier
+  visitCount: number
+  lastVisit: string | null
+  totalSpent: number
+  isMember: boolean
+}
+
+export interface ExportResult {
+  segment: ExportSegment
+  total: number
+  skippedInvalidPhone: number
+  duplicatePhones: number
+  optedOut: number
+  rows: ExportRow[]
 }

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
 import { customerService, GetCustomersParams } from '@/services/customerService'
-import type { CreateCustomerForm } from '@/types/customer'
+import type { CreateCustomerForm, ExportSegment } from '@/types/customer'
 
 export function useCustomers(filters: GetCustomersParams = {}) {
   return useQuery({
@@ -149,6 +149,29 @@ export function useTopUpCoin() {
       queryClient.invalidateQueries({ queryKey: ['customer', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['coin-wallet', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['customers'] })
+    },
+  })
+}
+
+export function useExportPreview(segment: ExportSegment, enabled: boolean) {
+  return useQuery({
+    queryKey: ['customer-export', segment],
+    queryFn: () => customerService.exportForMessaging(segment),
+    enabled,
+    // The export is audited server-side, so never refetch behind the user's back.
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useSetMarketingOptOut() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, optOut }: { id: number; optOut: boolean }) =>
+      customerService.setMarketingOptOut(id, optOut),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customer', variables.id] })
     },
   })
 }

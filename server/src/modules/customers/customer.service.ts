@@ -191,6 +191,7 @@ export interface CustomerDetail {
   coinBalance: number
   blacklistReason: string | null
   memberSince: Date | null
+  marketingOptOut: boolean
   createdAt: Date
   updatedAt: Date
 }

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import * as customerService from './customer.service'
 import * as coinService from './coin.service'
+import * as exportService from './customer-export.service'
 import type {
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -8,6 +9,8 @@ import type {
   RedeemPointsInput,
   SetMembershipInput,
   TopUpCoinInput,
+  ExportQuery,
+  MarketingOptOutInput,
 } from './customer.validation'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -372,6 +375,44 @@ export async function getCoinHistoryHandler(
     const { page, limit } = req.query as unknown as { page?: number; limit?: number }
     const data = await coinService.getCoinHistory(id, page ?? 1, limit ?? 20)
     res.status(200).json({ success: true, data })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Messaging export & marketing consent
+// ────────────────────────────────────────────────────────────────────────────
+
+export async function exportCustomersHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { segment } = req.query as unknown as ExportQuery
+    const data = await exportService.exportCustomersForMessaging(segment, req.user!.id)
+    res.status(200).json({ success: true, data })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function setMarketingOptOutHandler(
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = parseCustomerId(req, res)
+    if (id === null) return
+    const { optOut } = req.body as MarketingOptOutInput
+    const data = await exportService.setMarketingOptOut(id, optOut, req.user!.id)
+    res.status(200).json({
+      success: true,
+      data,
+      message: optOut ? 'Đã ghi nhận khách từ chối nhận tin quảng cáo' : 'Đã cho phép gửi tin quảng cáo',
+    })
   } catch (err) {
     next(err)
   }

@@ -1,3 +1,5 @@
+import toast from 'react-hot-toast'
+import { getErrorMessage } from '@/utils/error'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -33,6 +35,7 @@ import {
   useUpdateCustomer,
   useToggleBlacklist,
   useRedeemPoints,
+  useSetMarketingOptOut,
 } from '@/hooks/useCustomers'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDate, formatDateTime, formatDuration, formatRelative } from '@/utils/formatTime'
@@ -91,6 +94,7 @@ export default function CustomerDetailPage() {
   const updateMutation = useUpdateCustomer()
   const toggleBlacklistMutation = useToggleBlacklist()
   const redeemMutation = useRedeemPoints()
+  const optOutMutation = useSetMarketingOptOut()
 
   const customer = customerData?.data
   const history = historyData?.data ?? []
@@ -245,6 +249,28 @@ export default function CustomerDetailPage() {
           <Clock className="h-4 w-4" />
           <span>Tham gia {formatDate(customer.createdAt)}</span>
         </div>
+        <button
+          type="button"
+          disabled={optOutMutation.isPending}
+          onClick={async () => {
+            const next = !customer.marketingOptOut
+            try {
+              await optOutMutation.mutateAsync({ id: customer.id, optOut: next })
+              toast.success(next ? 'Đã ghi nhận khách từ chối nhận tin quảng cáo' : 'Đã cho phép gửi tin quảng cáo')
+            } catch (err) {
+              toast.error(getErrorMessage(err, 'Không cập nhật được'))
+            }
+          }}
+          className={cn(
+            'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors max-md:min-h-[44px]',
+            customer.marketingOptOut
+              ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+              : 'border-border bg-card text-muted-foreground hover:bg-muted',
+          )}
+          title="Khách từ chối nhận tin quảng cáo sẽ không có trong danh sách xuất để gửi tin"
+        >
+          {customer.marketingOptOut ? 'Đã từ chối nhận tin QC · bấm để cho phép' : 'Từ chối nhận tin QC'}
+        </button>
       </div>
 
       {/* Member / coin wallet */}

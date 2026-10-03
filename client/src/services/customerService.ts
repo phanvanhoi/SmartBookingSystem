@@ -7,6 +7,8 @@ import type {
   CustomerTier,
   CoinWallet,
   CoinTransaction,
+  ExportSegment,
+  ExportResult,
 } from '@/types/customer'
 
 export interface GetCustomersParams {
@@ -90,6 +92,19 @@ export const customerService = {
 
   redeemPoints: async (id: number, points: number, reason?: string): Promise<SingleResponse<Customer>> => {
     const res = await api.post<SingleResponse<Customer>>(`/customers/${id}/redeem-points`, { points, reason })
+    return res.data
+  },
+
+  exportForMessaging: async (segment: ExportSegment): Promise<SingleResponse<ExportResult>> => {
+    const res = await api.get<SingleResponse<ExportResult>>(`/customers/export?segment=${segment}`)
+    return res.data
+  },
+
+  setMarketingOptOut: async (
+    id: number,
+    optOut: boolean
+  ): Promise<SingleResponse<{ id: number; marketingOptOut: boolean }>> => {
+    const res = await api.patch(`/customers/${id}/marketing-opt-out`, { optOut })
     return res.data
   },
 

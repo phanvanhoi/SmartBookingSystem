@@ -498,6 +498,9 @@ model Customer {
   memberSince     DateTime?     @map("member_since")
   coinBalance     Int           @default(0) @map("coin_balance")
 
+  // Marketing consent: opted-out customers are left out of message exports
+  marketingOptOut Boolean       @default(false) @map("marketing_opt_out")
+
   // Free-form
   notes           String?
   branch          String?
