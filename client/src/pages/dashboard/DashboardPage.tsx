@@ -161,7 +161,7 @@ export default function DashboardPage() {
   const revenueChart = data?.revenueChart ?? []
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+    <div className="p-0 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0">

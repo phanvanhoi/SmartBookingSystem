@@ -482,8 +482,8 @@ function PricingTab() {
       ) : rules.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">Chưa có khung giờ nào</div>
       ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border border-border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tên</th>
@@ -909,8 +909,8 @@ function SurchargesTab() {
       ) : surcharges.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">Chưa có phụ thu nào</div>
       ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border border-border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tên</th>
@@ -1221,8 +1221,8 @@ function VouchersTab() {
       ) : vouchers.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">Chưa có voucher nào</div>
       ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border border-border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Mã</th>
@@ -1487,8 +1487,8 @@ function RoomsTab() {
       {allRooms.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">Chưa có phòng nào</div>
       ) : (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="border border-border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">STT</th>
@@ -1652,8 +1652,8 @@ function SpinTab() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-xl border border-border overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Giải thưởng</th>
@@ -1728,8 +1728,8 @@ function SpinTab() {
         {!recent?.length ? (
           <p className="text-sm text-muted-foreground">Chưa có lượt quay nào</p>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-xl border border-border overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="text-left px-3 py-2">Thời gian</th>
@@ -1781,32 +1781,32 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="flex flex-wrap h-auto gap-1 w-full max-w-4xl justify-start">
-          <TabsTrigger value="general" className="flex items-center gap-1.5 text-xs">
+        <TabsList className="flex flex-nowrap md:flex-wrap overflow-x-auto md:overflow-visible h-auto gap-1 w-full max-w-4xl justify-start">
+          <TabsTrigger value="general" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <Settings className="w-3.5 h-3.5" />
             Chung
           </TabsTrigger>
-          <TabsTrigger value="pricing" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="pricing" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <DollarSign className="w-3.5 h-3.5" />
             Bảng giá
           </TabsTrigger>
-          <TabsTrigger value="qrcode" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="qrcode" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <QrCode className="w-3.5 h-3.5" />
             QR Code
           </TabsTrigger>
-          <TabsTrigger value="surcharges" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="surcharges" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <Percent className="w-3.5 h-3.5" />
             Phụ thu
           </TabsTrigger>
-          <TabsTrigger value="vouchers" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="vouchers" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <Ticket className="w-3.5 h-3.5" />
             Voucher
           </TabsTrigger>
-          <TabsTrigger value="spin" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="spin" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <Dices className="w-3.5 h-3.5" />
             Vòng quay
           </TabsTrigger>
-          <TabsTrigger value="rooms" className="flex items-center gap-1.5 text-xs">
+          <TabsTrigger value="rooms" className="flex items-center gap-1.5 text-xs shrink-0 max-md:min-h-10">
             <Building2 className="w-3.5 h-3.5" />
             Phòng
           </TabsTrigger>

@@ -192,7 +192,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               <Section title="Tiền phòng">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[11px] text-muted-foreground">
+                    <tr className="text-[11px] max-md:text-xs text-muted-foreground">
                       <th className="text-left font-medium pb-1">Khung giờ</th>
                       <th className="text-right font-medium pb-1">Đơn giá</th>
                       <th className="text-right font-medium pb-1">Thành tiền</th>
@@ -228,7 +228,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                 <Section title="Đồ uống / Ăn">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-[11px] text-muted-foreground">
+                      <tr className="text-[11px] max-md:text-xs text-muted-foreground">
                         <th className="text-left font-medium pb-1">Món</th>
                         <th className="text-center font-medium pb-1">SL</th>
                         <th className="text-right font-medium pb-1">Đơn giá</th>
@@ -381,7 +381,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                           key={amt}
                           onClick={() => setCashGiven(String(amt))}
                           className={cn(
-                            'py-1.5 rounded-md border text-[11px] font-medium transition-colors',
+                            'py-1.5 max-md:py-3 rounded-md border text-[11px] max-md:text-sm font-medium transition-colors',
                             cashGiven === String(amt)
                               ? 'border-primary bg-primary/10 text-primary'
                               : 'border-border hover:bg-muted/50 text-foreground'
@@ -438,7 +438,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               </div>
 
               {/* Confirm button */}
-              <div className={cn('pt-1', isMobile && 'pb-safe')}>
+              <div className="pt-1 hidden md:block">
                 <Button
                   className="w-full h-12 md:h-11 font-bold text-sm tracking-wide gap-2"
                   onClick={handleConfirmPayment}
@@ -468,6 +468,33 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
             </div>
           </div>
         ) : null}
+
+        {/* Phone: confirm bar pinned to the bottom so the cashier never scrolls for it */}
+        {billData && (
+          <div className="md:hidden sticky bottom-0 z-10 mt-auto flex items-center gap-3 border-t border-border bg-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+            <div className="min-w-0 shrink-0">
+              <p className="text-[11px] text-muted-foreground leading-none">Tổng thanh toán</p>
+              <p className="text-lg font-bold tabular-nums leading-tight">{formatCurrency(finalTotal)}</p>
+            </div>
+            <Button
+              className="flex-1 h-12 font-bold text-sm tracking-wide gap-2"
+              onClick={handleConfirmPayment}
+              disabled={!canConfirm || processCheckout.isPending}
+            >
+              {processCheckout.isPending ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ĐANG XỬ LÝ...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  XÁC NHẬN
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -490,7 +517,7 @@ function InfoCard({ icon: Icon, label, value }: { icon: any; label: string; valu
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{title}</h4>
+      <h4 className="text-[11px] max-md:text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{title}</h4>
       <div className="border border-border rounded-lg p-2 bg-card">
         {children}
       </div>

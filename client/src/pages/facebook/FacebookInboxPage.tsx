@@ -45,7 +45,7 @@ export default function FacebookInboxPage() {
   const ignoredMessages = messages.filter((m) => m.status === 'ignored')
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-0 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

@@ -38,7 +38,7 @@ export default function OrderPage() {
   const activeRooms = rooms?.filter((r) => r.currentSession) ?? []
 
   return (
-    <div className="flex flex-col h-full gap-6 p-6">
+    <div className="flex flex-col h-full gap-4 md:gap-6 p-0 md:p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">

@@ -76,7 +76,7 @@ export default function RoomMapPage() {
   return (
     <div className="flex flex-col h-full">
       {/* ─── Page header ─────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
+      <div className="flex items-center justify-between px-1 md:px-5 pt-1 md:pt-5 pb-3 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">
             <LayoutGrid className="w-5 h-5" />
@@ -104,7 +104,7 @@ export default function RoomMapPage() {
       </div>
 
       {/* ─── Filter bar ──────────────────────────────────────────── */}
-      <div className="px-5 pb-3 flex items-center gap-1.5 flex-wrap flex-shrink-0">
+      <div className="px-1 md:px-5 pb-3 flex items-center gap-1.5 flex-wrap flex-shrink-0">
         <FilterChip
           label="Tất cả"
           count={rooms.length}
@@ -145,7 +145,7 @@ export default function RoomMapPage() {
       </div>
 
       {/* ─── Rooms grid — 2 dãy theo vị trí thật ───────────────────── */}
-      <div className="flex-1 overflow-auto px-5 pb-5">
+      <div className="flex-1 overflow-auto px-1 md:px-5 pb-5">
         {isLoading ? (
           <RoomGridSkeleton />
         ) : rooms.length === 0 ? (

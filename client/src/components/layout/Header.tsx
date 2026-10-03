@@ -54,7 +54,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   }
 
   return (
-    <header className="h-14 shrink-0 flex items-center gap-3 px-4 pt-safe-top bg-card border-b border-border">
+    <header className="min-h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 flex items-center gap-3 px-4 pt-safe-top bg-card border-b border-border">
       <Button
         variant="ghost"
         size="icon"

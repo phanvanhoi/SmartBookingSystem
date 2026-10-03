@@ -156,7 +156,7 @@ function ProductDialog({ open, onClose, product, readOnly = false }: ProductDial
           </DialogTitle>
         </DialogHeader>
 
-        <div className="p-6 space-y-3">
+        <div className="p-0 md:p-6 space-y-3">
           {readOnly && product && (
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-baseline justify-between gap-2">
               <span className="text-xs uppercase tracking-wider text-muted-foreground">Tồn hiện tại</span>
@@ -890,7 +890,7 @@ export default function StockPage() {
             <DialogHeader>
               <DialogTitle>Xóa sản phẩm</DialogTitle>
             </DialogHeader>
-            <div className="px-6 py-4">
+            <div className="px-0 md:px-6 py-4">
               <p className="text-muted-foreground text-sm">
                 Bạn có chắc muốn xóa <span className="text-foreground font-medium">{deleteConfirm?.name}</span>?
                 Hành động này không thể hoàn tác.

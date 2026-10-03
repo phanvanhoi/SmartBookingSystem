@@ -103,9 +103,9 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="p-6 space-y-4">
+        <div className="p-0 md:p-6 space-y-4">
           {/* Type + Supplier row */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Loại giao dịch</label>
               <Select value={type} onValueChange={(v) => setType(v as 'IN' | 'OUT_MANUAL')}>
@@ -141,7 +141,7 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
           {/* Items table */}
           <div>
             <label className="text-sm text-muted-foreground mb-2 block">Sản phẩm</label>
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className="hidden md:block rounded-md border border-border overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-secondary/50 border-b border-border">
@@ -217,6 +217,77 @@ export default function StockEntryForm({ open, onClose }: StockEntryFormProps) {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Phone: one card per product line */}
+            <div className="md:hidden space-y-2">
+              {items.map((item, index) => (
+                <div key={index} className="rounded-lg border border-border p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Select
+                        value={item.productId ? String(item.productId) : ''}
+                        onValueChange={(v) => updateItem(index, 'productId', Number(v))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn sản phẩm..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive shrink-0"
+                      aria-label="Xóa dòng sản phẩm"
+                      onClick={() => removeItem(index)}
+                      disabled={items.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className={type === 'IN' ? 'grid grid-cols-2 gap-2' : ''}>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Số lượng</label>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))}
+                        className="text-right tabular-nums"
+                      />
+                    </div>
+                    {type === 'IN' && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Đơn giá</label>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={item.unitCost}
+                          onChange={(e) => updateItem(index, 'unitCost', Number(e.target.value))}
+                          className="text-right tabular-nums"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {type === 'IN' && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Thành tiền</span>
+                      <span className="font-bold tabular-nums">
+                        {formatCurrency(item.quantity * item.unitCost)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
             <Button variant="outline" size="sm" className="mt-2" onClick={addItem}>

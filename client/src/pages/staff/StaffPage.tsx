@@ -439,7 +439,7 @@ function StaffTab() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -459,7 +459,7 @@ function StaffTab() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted border-b border-border">
@@ -550,6 +550,79 @@ function StaffTab() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Phone: one card per staff member */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full bg-muted rounded-lg" />
+          ))
+        ) : filteredStaff.length === 0 ? (
+          <p className="px-4 py-8 text-center text-muted-foreground text-sm">
+            {search ? 'Không tìm thấy nhân viên phù hợp' : 'Chưa có nhân viên nào'}
+          </p>
+        ) : (
+          filteredStaff.map((staff) => (
+            <div key={staff.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-foreground truncate">{staff.fullName}</div>
+                  <div className="font-mono text-xs text-muted-foreground truncate">
+                    {staff.username}
+                    {staff.phone ? ` · ${staff.phone}` : ''}
+                  </div>
+                </div>
+                <RoleBadge role={staff.role as StaffRole} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                {staff.isActive ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <UserCheck className="w-3 h-3" />
+                    Hoạt động
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                    <User className="w-3 h-3" />
+                    Không hoạt động
+                  </span>
+                )}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditingStaff(staff)}
+                    aria-label="Sửa thông tin"
+                    className="h-11 w-11 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResetPasswordStaff(staff)}
+                    aria-label="Đặt lại mật khẩu"
+                    className="h-11 w-11 inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmToggleId(staff.id)}
+                    aria-label={staff.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                    className={`h-11 w-11 inline-flex items-center justify-center rounded hover:bg-muted ${
+                      staff.isActive ? 'text-emerald-600' : 'text-slate-400'
+                    }`}
+                  >
+                    {staff.isActive ? (
+                      <ToggleRight className="w-5 h-5" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Dialogs */}
@@ -682,7 +755,7 @@ function ShiftsTab() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted border-b border-border">
@@ -776,6 +849,70 @@ function ShiftsTab() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Phone: one card per shift */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full bg-muted rounded-lg" />
+          ))
+        ) : shifts.length === 0 ? (
+          <p className="px-4 py-8 text-center text-muted-foreground text-sm">
+            Chưa có lịch sử ca làm việc
+          </p>
+        ) : (
+          shifts.map((shift) => {
+            const diff = shift.summary?.cashDifference
+            const diffColor =
+              diff === undefined || diff === 0
+                ? 'text-muted-foreground'
+                : diff < 0
+                ? 'text-rose-600'
+                : 'text-emerald-600'
+            const t = (d: string) =>
+              new Date(d).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            return (
+              <div key={shift.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground truncate">{shift.openedByName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatDate(shift.startTime)} · {t(shift.startTime)}
+                      {shift.endTime ? ` → ${t(shift.endTime)}` : ''}
+                      {shift.duration ? ` (${shift.duration})` : ''}
+                    </div>
+                  </div>
+                  {shift.status === 'OPEN' ? (
+                    <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Đang mở
+                    </span>
+                  ) : (
+                    <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      Đã đóng
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                  <span className="text-muted-foreground">Đầu ca</span>
+                  <span className="text-right tabular-nums">{formatCurrency(shift.openingCash)}</span>
+                  <span className="text-muted-foreground">Cuối ca</span>
+                  <span className="text-right tabular-nums">
+                    {shift.closingCash != null ? formatCurrency(shift.closingCash) : '—'}
+                  </span>
+                  <span className="text-muted-foreground">Chênh lệch</span>
+                  <span className={`text-right tabular-nums font-medium ${diffColor}`}>
+                    {diff !== undefined ? `${diff >= 0 ? '+' : ''}${formatCurrency(diff)}` : '—'}
+                  </span>
+                  <span className="text-muted-foreground">Doanh thu</span>
+                  <span className="text-right tabular-nums font-medium">
+                    {shift.summary ? formatCurrency(shift.summary.totalRevenue) : '—'}
+                  </span>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
 
       {/* Pagination */}
@@ -906,7 +1043,7 @@ function AuditLogTab() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted border-b border-border">
@@ -962,6 +1099,42 @@ function AuditLogTab() {
         </table>
       </div>
 
+      {/* Phone: one card per audit entry */}
+      <div className="md:hidden space-y-2">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full bg-muted rounded-lg" />
+          ))
+        ) : logs.length === 0 ? (
+          <p className="px-4 py-8 text-center text-muted-foreground text-sm">Không có nhật ký nào</p>
+        ) : (
+          logs.map((log) => (
+            <div key={log.id} className="rounded-lg border border-border bg-card p-3 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-xs px-2 py-0.5 bg-muted rounded border border-border text-primary break-all">
+                  {log.action}
+                </span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {formatDateTime(log.createdAt)}
+                </span>
+              </div>
+              <div className="text-sm text-foreground">
+                {log.userFullName}
+                <span className="text-xs text-muted-foreground">
+                  {' '}
+                  · {log.entityType} #{log.entityId}
+                </span>
+              </div>
+              {log.details ? (
+                <div className="text-xs text-muted-foreground break-all line-clamp-2">
+                  {JSON.stringify(log.details).slice(0, 120)}
+                </div>
+              ) : null}
+            </div>
+          ))
+        )}
+      </div>
+
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
@@ -1003,7 +1176,7 @@ function AuditLogTab() {
 
 export default function StaffPage() {
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-0 md:p-6 space-y-6">
       {/* Page Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center">

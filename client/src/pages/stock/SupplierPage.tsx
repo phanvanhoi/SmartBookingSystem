@@ -209,7 +209,7 @@ export default function SupplierPage() {
             <DialogTitle>{editingSupplier ? 'Sửa nhà cung cấp' : 'Thêm nhà cung cấp'}</DialogTitle>
           </DialogHeader>
 
-          <div className="p-6 space-y-3">
+          <div className="p-0 md:p-6 space-y-3">
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Tên NCC <span className="text-destructive">*</span></label>
               <Input
@@ -264,7 +264,7 @@ export default function SupplierPage() {
           <DialogHeader>
             <DialogTitle>Xóa nhà cung cấp</DialogTitle>
           </DialogHeader>
-          <div className="px-6 py-4">
+          <div className="px-0 md:px-6 py-4">
             <p className="text-muted-foreground text-sm">
               Bạn có chắc muốn xóa <span className="text-foreground font-medium">{deleteConfirm?.name}</span>?
               Hành động này không thể hoàn tác.

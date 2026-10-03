@@ -304,15 +304,15 @@ export default function InvoicesPage() {
       </div>
 
       <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium">Số HĐ</th>
                 <th className="text-left px-4 py-2.5 font-medium">Khách</th>
-                <th className="text-left px-4 py-2.5 font-medium">Phòng</th>
-                <th className="text-left px-4 py-2.5 font-medium">Thanh toán</th>
-                <th className="text-left px-4 py-2.5 font-medium">Thời gian</th>
+                <th className="hidden lg:table-cell text-left px-4 py-2.5 font-medium">Phòng</th>
+                <th className="hidden lg:table-cell text-left px-4 py-2.5 font-medium">Thanh toán</th>
+                <th className="hidden xl:table-cell text-left px-4 py-2.5 font-medium">Thời gian</th>
                 <th className="text-right px-4 py-2.5 font-medium">Tổng</th>
                 <th className="text-right px-4 py-2.5 font-medium">Còn nợ</th>
                 <th className="text-center px-4 py-2.5 font-medium">Trạng thái</th>
@@ -358,8 +358,8 @@ export default function InvoicesPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-2">{inv.session.room.name}</td>
-                      <td className="px-4 py-2">
+                      <td className="hidden lg:table-cell px-4 py-2">{inv.session.room.name}</td>
+                      <td className="hidden lg:table-cell px-4 py-2">
                         {methods.length === 0 ? (
                           <span className="text-muted-foreground text-xs">—</span>
                         ) : (
@@ -375,7 +375,7 @@ export default function InvoicesPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-xs text-muted-foreground">
+                      <td className="hidden xl:table-cell px-4 py-2 text-xs text-muted-foreground">
                         {formatDateTime(inv.createdAt)}
                       </td>
                       <td className="px-4 py-2 text-right font-bold tabular-nums">
@@ -410,6 +410,72 @@ export default function InvoicesPage() {
                 })}
             </tbody>
           </table>
+        </div>
+
+        {/* Phone: one card per invoice */}
+        <div className="md:hidden divide-y divide-border">
+          {isLoading &&
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="p-3 space-y-2">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            ))}
+          {!isLoading && invoices.length === 0 && (
+            <p className="px-4 py-10 text-center text-muted-foreground text-sm">
+              Không có hóa đơn phù hợp
+            </p>
+          )}
+          {!isLoading &&
+            invoices.map((inv) => {
+              const st = STATUS_LABEL[inv.status] ?? { text: inv.status, cls: '' }
+              const methods = paymentMethodsOf(inv)
+              return (
+                <button
+                  key={inv.id}
+                  type="button"
+                  onClick={() => setEditingId(inv.id)}
+                  className="w-full text-left p-3 flex flex-col gap-1.5 active:bg-muted/50"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">{inv.invoiceNumber}</span>
+                    <Badge variant="outline" className={st.cls}>
+                      {st.text}
+                    </Badge>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{inv.session.customerName || '—'}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {inv.session.room.name}
+                        {inv.session.customerPhone ? ` · ${inv.session.customerPhone}` : ''}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold tabular-nums">{formatCurrency(inv.grandTotal)}</div>
+                      {inv.debtAmount > 0 && (
+                        <div className="text-xs font-semibold text-amber-700 tabular-nums">
+                          Nợ {formatCurrency(inv.debtAmount)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{formatDateTime(inv.createdAt)}</span>
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {methods.map((m) => {
+                        const b = PAY_BADGE[m] ?? { text: m, cls: '' }
+                        return (
+                          <Badge key={m} variant="outline" className={`text-[10px] ${b.cls}`}>
+                            {b.text}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
         </div>
       </div>
 

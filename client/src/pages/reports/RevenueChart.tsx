@@ -76,7 +76,7 @@ export default function RevenueChart({ data, className = '' }: RevenueChartProps
   }))
 
   return (
-    <div className={`w-full h-64 ${className}`}>
+    <div className={`w-full h-72 md:h-64 ${className}`}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={formattedData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <defs>
@@ -101,6 +101,8 @@ export default function RevenueChart({ data, className = '' }: RevenueChartProps
             tick={{ fill: COLORS.axis, fontSize: 12 }}
             axisLine={{ stroke: COLORS.grid }}
             tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={16}
           />
           <YAxis
             tickFormatter={formatCurrencyShort}

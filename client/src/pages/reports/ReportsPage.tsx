@@ -333,7 +333,7 @@ function StockTab({ filters }: { filters: DateRangeFilters }) {
                     <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">{idx + 1}</span>
                     <p className="font-semibold text-foreground flex-1">{item.name}</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs pl-7">
+                  <div className="grid grid-cols-2 min-[400px]:grid-cols-3 gap-2 text-xs pl-7">
                     <div>
                       <p className="text-muted-foreground">Đã bán</p>
                       <p className="font-semibold text-foreground tabular-nums">{item.totalSold}</p>
@@ -565,7 +565,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+    <div className="p-0 md:p-6 space-y-4 md:space-y-6 md:max-w-[1600px] md:mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0">
@@ -578,11 +578,11 @@ export default function ReportsPage() {
         {/* Tab Bar + Filter Row */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
           <div className="overflow-x-auto -mx-1 px-1">
-            <TabsList className={cn('h-9 p-1 flex-shrink-0', isMobile && 'inline-flex w-max')}>
-              <TabsTrigger value="revenue" className="text-xs">Doanh thu</TabsTrigger>
-              <TabsTrigger value="rooms" className="text-xs">Phòng</TabsTrigger>
-              <TabsTrigger value="stock" className="text-xs">Kho</TabsTrigger>
-              <TabsTrigger value="shifts" className="text-xs">Ca làm</TabsTrigger>
+            <TabsList className={cn('h-9 p-1 flex-shrink-0', isMobile && 'inline-flex w-max h-11')}>
+              <TabsTrigger value="revenue" className="text-xs max-md:text-sm max-md:px-4">Doanh thu</TabsTrigger>
+              <TabsTrigger value="rooms" className="text-xs max-md:text-sm max-md:px-4">Phòng</TabsTrigger>
+              <TabsTrigger value="stock" className="text-xs max-md:text-sm max-md:px-4">Kho</TabsTrigger>
+              <TabsTrigger value="shifts" className="text-xs max-md:text-sm max-md:px-4">Ca làm</TabsTrigger>
             </TabsList>
           </div>
 

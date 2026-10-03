@@ -140,7 +140,7 @@ export default function CustomerDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-6 p-0 md:p-6">
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-24" />
           <Skeleton className="h-8 w-48" />
@@ -169,7 +169,7 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-0 md:p-6">
       {/* Blacklist Banner */}
       {customer.isBlacklisted && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700">

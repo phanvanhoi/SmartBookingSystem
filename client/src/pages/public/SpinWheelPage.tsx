@@ -306,7 +306,7 @@ function CongratsSheet({
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1200] text-[#ffe566] shadow-[0_4px_14px_rgba(0,0,0,0.25)]">
               <PrizeIcon className="w-6 h-6" />
             </div>
-            <p className="text-[10px] uppercase tracking-[0.18em] font-extrabold text-[#7a5800]">
+            <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-[#7a5800]">
               {prize.badge}
             </p>
             {isJackpot && resultPercent > 0 ? (
@@ -731,7 +731,7 @@ export default function SpinWheelPage() {
                     </span>
                   </div>
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--promo-muted)] font-semibold">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--promo-muted)] font-semibold">
                       Khách IKA Music Box
                     </p>
                     <p className="display text-[1.55rem] sm:text-2xl leading-none text-[var(--promo-ink)] truncate">
@@ -740,7 +740,7 @@ export default function SpinWheelPage() {
                     {statusMeta && (
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
                           statusMeta.className,
                         )}
                       >
@@ -753,7 +753,7 @@ export default function SpinWheelPage() {
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="rounded-xl border border-[rgba(157,190,255,0.16)] bg-[rgba(4,10,24,0.55)] px-3 py-2.5 min-w-0">
-                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-muted)]">
+                    <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--promo-muted)]">
                       <DoorOpen className="w-3 h-3" /> Phòng
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[var(--promo-ink)] truncate">
@@ -761,7 +761,7 @@ export default function SpinWheelPage() {
                     </p>
                   </div>
                   <div className="rounded-xl border border-[rgba(157,190,255,0.16)] bg-[rgba(4,10,24,0.55)] px-3 py-2.5 min-w-0">
-                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-muted)]">
+                    <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--promo-muted)]">
                       <CalendarDays className="w-3 h-3" /> Ngày hát
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[var(--promo-ink)] truncate">
@@ -769,7 +769,7 @@ export default function SpinWheelPage() {
                     </p>
                   </div>
                   <div className="rounded-xl border border-[rgba(157,190,255,0.16)] bg-[rgba(4,10,24,0.55)] px-3 py-2.5 min-w-0">
-                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-muted)]">
+                    <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--promo-muted)]">
                       <Clock3 className="w-3 h-3" /> Giờ
                     </p>
                     <p className="mt-1 text-sm font-semibold text-[var(--promo-ink)] truncate">
@@ -777,7 +777,7 @@ export default function SpinWheelPage() {
                     </p>
                   </div>
                   <div className="rounded-xl border border-[rgba(255,229,102,0.28)] bg-[rgba(255,229,102,0.08)] px-3 py-2.5 min-w-0">
-                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--promo-gold)]">
+                    <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--promo-gold)]">
                       <Ticket className="w-3 h-3" /> Mã quay
                     </p>
                     <div className="mt-1 flex items-center gap-1.5 min-w-0">
@@ -798,7 +798,7 @@ export default function SpinWheelPage() {
 
                 {tokenAlreadyUsed && token.resultLabel && !result && !spinning && !spinMutation.isPending && (
                   <div className="rounded-xl border border-[rgba(61,158,255,0.3)] bg-[rgba(61,158,255,0.1)] px-3 py-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-[var(--promo-blue)] font-semibold">
+                    <p className="text-[11px] uppercase tracking-wider text-[var(--promo-blue)] font-semibold">
                       Kết quả đã quay
                     </p>
                     <p className="mt-1 display text-lg text-[var(--promo-ink)] leading-none">
@@ -932,7 +932,7 @@ export default function SpinWheelPage() {
                   Kho quà IKA
                 </h2>
               </div>
-              <p className="text-[10px] text-[var(--promo-muted)] shrink-0">100% có thưởng</p>
+              <p className="text-[11px] text-[var(--promo-muted)] shrink-0">100% có thưởng</p>
             </div>
             <ul className="grid grid-cols-1 gap-2.5">
               {prizes.map((p) => {
@@ -969,7 +969,7 @@ export default function SpinWheelPage() {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span
                             className={cn(
-                              'inline-flex rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide',
+                              'inline-flex rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide',
                               view.hot
                                 ? 'bg-[rgba(255,61,122,0.2)] text-[#ff7aa8]'
                                 : view.badge === 'COMBO FREE'
@@ -980,7 +980,7 @@ export default function SpinWheelPage() {
                             {view.badge}
                           </span>
                           {view.hot && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-[#ff7aa8]">
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#ff7aa8]">
                               <Flame className="w-3 h-3" /> Hiếm
                             </span>
                           )}

@@ -91,8 +91,8 @@ export default function InvoiceEditDialog({ invoiceId, open, onClose, readOnly =
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl w-full max-h-[92vh] overflow-hidden !p-0 flex flex-col gap-0">
-        <DialogHeader className="px-5 py-3 border-b border-border shrink-0">
+      <DialogContent className="max-w-3xl w-full max-h-[92dvh] max-md:dialog-mobile-full max-md:!max-w-none overflow-hidden !p-0 flex flex-col gap-0">
+        <DialogHeader className="px-5 py-3 pr-12 border-b border-border shrink-0">
           <DialogTitle className="text-base flex flex-wrap items-center gap-2">
             <Receipt className="w-4 h-4 text-muted-foreground" />
             <span>{readOnly ? 'Chi tiết hóa đơn' : 'Hóa đơn'}</span>

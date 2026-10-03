@@ -129,7 +129,7 @@ function PriceQuoteCard({
         aria-hidden
       />
       <div className="min-w-0 space-y-2">
-        <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] font-semibold text-emerald-300">
+        <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] font-semibold text-emerald-300">
           <Users className="w-3.5 h-3.5" />
           Chia đều mỗi người
         </p>
@@ -682,12 +682,12 @@ export default function PublicBookingPage() {
                       <button
                         key={time}
                         type="button"
-                        className="chip shrink-0 touch-manipulation !border-amber-300/40 !text-amber-100"
+                        className="chip max-w-full !whitespace-normal touch-manipulation !border-amber-300/40 !text-amber-100"
                         onClick={() => applyAlternative(time)}
                       >
                         {time}
                         {roomCount > 0 ? (
-                          <span className="opacity-70 text-[10px]">· {roomCount} phòng</span>
+                          <span className="opacity-70 text-[11px]">· {roomCount} phòng</span>
                         ) : null}
                       </button>
                     )
@@ -725,11 +725,11 @@ export default function PublicBookingPage() {
                       <button
                         key={alt.bookingTime}
                         type="button"
-                        className="chip shrink-0 touch-manipulation !border-amber-300/40 !text-amber-100"
+                        className="chip max-w-full !whitespace-normal touch-manipulation !border-amber-300/40 !text-amber-100"
                         onClick={() => applyAlternative(alt.bookingTime)}
                       >
                         {alt.bookingTime}
-                        <span className="opacity-70 text-[10px]">· {alt.roomCount} phòng</span>
+                        <span className="opacity-70 text-[11px]">· {alt.roomCount} phòng</span>
                       </button>
                     ))}
                   </div>

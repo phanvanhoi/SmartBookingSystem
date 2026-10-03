@@ -80,12 +80,12 @@ export default function RoomCard({
       className={cn(
         'group relative bg-card rounded-xl border shadow-card overflow-hidden',
         'cursor-pointer transition-all duration-200',
-        'hover:shadow-card-hover hover:-translate-y-0.5 hover:border-border/80',
+        '[@media(hover:hover)]:hover:shadow-card-hover [@media(hover:hover)]:hover:-translate-y-0.5 [@media(hover:hover)]:hover:border-border/80',
         'flex flex-col',
         // Size variant — large rooms get a thicker stripe, more padding, taller body.
-        isLarge ? 'p-4 pl-5 h-[240px] border-2 border-primary/30' : 'p-3 pl-4 h-[196px] border-border',
+        isLarge ? 'p-4 pl-5 min-h-[240px] border-2 border-primary/30' : 'p-3 pl-4 min-h-[196px] border-border',
         room.status === 'ENDING_SOON' && 'ring-1 ring-amber-400/40',
-        room.status === 'AVAILABLE' && 'hover:border-emerald-300 hover:bg-emerald-50/30',
+        room.status === 'AVAILABLE' && '[@media(hover:hover)]:hover:border-emerald-300 [@media(hover:hover)]:hover:bg-emerald-50/30',
         room.status === 'MAINTENANCE' && 'opacity-80 cursor-default hover:translate-y-0 hover:shadow-card hover:border-border',
       )}
     >
@@ -132,7 +132,7 @@ export default function RoomCard({
           <span
             className={cn(
               'font-semibold uppercase tracking-wide',
-              isLarge ? 'text-[11px]' : 'text-[10px]',
+              isLarge ? 'text-[11px]' : 'text-[10px] max-md:text-[11px]',
               cfg.labelColor,
             )}
           >
@@ -143,7 +143,7 @@ export default function RoomCard({
 
       {/* Type line */}
       <div className="relative mt-0.5">
-        <span className={cn('text-muted-foreground', isLarge ? 'text-xs' : 'text-[10px]')}>
+        <span className={cn('text-muted-foreground', isLarge ? 'text-xs' : 'text-[10px] max-md:text-[11px]')}>
           {room.roomType.name}
         </span>
       </div>
@@ -250,7 +250,7 @@ function InfoBand({
     >
       {/* Left — timer */}
       <div className="flex flex-col gap-0.5 min-w-0">
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-[10px] max-md:text-[11px] text-muted-foreground">
           <Clock className="w-3 h-3" />
           <span>{isCountingDown ? 'Còn lại' : 'Đã hát'}</span>
         </div>
@@ -267,7 +267,7 @@ function InfoBand({
 
       {/* Right — total */}
       <div className="flex flex-col items-end gap-0.5">
-        <span className="text-[10px] text-muted-foreground">Tạm tính</span>
+        <span className="text-[10px] max-md:text-[11px] text-muted-foreground">Tạm tính</span>
         <span className="text-sm font-bold text-foreground tabular-nums leading-none">
           {formatCurrency(session.currentTotal)}
           <span className="text-muted-foreground font-normal ml-0.5">đ</span>
@@ -293,7 +293,7 @@ function ActionBtn({
       onClick={onClick}
       title={title}
       aria-label={title}
-      className="flex-1 flex items-center justify-center h-8 rounded-md bg-secondary text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      className="flex-1 flex items-center justify-center h-8 max-md:h-11 rounded-md bg-secondary text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
     >
       {children}
     </button>

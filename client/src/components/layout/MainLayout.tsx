@@ -17,7 +17,7 @@ export default function MainLayout() {
   const [moreOpen, setMoreOpen] = useState(false)
 
   return (
-    <div className="h-screen flex overflow-hidden bg-background text-foreground">
+    <div className="h-dvh flex overflow-hidden bg-background text-foreground">
       <GlobalFetchIndicator />
 
       <Sidebar />

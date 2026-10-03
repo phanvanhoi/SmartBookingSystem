@@ -27,7 +27,7 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
   }, [])
 
   return (
-    <div className="public-promo min-h-[100dvh] w-full max-w-[100vw] overflow-x-hidden text-[#eef4ff] flex flex-col">
+    <div className="public-promo min-h-[100dvh] w-full max-w-full overflow-x-hidden text-[#eef4ff] flex flex-col">
       <style>{`
         .public-promo {
           --promo-bg: #050b1a;
@@ -509,7 +509,9 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
           display: flex;
           flex-direction: column;
           align-items: stretch;
-          justify-content: flex-end;
+          justify-content: flex-start;
+          overflow-y: auto;
+          overscroll-behavior: contain;
           background: rgba(2, 6, 18, 0.82);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
@@ -547,7 +549,7 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
           z-index: 2;
           width: 100%;
           max-width: 28rem;
-          margin: 0 auto;
+          margin: auto auto 0;
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
@@ -633,10 +635,10 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
       `}</style>
 
       <header
-        className="sticky top-0 z-30 w-full max-w-[100vw] header-bar"
+        className="sticky top-0 z-30 w-full max-w-full header-bar"
         style={{ paddingTop: 'max(0.65rem, env(safe-area-inset-top))' }}
       >
-        <div className="w-full max-w-lg mx-auto px-3 sm:px-4 pb-3 min-w-0 space-y-2.5">
+        <div className="w-full max-w-lg lg:max-w-2xl mx-auto px-3 sm:px-4 pb-3 min-w-0 space-y-2.5">
           <div className="flex items-center justify-between gap-3 min-w-0">
             <Link to="/dat-lich" className="flex items-center gap-3 min-w-0 group">
               <div className="ika-mark" aria-hidden>
@@ -681,7 +683,7 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
       </header>
 
       <main
-        className={`relative z-10 flex-1 w-full max-w-lg mx-auto px-3 sm:px-4 pt-4 min-w-0 ${
+        className={`relative z-10 flex-1 w-full max-w-lg lg:max-w-2xl mx-auto px-3 sm:px-4 pt-4 min-w-0 ${
           footer ? 'pb-28' : 'pb-[max(1.5rem,env(safe-area-inset-bottom))]'
         }`}
       >
@@ -691,10 +693,10 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
       {footer ? (
         <div
           data-public-footer
-          className="fixed inset-x-0 bottom-0 z-40 w-full max-w-[100vw] header-bar border-t border-b-0"
+          className="fixed inset-x-0 bottom-0 z-40 w-full max-w-full header-bar border-t border-b-0"
           style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
         >
-          <div className="w-full max-w-lg mx-auto px-3 sm:px-4 pt-3 min-w-0">{footer}</div>
+          <div className="w-full max-w-lg lg:max-w-2xl mx-auto px-3 sm:px-4 pt-3 min-w-0">{footer}</div>
         </div>
       ) : null}
     </div>

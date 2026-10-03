@@ -45,12 +45,12 @@ export default function RoomUsageChart({ data, className = '' }: RoomUsageChartP
     }))
 
   return (
-    <div className={`w-full h-52 ${className}`}>
+    <div className={`w-full h-56 md:h-52 ${className}`}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={top5}
           layout="vertical"
-          margin={{ top: 4, right: 32, left: 0, bottom: 4 }}
+          margin={{ top: 4, right: 24, left: 0, bottom: 4 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke={GRID} horizontal={false} />
 
@@ -68,7 +68,7 @@ export default function RoomUsageChart({ data, className = '' }: RoomUsageChartP
             tick={{ fill: AXIS, fontSize: 12 }}
             axisLine={false}
             tickLine={false}
-            width={64}
+            width={76}
           />
 
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
