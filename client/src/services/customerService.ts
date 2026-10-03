@@ -1,5 +1,13 @@
 import api from './api'
-import type { Customer, CustomerHistory, PointHistoryItem, CreateCustomerForm, CustomerTier } from '@/types/customer'
+import type {
+  Customer,
+  CustomerHistory,
+  PointHistoryItem,
+  CreateCustomerForm,
+  CustomerTier,
+  CoinWallet,
+  CoinTransaction,
+} from '@/types/customer'
 
 export interface GetCustomersParams {
   search?: string
@@ -82,6 +90,27 @@ export const customerService = {
 
   redeemPoints: async (id: number, points: number, reason?: string): Promise<SingleResponse<Customer>> => {
     const res = await api.post<SingleResponse<Customer>>(`/customers/${id}/redeem-points`, { points, reason })
+    return res.data
+  },
+
+  setMembership: async (
+    id: number,
+    isMember: boolean
+  ): Promise<SingleResponse<{ id: number; isMember: boolean; coinBalance: number }>> => {
+    const res = await api.patch(`/customers/${id}/membership`, { isMember })
+    return res.data
+  },
+
+  getCoinWallet: async (id: number, page = 1, limit = 10): Promise<SingleResponse<CoinWallet>> => {
+    const res = await api.get<SingleResponse<CoinWallet>>(`/customers/${id}/coin?page=${page}&limit=${limit}`)
+    return res.data
+  },
+
+  topUpCoin: async (
+    id: number,
+    data: { amount: number; method: 'CASH' | 'QR_TRANSFER'; note?: string }
+  ): Promise<SingleResponse<{ coinBalance: number; transaction: CoinTransaction }>> => {
+    const res = await api.post(`/customers/${id}/coin/topup`, data)
     return res.data
   },
 

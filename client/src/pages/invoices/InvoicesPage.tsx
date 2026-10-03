@@ -32,7 +32,7 @@ import InvoiceEditDialog from './InvoiceEditDialog'
 
 type PeriodKey = 'day' | 'yesterday' | 'week' | 'month' | 'all'
 type StatusKey = 'all' | 'PAID' | 'PARTIAL' | 'PENDING' | 'VOID'
-type PaymentKey = 'all' | 'CASH' | 'QR_TRANSFER' | 'DEBT'
+type PaymentKey = 'all' | 'CASH' | 'QR_TRANSFER' | 'DEBT' | 'COIN'
 
 const PERIOD_LABEL: Record<PeriodKey, string> = {
   day: 'Hôm nay',
@@ -47,12 +47,14 @@ const PAYMENT_LABEL: Record<PaymentKey, string> = {
   CASH: 'Tiền mặt',
   QR_TRANSFER: 'Chuyển khoản (QR)',
   DEBT: 'Ghi nợ',
+  COIN: 'Coin hội viên',
 }
 
 const PAY_BADGE: Record<string, { text: string; cls: string }> = {
   CASH: { text: 'TM', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   QR_TRANSFER: { text: 'QR', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
   DEBT: { text: 'Nợ', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  COIN: { text: 'Coin', cls: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' },
 }
 
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {

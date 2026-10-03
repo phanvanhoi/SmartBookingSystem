@@ -19,6 +19,7 @@ import { AppError } from '../../middleware/error.middleware'
 import logger from '../../utils/logger'
 import { calculateRoomPrice, roundBillUp, getBillRoundAmount } from '../rooms/pricing.service'
 import { deductStockForOrder } from '../stock/stock.service'
+import { refundCoinTx } from '../customers/coin.service'
 import {
   allocateFromPool,
   poolAvailableQty,
@@ -52,6 +53,25 @@ async function logAudit(
 }
 
 /**
+ * Invoices paid (even partly) with member coin can't be edited: any change to
+ * the total would leave the coin ledger out of step with the bill. Void the
+ * invoice instead — that refunds the coin — and re-create it.
+ */
+async function assertNoCoinPayment(invoiceId: number): Promise<void> {
+  const coin = await prisma.payment.findFirst({
+    where: { invoiceId, method: 'COIN' },
+    select: { id: true },
+  })
+  if (coin) {
+    throw new AppError(
+      400,
+      'INVOICE_PAID_WITH_COIN',
+      'Hóa đơn đã thanh toán bằng coin nên không thể sửa. Hãy hủy hóa đơn (hoàn coin) rồi lập lại.',
+    )
+  }
+}
+
+/**
  * Recompute grandTotal from current invoice fields, applying the bill round.
  * grandTotal = max(0, subtotal − discount − deposit + surcharge), then ceil.
  */
@@ -81,6 +101,7 @@ export async function voidInvoice(invoiceId: number, reason: string, actorUserId
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
+      payments: { select: { method: true, amount: true } },
       session: {
         include: {
           orders: {
@@ -94,6 +115,18 @@ export async function voidInvoice(invoiceId: number, reason: string, actorUserId
   if (!invoice) throw new AppError(404, 'INVOICE_NOT_FOUND', 'Hóa đơn không tồn tại')
   if (invoice.status === 'VOID') {
     throw new AppError(400, 'INVOICE_ALREADY_VOID', 'Hóa đơn đã bị hủy')
+  }
+
+  // Coin paid on this invoice goes back to the member's wallet.
+  const coinToRefund = invoice.payments
+    .filter((p) => p.method === 'COIN')
+    .reduce((sum, p) => sum + num(p.amount), 0)
+  if (coinToRefund > 0 && !invoice.session.customerId) {
+    throw new AppError(
+      400,
+      'COIN_CUSTOMER_MISSING',
+      'Không tìm thấy hội viên của hóa đơn này để hoàn coin',
+    )
   }
 
   // Re-stock every product item from this invoice's orders. We use
@@ -141,6 +174,17 @@ export async function voidInvoice(invoiceId: number, reason: string, actorUserId
       },
     })
 
+    if (coinToRefund > 0 && invoice.session.customerId) {
+      await refundCoinTx(
+        tx,
+        invoice.session.customerId,
+        coinToRefund,
+        invoiceId,
+        actorUserId,
+        invoice.invoiceNumber,
+      )
+    }
+
     // If this invoice's session is still ACTIVE somehow (shouldn't be), don't
     // touch it. Otherwise leave the session COMPLETED — voiding doesn't
     // resurrect a session.
@@ -149,6 +193,7 @@ export async function voidInvoice(invoiceId: number, reason: string, actorUserId
       invoiceNumber: invoice.invoiceNumber,
       reason,
       restockedItems: itemsToRestock.length,
+      coinRefunded: coinToRefund,
       grandTotal: num(invoice.grandTotal),
     })
   })
@@ -240,6 +285,7 @@ export async function adjustInvoiceDiscount(
   },
   actorUserId: number,
 ) {
+  await assertNoCoinPayment(invoiceId)
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } })
   if (!invoice) throw new AppError(404, 'INVOICE_NOT_FOUND', 'Hóa đơn không tồn tại')
   if (invoice.status === 'VOID') {
@@ -317,6 +363,7 @@ export async function changePaymentMethod(
   newMethod: 'CASH' | 'QR_TRANSFER',
   actorUserId: number,
 ) {
+  await assertNoCoinPayment(invoiceId)
   const payment = await prisma.payment.findUnique({ where: { id: paymentId } })
   if (!payment || payment.invoiceId !== invoiceId) {
     throw new AppError(404, 'PAYMENT_NOT_FOUND', 'Không tìm thấy thanh toán')
@@ -360,6 +407,7 @@ export async function editInvoiceTimes(
   data: { checkInTime?: string; checkOutTime?: string },
   actorUserId: number,
 ) {
+  await assertNoCoinPayment(invoiceId)
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: { session: { include: { room: true } } },
@@ -445,6 +493,7 @@ export async function addInvoiceItem(
   data: { menuItemId: number; quantity: number; notes?: string },
   actorUserId: number,
 ) {
+  await assertNoCoinPayment(invoiceId)
   if (data.quantity <= 0) {
     throw new AppError(400, 'INVALID_QUANTITY', 'Số lượng phải lớn hơn 0')
   }
@@ -587,6 +636,7 @@ export async function removeInvoiceItem(
   orderItemId: number,
   actorUserId: number,
 ) {
+  await assertNoCoinPayment(invoiceId)
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: { session: true },

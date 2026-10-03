@@ -43,6 +43,8 @@ export interface CustomerListItem {
   visitCount: number
   lastVisit: Date | null
   isBlacklisted: boolean
+  isMember: boolean
+  coinBalance: number
   notes: string | null
   createdAt: Date
 }
@@ -95,6 +97,8 @@ export async function getCustomers(
         visitCount: true,
         lastVisit: true,
         isBlacklisted: true,
+        isMember: true,
+        coinBalance: true,
         notes: true,
         createdAt: true,
       },
@@ -131,6 +135,8 @@ export interface CustomerLookupResult {
   visitCount: number
   lastVisit: Date | null
   isBlacklisted: boolean
+  isMember: boolean
+  coinBalance: number
   notes: string | null
 }
 
@@ -150,6 +156,8 @@ export async function lookupByPhone(phone: string): Promise<CustomerLookupResult
       visitCount: true,
       lastVisit: true,
       isBlacklisted: true,
+      isMember: true,
+      coinBalance: true,
       notes: true,
     },
   })
@@ -179,7 +187,10 @@ export interface CustomerDetail {
   lastVisit: Date | null
   notes: string | null
   isBlacklisted: boolean
+  isMember: boolean
+  coinBalance: number
   blacklistReason: string | null
+  memberSince: Date | null
   createdAt: Date
   updatedAt: Date
 }

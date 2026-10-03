@@ -91,6 +91,8 @@ export interface CheckoutData {
   spinPromo?: CheckoutSpinPromo | null
   spinDiscountAmount?: number
   depositAvailable?: number
+  member?: { customerId: number; name: string; coinBalance: number } | null
+  memberDiscount?: { percent: number; eligibleAmount: number; discountAmount: number } | null
   grandTotal: number
   qrCode?: { type: string; label: string; imageUrl: string }
 }

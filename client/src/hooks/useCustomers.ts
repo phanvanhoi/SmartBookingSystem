@@ -109,3 +109,46 @@ export function useBirthdayCustomers() {
     queryFn: () => customerService.getBirthdayCustomers(),
   })
 }
+
+export function useCoinWallet(id: number | null, page = 1, limit = 10) {
+  return useQuery({
+    queryKey: ['coin-wallet', id, page, limit],
+    queryFn: () => customerService.getCoinWallet(id as number, page, limit),
+    enabled: id !== null,
+  })
+}
+
+export function useSetMembership() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isMember }: { id: number; isMember: boolean }) =>
+      customerService.setMembership(id, isMember),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['customer', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['coin-wallet', variables.id] })
+    },
+  })
+}
+
+export function useTopUpCoin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      amount,
+      method,
+      note,
+    }: {
+      id: number
+      amount: number
+      method: 'CASH' | 'QR_TRANSFER'
+      note?: string
+    }) => customerService.topUpCoin(id, { amount, method, note }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customer', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['coin-wallet', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+    },
+  })
+}

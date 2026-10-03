@@ -19,7 +19,7 @@ export const checkoutSchema = z.object({
   payments: z
     .array(
       z.object({
-        method: z.enum(['CASH', 'QR_TRANSFER', 'DEBT']),
+        method: z.enum(['CASH', 'QR_TRANSFER', 'DEBT', 'COIN']),
         amount: z.number().min(0),
         cashReceived: z.number().min(0).optional(),
       }),
@@ -40,7 +40,7 @@ export const invoiceQuerySchema = z.object({
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   status: z.enum(['PENDING', 'PAID', 'PARTIAL', 'VOID']).optional(),
-  paymentMethod: z.enum(['CASH', 'QR_TRANSFER', 'DEBT']).optional(),
+  paymentMethod: z.enum(['CASH', 'QR_TRANSFER', 'DEBT', 'COIN']).optional(),
   search: z.string().trim().optional(),
 })
 

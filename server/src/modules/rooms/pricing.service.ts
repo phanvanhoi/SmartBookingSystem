@@ -86,10 +86,14 @@ function splitByTimeSlots(
   let cursor = new Date(checkIn)
   let segmentStart = new Date(checkIn)
   let currentRule: PricingRuleRecord | undefined
+  let weekdayMinutes = 0
 
   currentRule = findRuleForMoment(cursor, rules, endHour)
 
   for (let i = 0; i < totalMinutes; i++) {
+    const dow = businessDayOfWeek(cursor, endHour)
+    if (dow >= 1 && dow <= 5) weekdayMinutes++
+
     const next = new Date(cursor.getTime() + 60_000)
     const nextRule = i + 1 < totalMinutes
       ? findRuleForMoment(next, rules, endHour)
@@ -115,10 +119,12 @@ function splitByTimeSlots(
           minutes: minutesInSegment,
           pricePerHour,
           amount: Math.round((minutesInSegment / 60) * pricePerHour),
+          weekdayMinutes,
         })
       }
 
       segmentStart = segEnd
+      weekdayMinutes = 0
       currentRule = nextRule
     }
 
@@ -280,3 +286,39 @@ export async function getBillRoundAmount(): Promise<number> {
 
 // Re-export helper for tests / other services
 export { splitByTimeSlots, parseTimeToMinutes, formatMinutes }
+
+// ── Member discount ──────────────────────────────────────────────────────────
+// Hội viên được giảm % tiền giờ hát cho phần thời gian rơi vào T2–T6. Ngày
+// được xác định theo "ngày kinh doanh" (giống bảng giá), nên 00h–05h sáng T7
+// vẫn thuộc tối T6. Chỉ áp dụng cho tiền giờ, không áp dụng cho đồ ăn/uống.
+export const DEFAULT_MEMBER_DISCOUNT_PERCENT = 25
+
+export async function getMemberDiscountPercent(): Promise<number> {
+  try {
+    const setting = await prisma.setting.findUnique({ where: { key: 'member_discount_percent' } })
+    if (!setting) return DEFAULT_MEMBER_DISCOUNT_PERCENT
+    let val: unknown = setting.value
+    if (typeof val === 'object' && val !== null && 'value' in val) {
+      val = (val as Record<string, unknown>).value
+    }
+    const n = typeof val === 'number' ? val : typeof val === 'string' ? parseFloat(val) : NaN
+    if (!Number.isFinite(n)) return DEFAULT_MEMBER_DISCOUNT_PERCENT
+    return Math.max(0, Math.min(100, n))
+  } catch {
+    return DEFAULT_MEMBER_DISCOUNT_PERCENT
+  }
+}
+
+export function computeMemberRoomDiscount(
+  segments: PriceSegment[],
+  percent: number,
+): { eligibleAmount: number; discountAmount: number } {
+  const eligibleAmount = segments.reduce(
+    (sum, s) => sum + Math.round(((s.weekdayMinutes ?? 0) / 60) * s.pricePerHour),
+    0,
+  )
+  return {
+    eligibleAmount,
+    discountAmount: Math.round((eligibleAmount * Math.max(0, percent)) / 100),
+  }
+}

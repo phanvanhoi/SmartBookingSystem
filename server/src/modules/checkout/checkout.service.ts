@@ -1,9 +1,16 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
-import { calculateRoomPrice, roundBillUp, getBillRoundAmount } from '../rooms/pricing.service'
+import {
+  calculateRoomPrice,
+  roundBillUp,
+  getBillRoundAmount,
+  getMemberDiscountPercent,
+  computeMemberRoomDiscount,
+} from '../rooms/pricing.service'
 import { deductStockForOrder } from '../stock/stock.service'
 import { updateCustomerAfterCheckout } from '../customers/customer.service'
+import { spendCoinTx } from '../customers/coin.service'
 import { applyVoucher } from './voucher.service'
 import logger from '../../utils/logger'
 import { getBusinessHours, businessDayDate } from '../../utils/business-day'
@@ -137,6 +144,19 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   // 4. Subtotal = roomCharge + orderTotal
   const subtotal = roomCharge + orderTotal
 
+  // 4b. Member discount — % off the room charge for time falling on Mon–Fri.
+  // Applied before vouchers so a voucher is computed on what's left.
+  const isMember = !!session.customer?.isMember
+  let memberDiscountAmount = 0
+  let memberDiscountPercent = 0
+  if (isMember) {
+    memberDiscountPercent = await getMemberDiscountPercent()
+    memberDiscountAmount = Math.min(
+      computeMemberRoomDiscount(priceBreakdown.segments, memberDiscountPercent).discountAmount,
+      roomCharge,
+    )
+  }
+
   // 5. Apply discounts
   let voucherDiscountAmount = 0
   let appliedVoucherCode: string | undefined
@@ -170,7 +190,8 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
 
   // 5a. Voucher — mã WIN-* (KM giờ hát) tính trên tiền phòng; mã khác trên tổng bill
   if (effectiveVoucherCode) {
-    const voucherBase = effectiveVoucherCode.startsWith('WIN-') ? roomCharge : subtotal
+    const voucherBase =
+      (effectiveVoucherCode.startsWith('WIN-') ? roomCharge : subtotal) - memberDiscountAmount
     try {
       const result = await applyVoucher(effectiveVoucherCode, Math.max(0, voucherBase))
       voucherDiscountAmount = result.discountAmount
@@ -224,12 +245,15 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
 
   // 5c. Total discount (cannot exceed subtotal)
   const totalDiscount = Math.min(
-    voucherDiscountAmount + validatedManualDiscount,
+    memberDiscountAmount + voucherDiscountAmount + validatedManualDiscount,
     subtotal,
   )
 
   // Combined discount reason
   const discountReasons: string[] = []
+  if (memberDiscountAmount > 0) {
+    discountReasons.push(`Hội viên -${memberDiscountPercent}% giờ hát T2–T6`)
+  }
   if (voucherDiscountAmount > 0 && appliedVoucherCode) {
     discountReasons.push(
       autoSpinLabel
@@ -259,6 +283,28 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
 
   const totalCashPayments = cashPayments.reduce((sum, p) => sum + p.amount, 0)
   const totalDebtAmount = debtPayments.reduce((sum, p) => sum + p.amount, 0)
+
+  // 8b. Coin payments — only for members, never more than the wallet holds
+  // or the bill itself. The authoritative balance check is the conditional
+  // update inside the transaction (spendCoinTx); this gives a clear error early.
+  const totalCoinPayment = payments
+    .filter((p) => p.method === 'COIN')
+    .reduce((sum, p) => sum + p.amount, 0)
+  if (totalCoinPayment > 0) {
+    if (!session.customer || !session.customer.isMember) {
+      throw new AppError(400, 'NOT_A_MEMBER', 'Chỉ hội viên mới thanh toán được bằng coin')
+    }
+    if (totalCoinPayment > session.customer.coinBalance) {
+      throw new AppError(
+        400,
+        'INSUFFICIENT_COIN',
+        `Số dư coin không đủ. Hiện có ${session.customer.coinBalance.toLocaleString('vi-VN')} coin`,
+      )
+    }
+    if (totalCoinPayment > grandTotal) {
+      throw new AppError(400, 'COIN_EXCEEDS_TOTAL', 'Số coin thanh toán lớn hơn tổng hóa đơn')
+    }
+  }
 
   // 9. Validate: cash payments >= grandTotal - debtAmount
   const requiredCash = grandTotal - totalDebtAmount
@@ -333,7 +379,7 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
     for (const payment of payments) {
       const paymentData: {
         invoiceId: number
-        method: 'CASH' | 'QR_TRANSFER' | 'DEBT'
+        method: 'CASH' | 'QR_TRANSFER' | 'DEBT' | 'COIN'
         amount: number
         qrCodeUsed?: string
         cashReceived?: number
@@ -354,6 +400,17 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
       }
 
       await tx.payment.create({ data: paymentData })
+    }
+
+    if (totalCoinPayment > 0 && session.customerId) {
+      await spendCoinTx(
+        tx,
+        session.customerId,
+        totalCoinPayment,
+        newInvoice.id,
+        userId,
+        invoiceNumber,
+      )
     }
 
     // Update session: COMPLETED, checkOutTime, roomCharge

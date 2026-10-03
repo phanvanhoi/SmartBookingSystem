@@ -85,3 +85,22 @@ export type RedeemPointsInput = z.infer<typeof redeemPointsSchema>
 export type LookupQuery = z.infer<typeof lookupQuerySchema>
 export type GetCustomersQuery = z.infer<typeof getCustomersQuerySchema>
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>
+
+// ── Member coin ──
+export const setMembershipSchema = z.object({
+  isMember: z.boolean({ required_error: 'isMember là bắt buộc' }),
+})
+
+export const topUpCoinSchema = z.object({
+  amount: z
+    .number({ required_error: 'Số coin nạp là bắt buộc' })
+    .int('Số coin phải là số nguyên')
+    .positive('Số coin phải lớn hơn 0'),
+  method: z.enum(['CASH', 'QR_TRANSFER'], {
+    required_error: 'Chọn hình thức khách thanh toán tiền nạp',
+  }),
+  note: z.string().max(200, 'Ghi chú không quá 200 ký tự').optional(),
+})
+
+export type SetMembershipInput = z.infer<typeof setMembershipSchema>
+export type TopUpCoinInput = z.infer<typeof topUpCoinSchema>

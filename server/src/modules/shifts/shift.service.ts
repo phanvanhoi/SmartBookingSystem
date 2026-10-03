@@ -1,3 +1,4 @@
+import { sumCoinTopups } from '../customers/coin.service'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
 import type { OpenShiftInput, CloseShiftInput, GetShiftsQuery } from './shift.validation'
@@ -15,6 +16,8 @@ export interface ShiftSummary {
   closingCash: number
   expectedCash: number
   cashDifference: number
+  coinTopupCash: number
+  coinTopupQr: number
 }
 
 export interface ShiftInfo {
@@ -110,7 +113,9 @@ async function computeShiftSummary(
     }
   }
 
-  const expectedCash = openingCash + cashRevenue
+  // Tiền khách nạp coin bằng tiền mặt cũng nằm trong két
+  const coinTopups = await sumCoinTopups(startTime, endTime)
+  const expectedCash = openingCash + cashRevenue + coinTopups.cash
   const cashDifference = closingCash - expectedCash
 
   return {
@@ -122,6 +127,8 @@ async function computeShiftSummary(
     closingCash,
     expectedCash,
     cashDifference,
+    coinTopupCash: coinTopups.cash,
+    coinTopupQr: coinTopups.qr,
   }
 }
 

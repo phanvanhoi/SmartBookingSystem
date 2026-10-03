@@ -58,6 +58,7 @@ const PAY_METHOD_LABEL: Record<string, string> = {
   CASH: 'Tiền mặt',
   QR_TRANSFER: 'QR',
   DEBT: 'Ghi nợ',
+  COIN: 'Coin hội viên',
 }
 
 const STATUS_BADGE: Record<string, { text: string; cls: string }> = {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Users } from 'lucide-react'
+import { Crown, Plus, Search, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -182,6 +182,12 @@ export default function CustomerListPage() {
                   <Badge className={cn('font-semibold shrink-0', TIER_CLASSES[customer.tier])}>
                     {TIER_LABELS[customer.tier]}
                   </Badge>
+                  {customer.isMember && (
+                    <Badge className="bg-amber-50 text-amber-700 border border-amber-200 font-semibold shrink-0 gap-1">
+                      <Crown className="w-3 h-3" />
+                      Hội viên
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>{customer.visitCount} lượt đến</span>
@@ -261,6 +267,12 @@ export default function CustomerListPage() {
                       <Badge className={cn('font-semibold', TIER_CLASSES[customer.tier])}>
                         {TIER_LABELS[customer.tier]}
                       </Badge>
+                      {customer.isMember && (
+                        <Badge className="ml-1 bg-amber-50 text-amber-700 border border-amber-200 font-semibold gap-1">
+                          <Crown className="w-3 h-3" />
+                          Hội viên
+                        </Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-foreground tabular-nums">{customer.visitCount}</td>
                     <td className="px-4 py-3 text-right text-foreground tabular-nums">

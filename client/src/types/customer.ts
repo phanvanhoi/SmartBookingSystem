@@ -13,16 +13,23 @@ export interface Customer {
   lastVisit?: string
   notes?: string
   isBlacklisted: boolean
+  isMember?: boolean
+  coinBalance?: number
+  memberSince?: string | null
   blacklistReason?: string
   createdAt: string
 }
 
 export interface CustomerHistory {
-  id: number
-  date: string
+  sessionId: number
   roomName: string
-  durationMinutes: number
-  totalAmount: number
+  checkInTime: string
+  checkOutTime: string | null
+  /** null while the session is still running */
+  durationMinutes: number | null
+  /** null while the session has no invoice yet */
+  grandTotal: number | null
+  invoiceNumber: string | null
 }
 
 export interface PointHistoryItem {
@@ -38,4 +45,24 @@ export interface CreateCustomerForm {
   phone: string
   birthday?: string
   notes?: string
+}
+
+export interface CoinTransaction {
+  id: number
+  type: 'TOPUP' | 'SPEND' | 'REFUND'
+  amount: number
+  balanceAfter: number
+  paymentMethod: 'CASH' | 'QR_TRANSFER' | null
+  invoiceId: number | null
+  note: string | null
+  createdAt: string
+  createdByName: string | null
+}
+
+export interface CoinWallet {
+  isMember: boolean
+  memberSince: string | null
+  coinBalance: number
+  transactions: CoinTransaction[]
+  pagination: { page: number; limit: number; total: number; totalPages: number }
 }

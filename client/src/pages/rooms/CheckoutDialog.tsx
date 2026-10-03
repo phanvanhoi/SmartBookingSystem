@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  CreditCard, Banknote, QrCode, FileText, CheckCircle2,
+  CreditCard, Banknote, QrCode, FileText, CheckCircle2, Coins, Crown,
   Clock, User, DoorOpen, Receipt,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -39,9 +39,11 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
   const [isLoadingBill, setIsLoadingBill] = useState(false)
   const [discountValue, setDiscountValue] = useState('')
   const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qr' | 'debt'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qr' | 'debt' | 'coin'>('cash')
   const [cashGiven, setCashGiven] = useState('')
   const [qrConfirmed, setQrConfirmed] = useState(false)
+  // When paying with coin and the wallet is short, the rest goes by cash or QR
+  const [restMethod, setRestMethod] = useState<'cash' | 'qr'>('cash')
 
   const checkout = useCheckout()
   const processCheckout = useProcessCheckout()
@@ -53,6 +55,21 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
     // Map UI state → server payload. Server expects payments as a list so we
     // can support split-pay later; here it's always one entry.
     const payments: PaymentItem[] = (() => {
+      if (paymentMethod === 'coin') {
+        const items: PaymentItem[] = [{ method: 'COIN', amount: coinUse }]
+        if (restAmount > 0) {
+          if (restMethod === 'cash') {
+            items.push({
+              method: 'CASH',
+              amount: restAmount,
+              cashReceived: cashGiven ? parseFloat(cashGiven) : restAmount,
+            })
+          } else {
+            items.push({ method: 'QR_TRANSFER', amount: restAmount })
+          }
+        }
+        return items
+      }
       if (paymentMethod === 'cash') {
         const received = cashGiven ? parseFloat(cashGiven) : finalTotal
         return [
@@ -112,6 +129,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
     setCashGiven('')
     setQrConfirmed(false)
     setPaymentMethod('cash')
+    setRestMethod('cash')
     onClose()
   }
 
@@ -125,9 +143,26 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
   })()
 
   const finalTotal = billData ? Math.max(0, billData.grandTotal - discountAmount) : 0
-  const cashChange = cashGiven ? parseFloat(cashGiven) - finalTotal : 0
+
+  // Member wallet: coin covers as much of the bill as it can; any shortfall
+  // is paid by cash/QR. `payAmount` is what the cash/QR panels collect.
+  const coinBalance = billData?.member?.coinBalance ?? 0
+  const coinUse = paymentMethod === 'coin' ? Math.min(coinBalance, finalTotal) : 0
+  const restAmount = paymentMethod === 'coin' ? finalTotal - coinUse : 0
+  const payAmount = paymentMethod === 'coin' ? restAmount : finalTotal
+  const activeMethod: 'cash' | 'qr' | 'debt' | 'coin' =
+    paymentMethod === 'coin' ? (restAmount > 0 ? restMethod : 'coin') : paymentMethod
+
+  const cashChange = cashGiven ? parseFloat(cashGiven) - payAmount : 0
 
   const canConfirm = (() => {
+    if (paymentMethod === 'coin') {
+      if (coinUse <= 0) return false
+      if (restAmount === 0) return true
+      return restMethod === 'cash'
+        ? !cashGiven || parseFloat(cashGiven) >= restAmount
+        : qrConfirmed
+    }
     if (paymentMethod === 'cash') return !cashGiven || parseFloat(cashGiven) >= finalTotal
     if (paymentMethod === 'qr') return qrConfirmed
     return true
@@ -271,6 +306,19 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               {/* Tổng hợp */}
               <div className="bg-muted/40 rounded-lg p-3 space-y-1">
                 <SummaryRow label="Tạm tính" value={formatCurrency(billData.subtotal)} />
+                {billData.memberDiscount && billData.memberDiscount.discountAmount > 0 && (
+                  <SummaryRow
+                    label={`Hội viên −${billData.memberDiscount.percent}% giờ hát T2–T6`}
+                    value={`-${formatCurrency(billData.memberDiscount.discountAmount)}`}
+                    className="text-amber-700"
+                  />
+                )}
+                {billData.member && (!billData.memberDiscount || billData.memberDiscount.discountAmount === 0) && (
+                  <p className="text-[11px] text-muted-foreground pl-0.5">
+                    <Crown className="w-3 h-3 inline -mt-0.5 mr-1 text-amber-600" />
+                    Hội viên: phần giờ hát rơi vào T7/CN không được giảm
+                  </p>
+                )}
                 {billData.spinPromo && billData.spinPromo.discountAmount > 0 && (
                   <SummaryRow
                     label={
@@ -336,7 +384,15 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                 <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
                   Phương thức
                 </label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className={cn('grid gap-1.5', billData.member ? 'grid-cols-2' : 'grid-cols-3')}>
+                  {billData.member && (
+                    <MethodButton
+                      active={paymentMethod === 'coin'}
+                      onClick={() => setPaymentMethod('coin')}
+                      icon={Coins}
+                      label={`Coin (${coinBalance.toLocaleString('vi-VN')})`}
+                    />
+                  )}
                   <MethodButton
                     active={paymentMethod === 'cash'}
                     onClick={() => setPaymentMethod('cash')}
@@ -359,13 +415,59 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               </div>
 
               {/* Payment details */}
-              <div>
-                {paymentMethod === 'cash' && (
+              <div className="space-y-2">
+                {paymentMethod === 'coin' && (
+                  <div className="space-y-2">
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm space-y-0.5">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Số dư coin</span>
+                        <span className="tabular-nums font-medium">{coinBalance.toLocaleString('vi-VN')}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold text-amber-800">
+                        <span>Dùng coin</span>
+                        <span className="tabular-nums">-{coinUse.toLocaleString('vi-VN')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Còn lại sau khi trả</span>
+                        <span className="tabular-nums">{(coinBalance - coinUse).toLocaleString('vi-VN')}</span>
+                      </div>
+                    </div>
+                    {coinBalance <= 0 && (
+                      <p className="text-xs text-rose-600">Hội viên chưa có coin. Nhờ quản lý nạp coin hoặc chọn phương thức khác.</p>
+                    )}
+                    {coinUse > 0 && restAmount > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-muted-foreground">
+                          Coin chưa đủ, còn thiếu{' '}
+                          <strong className="text-foreground">{formatCurrency(restAmount, true)}</strong> — trả nốt bằng:
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {([['cash', 'Tiền mặt'], ['qr', 'QR Code']] as const).map(([key, label]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setRestMethod(key)}
+                              className={cn(
+                                'h-10 rounded-md border text-xs font-semibold transition-colors',
+                                restMethod === key
+                                  ? 'border-primary bg-accent text-accent-foreground ring-1 ring-primary'
+                                  : 'border-border bg-card hover:bg-muted/50 text-muted-foreground',
+                              )}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {activeMethod === 'cash' && (
                   <div className="space-y-2">
                     <div>
                       <label className="text-[11px] text-muted-foreground mb-1 block">Khách đưa</label>
                       <Input
-                        placeholder={formatCurrency(finalTotal)}
+                        placeholder={formatCurrency(payAmount)}
                         value={cashGiven}
                         onChange={(e) => setCashGiven(e.target.value)}
                         type="number"
@@ -376,7 +478,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                     </div>
                     {/* Quick amounts */}
                     <div className="grid grid-cols-3 gap-1">
-                      {getQuickAmounts(finalTotal).map((amt) => (
+                      {getQuickAmounts(payAmount).map((amt) => (
                         <button
                           key={amt}
                           onClick={() => setCashGiven(String(amt))}
@@ -412,9 +514,9 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                   </div>
                 )}
 
-                {paymentMethod === 'qr' && (
+                {activeMethod === 'qr' && (
                   <div className="flex flex-col items-center gap-2">
-                    <QRDisplay amount={finalTotal} />
+                    <QRDisplay amount={payAmount} />
                     <label className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-md border border-border hover:bg-muted/30 transition-colors w-full">
                       <input
                         type="checkbox"

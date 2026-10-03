@@ -59,7 +59,7 @@ export type OrderStatus = 'PENDING' | 'PREPARING' | 'SERVED' | 'CANCELLED'
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW'
 
 // ── Payment Types ──
-export type PaymentMethod = 'CASH' | 'QR_TRANSFER' | 'DEBT'
+export type PaymentMethod = 'CASH' | 'QR_TRANSFER' | 'DEBT' | 'COIN'
 export type InvoiceStatus = 'PENDING' | 'PAID' | 'PARTIAL' | 'VOID'
 
 // ── Customer Types ──
@@ -89,6 +89,8 @@ export interface PriceSegment {
   minutes: number
   pricePerHour: number
   amount: number
+  /** Phút thuộc ngày kinh doanh T2–T6 (dùng tính giảm giá hội viên). */
+  weekdayMinutes?: number
 }
 
 export interface PriceBreakdown {

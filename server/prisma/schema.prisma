@@ -44,6 +44,7 @@ model User {
   auditLogs          AuditLog[]
   notifications      Notification[]
   settingsUpdated    Setting[]      @relation("SettingUpdatedBy")
+  coinTransactions   CoinTransaction[] @relation("CoinTxCreatedBy")
 
   @@map("users")
 }
@@ -345,6 +346,7 @@ enum PaymentMethod {
   CASH         // Tiền mặt
   QR_TRANSFER  // Chuyển khoản QR
   DEBT         // Ghi nợ
+  COIN         // Coin hội viên
 }
 
 model Payment {
@@ -491,6 +493,11 @@ model Customer {
   lastVisit       DateTime?     @map("last_visit")
   currentDebt     Decimal       @default(0) @map("current_debt")
 
+  // Membership / prepaid coin (1 coin = 1 VND)
+  isMember        Boolean       @default(false) @map("is_member")
+  memberSince     DateTime?     @map("member_since")
+  coinBalance     Int           @default(0) @map("coin_balance")
+
   // Free-form
   notes           String?
   branch          String?
@@ -507,6 +514,7 @@ model Customer {
   importedAt      DateTime?     @map("imported_at") // set when row came from POS export
 
   sessions     Session[]
+  coinTransactions CoinTransaction[]
   pointHistory PointHistory[]
 
   @@index([phone])
@@ -807,4 +815,36 @@ model SpinToken {
   @@index([code])
   @@index([status])
   @@map("spin_tokens")
+}
+
+// ════════════════════════════════════════════
+// MEMBER COIN (ví coin trả trước của hội viên)
+// ════════════════════════════════════════════
+
+enum CoinTxType {
+  TOPUP   // Nạp coin (khách trả tiền mặt/QR)
+  SPEND   // Dùng coin thanh toán hóa đơn
+  REFUND  // Hoàn coin khi hủy hóa đơn
+}
+
+model CoinTransaction {
+  id            Int            @id @default(autoincrement())
+  customerId    Int            @map("customer_id")
+  type          CoinTxType
+  amount        Int            // Dương = cộng vào ví, âm = trừ khỏi ví
+  balanceAfter  Int            @map("balance_after")
+  paymentMethod PaymentMethod? @map("payment_method") // Chỉ với TOPUP: CASH | QR_TRANSFER
+  invoiceId     Int?           @map("invoice_id")
+  note          String?
+  createdById   Int            @map("created_by")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  // Restrict: ledger rows are financial history and must outlive edits.
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy User     @relation("CoinTxCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([customerId, createdAt])
+  @@index([invoiceId])
+  @@index([createdAt])
+  @@map("coin_transactions")
 }

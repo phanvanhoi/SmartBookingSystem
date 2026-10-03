@@ -1,10 +1,13 @@
 import { Request, Response, NextFunction } from 'express'
 import * as customerService from './customer.service'
+import * as coinService from './coin.service'
 import type {
   CreateCustomerInput,
   UpdateCustomerInput,
   BlacklistInput,
   RedeemPointsInput,
+  SetMembershipInput,
+  TopUpCoinInput,
 } from './customer.validation'
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -301,6 +304,74 @@ export async function redeemPointsHandler(
       data: result,
       message: `Đổi ${points} điểm thành công`,
     })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Member coin
+// ────────────────────────────────────────────────────────────────────────────
+
+function parseCustomerId(req: Request<{ id: string }>, res: Response): number | null {
+  const id = parseInt(req.params.id, 10)
+  if (isNaN(id)) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_ID', message: 'ID không hợp lệ' },
+    })
+    return null
+  }
+  return id
+}
+
+export async function setMembershipHandler(
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = parseCustomerId(req, res)
+    if (id === null) return
+    const { isMember } = req.body as SetMembershipInput
+    const data = await coinService.setMembership(id, isMember, req.user!.id)
+    res.status(200).json({
+      success: true,
+      data,
+      message: isMember ? 'Đã đăng ký hội viên' : 'Đã tắt hội viên',
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function topUpCoinHandler(
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = parseCustomerId(req, res)
+    if (id === null) return
+    const { amount, method, note } = req.body as TopUpCoinInput
+    const data = await coinService.topUpCoin(id, amount, method, note, req.user!.id)
+    res.status(201).json({ success: true, data, message: 'Nạp coin thành công' })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getCoinHistoryHandler(
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = parseCustomerId(req, res)
+    if (id === null) return
+    const { page, limit } = req.query as unknown as { page?: number; limit?: number }
+    const data = await coinService.getCoinHistory(id, page ?? 1, limit ?? 20)
+    res.status(200).json({ success: true, data })
   } catch (err) {
     next(err)
   }

@@ -1,4 +1,5 @@
 import { prisma } from '../../lib/prisma'
+import { sumCoinTopups } from '../customers/coin.service'
 import {
   getCurrentBusinessDay,
   previousBusinessDay,
@@ -520,7 +521,8 @@ export async function getShiftReport(filters: DateRangeQueryInput) {
         return sum + qrPayments
       }, 0)
 
-      const expectedCash = toNumber(shift.openingCash) + cashRevenue
+      const coinTopups = await sumCoinTopups(shift.startTime, shiftEnd)
+      const expectedCash = toNumber(shift.openingCash) + cashRevenue + coinTopups.cash
       const cashDifference =
         shift.closingCash !== null ? toNumber(shift.closingCash) - expectedCash : null
 
@@ -537,6 +539,8 @@ export async function getShiftReport(filters: DateRangeQueryInput) {
         openingCash: toNumber(shift.openingCash),
         closingCash: shift.closingCash !== null ? toNumber(shift.closingCash) : null,
         cashDifference,
+        coinTopupCash: coinTopups.cash,
+        coinTopupQr: coinTopups.qr,
       }
     })
   )

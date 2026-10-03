@@ -38,6 +38,7 @@ import { formatCurrency } from '@/utils/formatCurrency'
 import { formatDate, formatDateTime, formatDuration, formatRelative } from '@/utils/formatTime'
 import type { CustomerTier, CreateCustomerForm } from '@/types/customer'
 import { cn } from '@/utils/cn'
+import MemberCard from './MemberCard'
 
 const TIER_LABELS: Record<CustomerTier, string> = {
   REGULAR: 'Thường',
@@ -198,6 +199,9 @@ export default function CustomerDetailPage() {
           <Separator orientation="vertical" className="h-6" />
           <h1 className="text-xl font-bold text-foreground truncate tracking-tight">{customer.name}</h1>
           <Badge className={cn('font-semibold', TIER_CLASSES[customer.tier])}>{TIER_LABELS[customer.tier]}</Badge>
+          {customer.isMember && (
+            <Badge className="bg-amber-50 text-amber-700 border border-amber-200 font-semibold">Hội viên</Badge>
+          )}
           {customer.isBlacklisted && (
             <Badge className="bg-rose-100 text-rose-700 border border-rose-200 font-semibold">
               Blacklist
@@ -242,6 +246,9 @@ export default function CustomerDetailPage() {
           <span>Tham gia {formatDate(customer.createdAt)}</span>
         </div>
       </div>
+
+      {/* Member / coin wallet */}
+      <MemberCard customerId={customer.id} />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -314,14 +321,14 @@ export default function CustomerDetailPage() {
                       </tr>
                     ) : (
                       history.map((item) => (
-                        <tr key={item.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                          <td className="px-4 py-3 text-foreground">{formatDateTime(item.date)}</td>
+                        <tr key={item.sessionId} className="border-b border-border last:border-0 hover:bg-secondary/20">
+                          <td className="px-4 py-3 text-foreground">{formatDateTime(item.checkInTime)}</td>
                           <td className="px-4 py-3 text-foreground">{item.roomName}</td>
                           <td className="px-4 py-3 text-right text-muted-foreground">
-                            {formatDuration(item.durationMinutes)}
+                            {item.durationMinutes != null ? formatDuration(item.durationMinutes) : '—'}
                           </td>
                           <td className="px-4 py-3 text-right text-foreground">
-                            {formatCurrency(item.totalAmount)} VNĐ
+                            {item.grandTotal != null ? `${formatCurrency(item.grandTotal)} VNĐ` : '—'}
                           </td>
                         </tr>
                       ))

@@ -3,7 +3,7 @@ import api from './api'
 // ─── Request types ─────────────────────────────────────────────────────────────
 
 export interface PaymentItem {
-  method: 'CASH' | 'QR_TRANSFER' | 'DEBT'
+  method: 'CASH' | 'QR_TRANSFER' | 'DEBT' | 'COIN'
   amount: number
   cashReceived?: number
 }
@@ -24,7 +24,7 @@ export interface CheckoutData {
 
 export interface PaymentRecord {
   id: number
-  method: 'CASH' | 'QR_TRANSFER' | 'DEBT'
+  method: 'CASH' | 'QR_TRANSFER' | 'DEBT' | 'COIN'
   amount: number
   qrCodeUsed: string | null
   cashReceived: number | null
@@ -111,7 +111,7 @@ export interface InvoiceListParams {
   dateTo?: string
   status?: 'PENDING' | 'PAID' | 'PARTIAL' | 'VOID'
   /** Match invoice có ≥1 payment thuộc method được chọn. */
-  paymentMethod?: 'CASH' | 'QR_TRANSFER' | 'DEBT'
+  paymentMethod?: 'CASH' | 'QR_TRANSFER' | 'DEBT' | 'COIN'
   search?: string
 }
 

@@ -7,6 +7,8 @@ import {
   updateCustomerSchema,
   blacklistSchema,
   redeemPointsSchema,
+  setMembershipSchema,
+  topUpCoinSchema,
   lookupQuerySchema,
   getCustomersQuerySchema,
   paginationQuerySchema,
@@ -22,6 +24,9 @@ import {
   updateCustomerHandler,
   toggleBlacklistHandler,
   redeemPointsHandler,
+  setMembershipHandler,
+  topUpCoinHandler,
+  getCoinHistoryHandler,
 } from './customer.controller'
 
 const router = Router()
@@ -113,6 +118,27 @@ router.post(
   authorize('MANAGER'),
   validate(redeemPointsSchema),
   redeemPointsHandler
+)
+
+// PATCH /customers/:id/membership — bật/tắt hội viên (CASHIER+)
+router.patch(
+  '/:id/membership',
+  authenticate,
+  authorize('CASHIER'),
+  validate(setMembershipSchema),
+  setMembershipHandler
+)
+
+// GET /customers/:id/coin — số dư + lịch sử coin (CASHIER+)
+router.get('/:id/coin', authenticate, authorize('CASHIER'), validate(paginationQuerySchema, 'query'), getCoinHistoryHandler)
+
+// POST /customers/:id/coin/topup — nạp coin (MANAGER+)
+router.post(
+  '/:id/coin/topup',
+  authenticate,
+  authorize('MANAGER'),
+  validate(topUpCoinSchema),
+  topUpCoinHandler
 )
 
 export default router
