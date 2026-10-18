@@ -5,8 +5,6 @@ import {
   calculateRoomPrice,
   roundBillUp,
   getBillRoundAmount,
-  getMemberDiscountPercent,
-  computeMemberRoomDiscount,
 } from '../rooms/pricing.service'
 import { deductStockForOrder } from '../stock/stock.service'
 import { updateCustomerAfterCheckout } from '../customers/customer.service'
@@ -77,6 +75,7 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   const {
     sessionId,
     discountAmount: manualDiscountAmount = 0,
+    discountPercent,
     discountReason,
     voucherCode,
     depositApplied = 0,
@@ -144,19 +143,6 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
   // 4. Subtotal = roomCharge + orderTotal
   const subtotal = roomCharge + orderTotal
 
-  // 4b. Member discount — % off the room charge for time falling on Mon–Fri.
-  // Applied before vouchers so a voucher is computed on what's left.
-  const isMember = !!session.customer?.isMember
-  let memberDiscountAmount = 0
-  let memberDiscountPercent = 0
-  if (isMember) {
-    memberDiscountPercent = await getMemberDiscountPercent()
-    memberDiscountAmount = Math.min(
-      computeMemberRoomDiscount(priceBreakdown.segments, memberDiscountPercent).discountAmount,
-      roomCharge,
-    )
-  }
-
   // 5. Apply discounts
   let voucherDiscountAmount = 0
   let appliedVoucherCode: string | undefined
@@ -188,12 +174,11 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
     }
   }
 
-  // 5a. Voucher — mã WIN-* (KM giờ hát) tính trên tiền phòng; mã khác trên tổng bill
+  // 5a. Mọi voucher chỉ tính trên tiền giờ hát còn lại, không trừ đồ ăn/uống.
   if (effectiveVoucherCode) {
-    const voucherBase =
-      (effectiveVoucherCode.startsWith('WIN-') ? roomCharge : subtotal) - memberDiscountAmount
+    const voucherBase = Math.max(0, roomCharge)
     try {
-      const result = await applyVoucher(effectiveVoucherCode, Math.max(0, voucherBase))
+      const result = await applyVoucher(effectiveVoucherCode, voucherBase)
       voucherDiscountAmount = result.discountAmount
       appliedVoucherCode = effectiveVoucherCode
     } catch (err) {
@@ -204,7 +189,7 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
           discountType: spinFallback.discountType,
           discountValue: spinFallback.discountValue,
           maxDiscount: spinFallback.maxDiscount,
-          baseAmount: Math.max(0, voucherBase),
+          baseAmount: voucherBase,
         })
         appliedVoucherCode = effectiveVoucherCode
         autoSpinLabel = spinFallback.label
@@ -219,9 +204,14 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
     }
   }
 
-  // 5b. Manual discount: validate max_discount_percent for CASHIER role
+  // 5b. Manual discount. % chỉ tính trên tiền giờ hát còn lại (sau voucher).
+  const roomHoursLeft = Math.max(0, roomCharge - voucherDiscountAmount)
   let validatedManualDiscount = manualDiscountAmount ?? 0
-  if (validatedManualDiscount > 0) {
+  if (discountPercent != null && discountPercent > 0) {
+    const pct = Math.min(100, discountPercent)
+    validatedManualDiscount = Math.min(roomHoursLeft, Math.round((roomHoursLeft * pct) / 100))
+  }
+  if (validatedManualDiscount > 0 && !(discountPercent != null && discountPercent > 0)) {
     // Fetch setting for max discount percent
     const discountSetting = await prisma.setting.findUnique({
       where: { key: 'max_discount_percent' },
@@ -245,15 +235,12 @@ export async function processCheckout(data: CheckoutInput, userId: number) {
 
   // 5c. Total discount (cannot exceed subtotal)
   const totalDiscount = Math.min(
-    memberDiscountAmount + voucherDiscountAmount + validatedManualDiscount,
+    voucherDiscountAmount + validatedManualDiscount,
     subtotal,
   )
 
   // Combined discount reason
   const discountReasons: string[] = []
-  if (memberDiscountAmount > 0) {
-    discountReasons.push(`Hội viên -${memberDiscountPercent}% giờ hát T2–T6`)
-  }
   if (voucherDiscountAmount > 0 && appliedVoucherCode) {
     discountReasons.push(
       autoSpinLabel

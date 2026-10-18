@@ -2,7 +2,6 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { Coins, Crown, Plus, ArrowDownLeft, ArrowUpRight, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -68,7 +67,7 @@ export default function MemberCard({ customerId }: MemberCardProps) {
             <div>
               <p className="font-semibold text-foreground">Chưa là hội viên</p>
               <p className="text-sm text-muted-foreground">
-                Hội viên nạp coin trả trước và được giảm 25% tiền giờ hát từ thứ 2 đến thứ 6.
+                Hội viên nạp coin trả trước và dùng coin để thanh toán.
               </p>
             </div>
           </div>
@@ -88,9 +87,6 @@ export default function MemberCard({ customerId }: MemberCardProps) {
             <CardTitle className="flex items-center gap-2 text-base">
               <Crown className="w-5 h-5 text-amber-600" />
               Hội viên
-              <Badge className="bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
-                Giảm 25% giờ hát T2–T6
-              </Badge>
             </CardTitle>
             {wallet.memberSince && (
               <span className="text-xs text-muted-foreground">

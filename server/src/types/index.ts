@@ -89,7 +89,7 @@ export interface PriceSegment {
   minutes: number
   pricePerHour: number
   amount: number
-  /** Phút thuộc ngày kinh doanh T2–T6 (dùng tính giảm giá hội viên). */
+  /** Phút thuộc ngày kinh doanh thứ 2–thứ 6. */
   weekdayMinutes?: number
 }
 

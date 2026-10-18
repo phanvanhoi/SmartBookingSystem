@@ -1243,7 +1243,7 @@ function VouchersTab() {
                     </code>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {v.discountType === 'PERCENTAGE' ? 'Phần trăm' : 'Số tiền'}
+                    {v.discountType === 'PERCENTAGE' ? 'Phần trăm giờ hát' : 'Số tiền giờ hát'}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-emerald-600">
                     {v.discountType === 'PERCENTAGE'
@@ -1320,12 +1320,16 @@ function VouchersTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PERCENTAGE">Phần trăm (%)</SelectItem>
-                    <SelectItem value="FIXED_AMOUNT">Số tiền (VNĐ)</SelectItem>
+                    <SelectItem value="PERCENTAGE">Phần trăm giờ hát (%)</SelectItem>
+                    <SelectItem value="FIXED_AMOUNT">Số tiền giờ hát (VNĐ)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Voucher chỉ trừ tiền giờ hát, không trừ đồ ăn/uống.
+              {form.discountType === 'FIXED_AMOUNT' ? ' Nếu số tiền lớn hơn tiền giờ, chỉ trừ hết phần giờ hát.' : ''}
+            </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">

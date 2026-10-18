@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  CreditCard, Banknote, QrCode, FileText, CheckCircle2, Coins, Crown,
+  CreditCard, Banknote, QrCode, FileText, CheckCircle2, Coins,
   Clock, User, DoorOpen, Receipt,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -94,13 +94,17 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
       checkOutTime: billData.checkOutTime,
       // Gửi mã WIN-* để server chắc chắn trừ % giờ hát
       ...(billData.spinPromo?.code ? { voucherCode: billData.spinPromo.code } : {}),
-      ...(discountAmount > 0
+      ...(discountType === 'percent' && discountPercent > 0
         ? {
-            discountAmount,
-            discountReason:
-              discountType === 'percent' ? `Giảm ${discountValue}%` : 'Giảm thủ công',
+            discountPercent,
+            discountReason: `Giảm ${discountPercent}% giờ hát`,
           }
-        : {}),
+        : discountAmount > 0
+          ? {
+              discountAmount,
+              discountReason: 'Giảm thủ công',
+            }
+          : {}),
     }
 
     try {
@@ -126,6 +130,7 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
   const handleClose = () => {
     setBillData(null)
     setDiscountValue('')
+    setDiscountType('amount')
     setCashGiven('')
     setQrConfirmed(false)
     setPaymentMethod('cash')
@@ -135,11 +140,28 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
 
   if (!billData && !isLoadingBill) return null
 
+  const discountPercent = (() => {
+    if (discountType !== 'percent' || !discountValue) return 0
+    const val = parseFloat(discountValue)
+    if (!Number.isFinite(val) || val <= 0) return 0
+    return Math.min(100, val)
+  })()
+
+  const roomHoursLeft = billData
+    ? Math.max(
+        0,
+        billData.roomCharge.total - (billData.spinPromo?.discountAmount ?? 0),
+      )
+    : 0
+
   const discountAmount = (() => {
     if (!billData || !discountValue) return 0
     const val = parseFloat(discountValue)
-    if (isNaN(val)) return 0
-    return discountType === 'percent' ? Math.round((billData.grandTotal * val) / 100) : val
+    if (isNaN(val) || val <= 0) return 0
+    if (discountType === 'percent') {
+      return Math.min(roomHoursLeft, Math.round((roomHoursLeft * Math.min(100, val)) / 100))
+    }
+    return val
   })()
 
   const finalTotal = billData ? Math.max(0, billData.grandTotal - discountAmount) : 0
@@ -306,19 +328,6 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
               {/* Tổng hợp */}
               <div className="bg-muted/40 rounded-lg p-3 space-y-1">
                 <SummaryRow label="Tạm tính" value={formatCurrency(billData.subtotal)} />
-                {billData.memberDiscount && billData.memberDiscount.discountAmount > 0 && (
-                  <SummaryRow
-                    label={`Hội viên −${billData.memberDiscount.percent}% giờ hát T2–T6`}
-                    value={`-${formatCurrency(billData.memberDiscount.discountAmount)}`}
-                    className="text-amber-700"
-                  />
-                )}
-                {billData.member && (!billData.memberDiscount || billData.memberDiscount.discountAmount === 0) && (
-                  <p className="text-[11px] text-muted-foreground pl-0.5">
-                    <Crown className="w-3 h-3 inline -mt-0.5 mr-1 text-amber-600" />
-                    Hội viên: phần giờ hát rơi vào T7/CN không được giảm
-                  </p>
-                )}
                 {billData.spinPromo && billData.spinPromo.discountAmount > 0 && (
                   <SummaryRow
                     label={
@@ -337,7 +346,15 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                   </p>
                 )}
                 {discountAmount > 0 && (
-                  <SummaryRow label="Giảm giá thủ công" value={`-${formatCurrency(discountAmount)}`} className="text-emerald-600" />
+                  <SummaryRow
+                    label={
+                      discountType === 'percent'
+                        ? `Giảm ${discountPercent}% giờ hát`
+                        : 'Giảm giá thủ công'
+                    }
+                    value={`-${formatCurrency(discountAmount)}`}
+                    className="text-emerald-600"
+                  />
                 )}
                 {billData.roomCharge.surcharge > 0 && (
                   <SummaryRow label="Phụ thu" value={`+${formatCurrency(billData.roomCharge.surcharge)}`} className="text-amber-600" />
@@ -374,9 +391,43 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
                     onChange={(e) => setDiscountValue(e.target.value)}
                     type="number"
                     min="0"
+                    max={discountType === 'percent' ? 100 : undefined}
                     className="flex-1 h-9"
                   />
                 </div>
+                <div className="grid grid-cols-5 gap-1 mt-1.5">
+                  {DISCOUNT_PERCENTS.map((pct) => {
+                    const active = discountType === 'percent' && discountPercent === pct
+                    return (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => {
+                          if (active) {
+                            setDiscountType('amount')
+                            setDiscountValue('')
+                            return
+                          }
+                          setDiscountType('percent')
+                          setDiscountValue(String(pct))
+                        }}
+                        className={cn(
+                          'py-1.5 max-md:py-3 rounded-md border text-[11px] max-md:text-sm font-semibold tabular-nums transition-colors',
+                          active
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border hover:bg-muted/50 text-foreground',
+                        )}
+                      >
+                        {pct}%
+                      </button>
+                    )
+                  })}
+                </div>
+                {discountType === 'percent' && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    % chỉ tính trên tiền giờ hát còn lại ({formatCurrency(roomHoursLeft)}), không tính đồ ăn/uống.
+                  </p>
+                )}
               </div>
 
               {/* Phương thức */}
@@ -654,6 +705,8 @@ function MethodButton({ active, onClick, icon: Icon, label }: {
     </button>
   )
 }
+
+const DISCOUNT_PERCENTS = [5, 10, 15, 20, 25]
 
 /** Generate quick cash amount buttons */
 function getQuickAmounts(total: number): number[] {

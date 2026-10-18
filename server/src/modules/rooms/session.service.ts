@@ -3,8 +3,6 @@ import {
   calculateRoomPrice,
   roundBillUp,
   getBillRoundAmount,
-  getMemberDiscountPercent,
-  computeMemberRoomDiscount,
 } from './pricing.service'
 import { CheckinInput, ExtendInput, UpdateCheckInTimeInput, TransferInput, MergeInput } from './room.validation'
 
@@ -150,24 +148,6 @@ export async function checkout(sessionId: number, _userId: number) {
   const roomChargeTotal = priceBreakdown.total
   const subtotal = roomChargeTotal + orderTotal
 
-  // Member: % off the room charge for time on Mon–Fri (mirrors processCheckout)
-  const isMember = !!session.customer?.isMember
-  let memberDiscount: {
-    percent: number
-    eligibleAmount: number
-    discountAmount: number
-  } | null = null
-  if (isMember) {
-    const percent = await getMemberDiscountPercent()
-    const calc = computeMemberRoomDiscount(priceBreakdown.segments, percent)
-    memberDiscount = {
-      percent,
-      eligibleAmount: calc.eligibleAmount,
-      discountAmount: Math.min(calc.discountAmount, roomChargeTotal),
-    }
-  }
-  const memberDiscountAmount = memberDiscount?.discountAmount ?? 0
-
   // Get deposit from booking if any
   const booking = await prisma.booking.findFirst({
     where: {
@@ -198,14 +178,14 @@ export async function checkout(sessionId: number, _userId: number) {
     if (spin) {
       let discountAmount = 0
       try {
-        const preview = await previewVoucherDiscount(spin.rewardCode, Math.max(0, roomChargeTotal - memberDiscountAmount))
+        const preview = await previewVoucherDiscount(spin.rewardCode, Math.max(0, roomChargeTotal))
         discountAmount = preview.discountAmount
       } catch {
         discountAmount = computeVoucherDiscountAmount({
           discountType: spin.discountType,
           discountValue: spin.discountValue,
           maxDiscount: spin.maxDiscount,
-          baseAmount: Math.max(0, roomChargeTotal - memberDiscountAmount),
+          baseAmount: Math.max(0, roomChargeTotal),
         })
       }
       if (discountAmount > 0) {
@@ -224,7 +204,7 @@ export async function checkout(sessionId: number, _userId: number) {
   }
 
   const spinDiscount = spinPromo?.discountAmount ?? 0
-  const rawGrandTotal = Math.max(0, subtotal - memberDiscountAmount - spinDiscount - depositAvailable)
+  const rawGrandTotal = Math.max(0, subtotal - spinDiscount - depositAvailable)
 
   // Apply ceiling round (e.g. 45,333 → 46,000) so the preview matches the
   // invoice that processCheckout will save. Owner configures via Settings.
@@ -264,7 +244,6 @@ export async function checkout(sessionId: number, _userId: number) {
           coinBalance: session.customer.coinBalance,
         }
       : null,
-    memberDiscount,
     spinPromo,
     spinDiscountAmount: spinDiscount,
     applicableDiscounts: spinPromo

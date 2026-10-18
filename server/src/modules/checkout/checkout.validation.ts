@@ -6,6 +6,8 @@ export const checkoutSchema = z.object({
   sessionId: z.number({ required_error: 'sessionId là bắt buộc' }).int().positive(),
 
   discountAmount: z.number().min(0).default(0).optional(),
+  /** % thủ công — server tính trên tiền giờ hát còn lại, không tính đồ ăn/uống. */
+  discountPercent: z.number().min(0).max(100).optional(),
   discountReason: z.string().trim().optional(),
 
   voucherCode: z.string().trim().toUpperCase().optional(),

@@ -11,6 +11,8 @@ export interface PaymentItem {
 export interface CheckoutData {
   sessionId: number
   discountAmount?: number
+  /** % thủ công. Server tính trên tiền giờ hát còn lại, không tính đồ ăn/uống. */
+  discountPercent?: number
   discountReason?: string
   voucherCode?: string
   depositApplied?: number
