@@ -27,6 +27,8 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
+import SpinPausedView from './SpinPausedView'
+import { SPIN_EVENT_PAUSED } from './spinEvent'
 import {
   publicService,
   type PublicStoreInfo,
@@ -427,7 +429,7 @@ function tokenStatusMeta(status: SpinTokenStatus['status']) {
   }
 }
 
-export default function SpinWheelPage() {
+function SpinWheelPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const tokenFromUrl = (searchParams.get('token') ?? '').trim().toUpperCase()
@@ -1066,4 +1068,9 @@ export default function SpinWheelPage() {
       </section>
     </PublicShell>
   )
+}
+
+export default function SpinWheelRoute() {
+  if (SPIN_EVENT_PAUSED) return <SpinPausedView />
+  return <SpinWheelPage />
 }

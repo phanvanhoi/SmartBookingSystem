@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PublicShell from './PublicShell'
+import { SPIN_EVENT_PAUSED } from './spinEvent'
 import {
   publicService,
   type NoRoomAvailableDetails,
@@ -117,7 +118,9 @@ function PriceQuoteCard({
   const perHeadHigh =
     quote.capacityMin > 0 && hourly > 0 ? roundVnd(hourly / quote.capacityMin) : null
 
-  const spinLine = quote.spinHint?.trim() || 'Đặt xong nhận mã quay thưởng ngay'
+  const spinLine = SPIN_EVENT_PAUSED
+    ? 'Vòng quay đang tạm dừng. Giá trên là tiền giờ hát.'
+    : quote.spinHint?.trim() || 'Đặt xong nhận mã quay thưởng ngay'
   const hourlyLabel = hourly > 0 ? formatVnd(hourly) : '—'
   const hourlySuffix = rateVaries ? '/giờ (tb)' : '/giờ'
 
@@ -394,25 +397,36 @@ export default function PublicBookingPage() {
       <PublicShell
         active="book"
         footer={
-          <div className="flex flex-col gap-2 w-full min-w-0">
+          SPIN_EVENT_PAUSED ? (
             <button
               type="button"
               className="cta py-3.5 gap-2 text-base touch-manipulation"
-              onClick={() =>
-                navigate(`/quay-thuong?token=${encodeURIComponent(result.spinToken.code)}`)
-              }
-            >
-              Quay thưởng ngay
-            </button>
-            <button
-              type="button"
-              className="cta-ghost py-3 gap-2 touch-manipulation"
               onClick={copyToken}
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               Sao chép mã
             </button>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-2 w-full min-w-0">
+              <button
+                type="button"
+                className="cta py-3.5 gap-2 text-base touch-manipulation"
+                onClick={() =>
+                  navigate(`/quay-thuong?token=${encodeURIComponent(result.spinToken.code)}`)
+                }
+              >
+                Quay thưởng ngay
+              </button>
+              <button
+                type="button"
+                className="cta-ghost py-3 gap-2 touch-manipulation"
+                onClick={copyToken}
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                Sao chép mã
+              </button>
+            </div>
+          )
         }
       >
         <section className="fade-up w-full min-w-0 space-y-4 text-center">
@@ -436,11 +450,11 @@ export default function PublicBookingPage() {
 
           <div className="rounded-2xl border-2 border-[var(--promo-gold)] bg-[rgba(255,229,102,0.1)] px-4 py-6 space-y-3 shadow-[0_0_40px_rgba(255,229,102,0.2),0_0_60px_rgba(196,77,255,0.12)]">
             <p className="text-[11px] uppercase tracking-[0.22em] font-semibold text-[var(--promo-gold)]">
-              Mã quay thưởng của bạn
+              {SPIN_EVENT_PAUSED ? 'Mã ưu đãi của bạn' : 'Mã quay thưởng của bạn'}
             </p>
             <p
               className="display text-[clamp(2rem,10vw,3rem)] text-[var(--promo-ink)] tracking-[0.12em] break-all leading-none select-all"
-              aria-label={`Mã quay thưởng ${result.spinToken.code}`}
+              aria-label={`${SPIN_EVENT_PAUSED ? 'Mã ưu đãi' : 'Mã quay thưởng'} ${result.spinToken.code}`}
             >
               {result.spinToken.code}
             </p>
@@ -448,6 +462,11 @@ export default function PublicBookingPage() {
               Chụp màn hình hoặc sao chép mã · Hạn{' '}
               {new Date(result.spinToken.expiresAt).toLocaleString('vi-VN')}
             </p>
+            {SPIN_EVENT_PAUSED ? (
+              <p className="text-xs text-[var(--promo-gold)]/90 leading-relaxed">
+                Vòng quay đang tạm dừng. Mã chưa dùng được lúc này, không bị xóa.
+              </p>
+            ) : null}
             {result.campaignName ? (
               <p className="text-xs text-[var(--promo-gold)]/90">{result.campaignName}</p>
             ) : null}
@@ -455,14 +474,29 @@ export default function PublicBookingPage() {
               <li>
                 <span className="text-[var(--promo-gold)] font-semibold">1.</span> Giữ mã này
               </li>
-              <li>
-                <span className="text-[var(--promo-gold)] font-semibold">2.</span> Bấm “Quay thưởng
-                ngay” bên dưới
-              </li>
-              <li>
-                <span className="text-[var(--promo-gold)] font-semibold">3.</span> Nhân viên xác nhận
-                lịch khi bạn đến quán
-              </li>
+              {SPIN_EVENT_PAUSED ? (
+                <>
+                  <li>
+                    <span className="text-[var(--promo-gold)] font-semibold">2.</span> Đến quán đúng
+                    giờ — nhân viên xác nhận lịch
+                  </li>
+                  <li>
+                    <span className="text-[var(--promo-gold)] font-semibold">3.</span> Chưa quay được
+                    cho đến khi chương trình mở lại
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    <span className="text-[var(--promo-gold)] font-semibold">2.</span> Bấm “Quay thưởng
+                    ngay” bên dưới
+                  </li>
+                  <li>
+                    <span className="text-[var(--promo-gold)] font-semibold">3.</span> Nhân viên xác
+                    nhận lịch khi bạn đến quán
+                  </li>
+                </>
+              )}
             </ol>
           </div>
 
@@ -505,7 +539,7 @@ export default function PublicBookingPage() {
               <Loader2 className="w-4 h-4 animate-spin" /> Đang gửi...
             </>
           ) : (
-            'Đặt lịch & nhận mã quay'
+            SPIN_EVENT_PAUSED ? 'Đặt lịch' : 'Đặt lịch & nhận mã quay'
           )}
         </button>
       }
@@ -518,11 +552,14 @@ export default function PublicBookingPage() {
           <h1 className="display text-[1.85rem] leading-[1.05] sm:text-[2.6rem]">
             Giữ phòng riêng tư,
             <br />
-            <span className="text-[var(--promo-gold)]">quay thưởng liền</span>
+            <span className="text-[var(--promo-gold)]">
+              {SPIN_EVENT_PAUSED ? 'đặt trong vài phút' : 'quay thưởng liền'}
+            </span>
           </h1>
           <p className="text-sm text-[var(--promo-muted)] leading-relaxed">
-            Không gian karaoke kiểu studio vũ trụ — đặt lịch, nhận mã quay khuyến mãi. Hệ thống tự
-            xếp phòng phù hợp.
+            {SPIN_EVENT_PAUSED
+              ? 'Không gian karaoke kiểu studio vũ trụ — đặt lịch, hệ thống tự xếp phòng phù hợp.'
+              : 'Không gian karaoke kiểu studio vũ trụ — đặt lịch, nhận mã quay khuyến mãi. Hệ thống tự xếp phòng phù hợp.'}
           </p>
         </div>
 
@@ -818,12 +855,12 @@ export default function PublicBookingPage() {
           </div>
 
           <p className="text-center text-xs text-[var(--promo-muted)] pb-1">
-            Xem phần thưởng?{' '}
+            {SPIN_EVENT_PAUSED ? 'Ưu đãi đang tạm dừng. ' : 'Xem phần thưởng? '}
             <Link
               to="/quay-thuong"
               className="text-[var(--promo-gold)] underline underline-offset-2"
             >
-              Vòng quay khuyến mãi
+              {SPIN_EVENT_PAUSED ? 'Xem thông báo' : 'Vòng quay khuyến mãi'}
             </Link>
           </p>
         </form>

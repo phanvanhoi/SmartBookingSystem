@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { SPIN_EVENT_PAUSED } from './spinEvent'
 
 const FONT_HREF =
   'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap'
@@ -674,7 +675,7 @@ export default function PublicShell({ children, active = 'book', footer }: Publi
                   active === 'spin' ? '' : 'text-[var(--promo-muted)]'
                 }`}
               >
-                Quay
+                {SPIN_EVENT_PAUSED ? 'Ưu đãi' : 'Quay'}
               </Link>
             </nav>
           </div>
