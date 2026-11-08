@@ -96,11 +96,11 @@ export interface Invoice {
 export interface QRCodeInfo {
   activeQR: 'QR1' | 'QR2'
   label: string
-  imageUrl: string
+  imageUrl: string | null
   switchTime: string
   currentTime: string
-  qr1: { key: string; imageUrl: string }
-  qr2: { key: string; imageUrl: string }
+  qr1: { key: string; imageUrl: string | null }
+  qr2: { key: string; imageUrl: string | null }
 }
 
 export interface InvoiceListParams {

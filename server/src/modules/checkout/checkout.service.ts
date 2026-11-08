@@ -455,30 +455,36 @@ export async function getQRCode() {
     prisma.setting.findUnique({ where: { key: 'qr_code_2' } }),
   ])
 
+  // null = chưa có setting (giữ ảnh mặc định). '' = đã xóa, không hiện QR.
   const getImageUrl = (setting: { value: unknown } | null): string | null => {
     if (!setting) return null
     const val = setting.value
-    if (typeof val === 'string') return val
-    if (typeof val === 'object' && val !== null && 'url' in (val as object)) {
-      return String((val as Record<string, unknown>).url)
+    if (typeof val === 'string') return val.trim()
+    if (typeof val === 'object' && val !== null) {
+      const record = val as Record<string, unknown>
+      const raw = record.path ?? record.url
+      if (typeof raw === 'string') return raw.trim()
     }
-    return null
+    return ''
   }
 
-  const qr1Url = getImageUrl(setting1)
-  const qr2Url = getImageUrl(setting2)
+  const resolveQr = (stored: string | null, fallback: string): string | null => {
+    if (stored === null) return fallback
+    return stored || null
+  }
+
+  const qr1Url = resolveQr(getImageUrl(setting1), '/uploads/qr/qr_before_midnight.png')
+  const qr2Url = resolveQr(getImageUrl(setting2), '/uploads/qr/qr_after_midnight.png')
   const imageUrl = isAfterMidnight ? qr2Url : qr1Url
 
   return {
     activeQR: isAfterMidnight ? 'QR2' : 'QR1',
     label,
-    imageUrl: imageUrl ?? (isAfterMidnight
-      ? '/uploads/qr/qr_after_midnight.png'
-      : '/uploads/qr/qr_before_midnight.png'),
+    imageUrl,
     switchTime,
     currentTime: `${String(hour).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-    qr1: { key: 'QR1', imageUrl: qr1Url ?? '/uploads/qr/qr_before_midnight.png' },
-    qr2: { key: 'QR2', imageUrl: qr2Url ?? '/uploads/qr/qr_after_midnight.png' },
+    qr1: { key: 'QR1', imageUrl: qr1Url },
+    qr2: { key: 'QR2', imageUrl: qr2Url },
   }
 }
 

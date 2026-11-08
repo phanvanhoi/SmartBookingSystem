@@ -89,6 +89,36 @@ export async function uploadQRHandler(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// DELETE /settings/qr/:qrType
+// ────────────────────────────────────────────────────────────────────────────
+
+export async function deleteQRHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const qrType = req.params.qrType
+    if (qrType !== 'QR1' && qrType !== 'QR2') {
+      res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_QR_TYPE', message: 'qrType phải là QR1 hoặc QR2' },
+      })
+      return
+    }
+
+    const setting = await settingService.deleteQR(qrType, req.user!.id)
+    res.status(200).json({
+      success: true,
+      data: setting,
+      message: `Đã xóa QR ${qrType}`,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // GET /settings/pricing
 // ────────────────────────────────────────────────────────────────────────────
 

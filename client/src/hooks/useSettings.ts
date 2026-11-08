@@ -35,6 +35,18 @@ export function useUploadQR() {
       settingService.uploadQR(qrType, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['qr-code'] })
+    },
+  })
+}
+
+export function useDeleteQR() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (qrType: 'QR1' | 'QR2') => settingService.deleteQR(qrType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['qr-code'] })
     },
   })
 }

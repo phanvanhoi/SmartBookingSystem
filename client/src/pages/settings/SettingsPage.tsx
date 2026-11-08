@@ -39,6 +39,7 @@ import {
   useSettings,
   useUpdateSettings,
   useUploadQR,
+  useDeleteQR,
   usePricingRules,
   useCreatePricingRule,
   useUpdatePricingRule,
@@ -683,15 +684,27 @@ function PricingTab() {
 // Tab QR Code
 // ────────────────────────────────────────────────────────────────────────────
 
+function qrImagePath(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const raw = record.path ?? record.url
+    if (typeof raw === 'string') return raw.trim()
+  }
+  return ''
+}
+
 function QRCodeTab() {
   const { data: settingsData, isLoading } = useSettings()
   const uploadQR = useUploadQR()
+  const deleteQR = useDeleteQR()
   const fileInputRef1 = useRef<HTMLInputElement>(null)
   const fileInputRef2 = useRef<HTMLInputElement>(null)
+  const [deleteTarget, setDeleteTarget] = useState<'QR1' | 'QR2' | null>(null)
 
   const settings = settingsData?.data ?? []
-  const qr1Path = settings.find((s) => s.key === 'qr_code_1')?.value as string | undefined
-  const qr2Path = settings.find((s) => s.key === 'qr_code_2')?.value as string | undefined
+  const qr1Path = qrImagePath(settings.find((s) => s.key === 'qr_code_1')?.value)
+  const qr2Path = qrImagePath(settings.find((s) => s.key === 'qr_code_2')?.value)
 
   function handleUpload(qrType: 'QR1' | 'QR2', file: File) {
     uploadQR.mutate(
@@ -701,6 +714,17 @@ function QRCodeTab() {
         onError: () => toast.error('Upload thất bại'),
       }
     )
+  }
+
+  function handleDelete() {
+    if (!deleteTarget) return
+    deleteQR.mutate(deleteTarget, {
+      onSuccess: () => {
+        toast.success(`Đã xóa ${deleteTarget}`)
+        setDeleteTarget(null)
+      },
+      onError: () => toast.error('Không xóa được ảnh QR'),
+    })
   }
 
   if (isLoading) {
@@ -759,19 +783,32 @@ function QRCodeTab() {
           }}
         />
 
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={uploadQR.isPending}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploadQR.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-          ) : (
-            <Upload className="w-4 h-4 mr-2" />
-          )}
-          Upload ảnh mới
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={uploadQR.isPending || deleteQR.isPending}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploadQR.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Upload className="w-4 h-4 mr-2" />
+            )}
+            Upload ảnh mới
+          </Button>
+          {imagePath ? (
+            <Button
+              variant="outline"
+              className="w-full text-destructive hover:text-destructive"
+              disabled={uploadQR.isPending || deleteQR.isPending}
+              onClick={() => setDeleteTarget(qrType)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Xóa ảnh QR
+            </Button>
+          ) : null}
+        </div>
       </div>
     )
   }
@@ -792,6 +829,26 @@ function QRCodeTab() {
         imagePath={qr2Path}
         fileRef={fileInputRef2}
       />
+
+      <Dialog open={deleteTarget !== null} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Xóa ảnh QR</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">
+            Xóa {deleteTarget === 'QR2' ? 'QR Mã 2' : 'QR Mã 1'}? Màn thanh toán sẽ không còn hiện ảnh này.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Hủy
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteQR.isPending}>
+              {deleteQR.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Xóa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -113,6 +113,11 @@ export const settingService = {
     return res.data
   },
 
+  deleteQR: async (qrType: 'QR1' | 'QR2'): Promise<SingleResponse<SettingItem>> => {
+    const res = await api.delete<SingleResponse<SettingItem>>(`/settings/qr/${qrType}`)
+    return res.data
+  },
+
   uploadQR: async (qrType: 'QR1' | 'QR2', file: File): Promise<SingleResponse<SettingItem>> => {
     const formData = new FormData()
     formData.append('qrType', qrType)

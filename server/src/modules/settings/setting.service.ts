@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { prisma } from '../../lib/prisma'
 import { AppError } from '../../middleware/error.middleware'
 import type {
@@ -125,6 +127,59 @@ export async function uploadQR(
     create: {
       key,
       value: filePath,
+      description: qrType === 'QR1' ? 'QR Code trước 00:00' : 'QR Code từ 00:00',
+      updatedById: userId,
+    },
+  })
+
+  return {
+    id: setting.id,
+    key: setting.key,
+    value: setting.value,
+    description: setting.description,
+    updatedAt: setting.updatedAt,
+    updatedById: setting.updatedById,
+  }
+}
+
+function storedQrPath(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const raw = record.path ?? record.url
+    if (typeof raw === 'string') return raw.trim()
+  }
+  return ''
+}
+
+function unlinkStoredQr(publicPath: string) {
+  if (!publicPath.startsWith('/uploads/qr/')) return
+  const filename = path.basename(publicPath)
+  if (!filename || publicPath !== `/uploads/qr/${filename}`) return
+
+  const uploadRoot = process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR)
+    : path.resolve(process.cwd(), 'uploads')
+  const qrDir = path.resolve(uploadRoot, 'qr')
+  const full = path.resolve(qrDir, filename)
+  if (!full.startsWith(qrDir + path.sep)) return
+  if (fs.existsSync(full)) fs.unlinkSync(full)
+}
+
+export async function deleteQR(
+  qrType: 'QR1' | 'QR2',
+  userId: number
+): Promise<SettingItem> {
+  const key = qrType === 'QR1' ? 'qr_code_1' : 'qr_code_2'
+  const existing = await prisma.setting.findUnique({ where: { key } })
+  unlinkStoredQr(storedQrPath(existing?.value))
+
+  const setting = await prisma.setting.upsert({
+    where: { key },
+    update: { value: '', updatedById: userId },
+    create: {
+      key,
+      value: '',
       description: qrType === 'QR1' ? 'QR Code trước 00:00' : 'QR Code từ 00:00',
       updatedById: userId,
     },

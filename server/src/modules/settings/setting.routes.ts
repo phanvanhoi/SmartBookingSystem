@@ -15,6 +15,7 @@ import {
   getSettingsHandler,
   updateSettingsHandler,
   uploadQRHandler,
+  deleteQRHandler,
   getPricingRulesHandler,
   createPricingRuleHandler,
   updatePricingRuleHandler,
@@ -102,6 +103,9 @@ router.post(
   qrUpload.single('image'),
   uploadQRHandler
 )
+
+// DELETE /api/v1/settings/qr/:qrType
+router.delete('/qr/:qrType', authenticate, authorize('OWNER'), deleteQRHandler)
 
 // GET    /api/v1/settings/pricing
 router.get('/pricing', authenticate, authorize('OWNER'), getPricingRulesHandler)
