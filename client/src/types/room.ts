@@ -91,6 +91,9 @@ export interface CheckoutData {
   spinPromo?: CheckoutSpinPromo | null
   spinDiscountAmount?: number
   depositAvailable?: number
+  /** Tổng trước khi làm tròn lên. Giảm giá thủ công trừ trên số này, rồi mới làm tròn. */
+  amountBeforeRound?: number
+  billRoundStep?: number
   member?: { customerId: number; name: string; coinBalance: number } | null
   grandTotal: number
   qrCode?: { type: string; label: string; imageUrl: string }

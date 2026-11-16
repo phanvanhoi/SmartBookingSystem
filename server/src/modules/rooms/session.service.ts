@@ -204,12 +204,12 @@ export async function checkout(sessionId: number, _userId: number) {
   }
 
   const spinDiscount = spinPromo?.discountAmount ?? 0
-  const rawGrandTotal = Math.max(0, subtotal - spinDiscount - depositAvailable)
+  const amountBeforeRound = Math.max(0, subtotal - spinDiscount - depositAvailable)
 
   // Apply ceiling round (e.g. 45,333 → 46,000) so the preview matches the
   // invoice that processCheckout will save. Owner configures via Settings.
   const roundStep = await getBillRoundAmount()
-  const grandTotal = roundBillUp(rawGrandTotal, roundStep)
+  const grandTotal = roundBillUp(amountBeforeRound, roundStep)
 
   // NO mutation here — this is a preview. processCheckout in
   // checkout/checkout.service.ts performs the actual COMPLETED transition.
@@ -250,6 +250,8 @@ export async function checkout(sessionId: number, _userId: number) {
       ? { voucherCode: spinPromo.code, voucherDiscount: spinDiscount, label: spinPromo.label }
       : {},
     depositAvailable,
+    amountBeforeRound,
+    billRoundStep: roundStep,
     grandTotal,
   }
 }

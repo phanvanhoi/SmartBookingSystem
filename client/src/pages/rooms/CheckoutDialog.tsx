@@ -27,6 +27,13 @@ import type {
   PaymentItem,
 } from '@/services/checkoutService'
 
+/** Khớp server `roundBillUp`: làm tròn lên theo bước (1000đ → 45.725 thành 46.000). */
+function roundBillUp(amount: number, step: number) {
+  if (!Number.isFinite(amount) || amount <= 0) return Math.max(0, Math.round(amount))
+  if (!step || step <= 0) return Math.round(amount)
+  return Math.ceil(amount / step) * step
+}
+
 interface CheckoutDialogProps {
   sessionId: number | null
   open: boolean
@@ -92,6 +99,10 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
       payments,
       // Freeze giá tại thời điểm preview — server validate + cap 10 phút.
       checkOutTime: billData.checkOutTime,
+      // Preview đã trừ cọc vào tổng. Gửi lại để server không đòi phần cọc đó.
+      ...((billData.depositAvailable ?? 0) > 0
+        ? { depositApplied: billData.depositAvailable }
+        : {}),
       // Gửi mã WIN-* để server chắc chắn trừ % giờ hát
       ...(billData.spinPromo?.code ? { voucherCode: billData.spinPromo.code } : {}),
       ...(discountType === 'percent' && discountPercent > 0
@@ -164,7 +175,22 @@ export default function CheckoutDialog({ sessionId, open, onClose }: CheckoutDia
     return val
   })()
 
-  const finalTotal = billData ? Math.max(0, billData.grandTotal - discountAmount) : 0
+  // Server: (tạm tính − KM − cọc − giảm thủ công), rồi làm tròn lên.
+  // Trừ thẳng trên grandTotal (đã làm tròn) rồi gửi số lẻ khiến server báo thiếu
+  // đúng phần làm tròn, ví dụ 275đ.
+  const finalTotal = (() => {
+    if (!billData) return 0
+    const beforeRound =
+      billData.amountBeforeRound ??
+      Math.max(
+        0,
+        billData.subtotal -
+          (billData.spinDiscountAmount ?? billData.spinPromo?.discountAmount ?? 0) -
+          (billData.depositAvailable ?? 0),
+      )
+    const raw = Math.max(0, beforeRound - discountAmount)
+    return roundBillUp(raw, billData.billRoundStep ?? 0)
+  })()
 
   // Member wallet: coin covers as much of the bill as it can; any shortfall
   // is paid by cash/QR. `payAmount` is what the cash/QR panels collect.
